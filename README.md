@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://techknomatic.com"><img src="https://img.shields.io/badge/Powered%20By-Techknomatic%20Services%20Pvt%20Ltd-1B75BB?style=for-the-badge" alt="Techknomatic"></a>&nbsp;
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT"></a>&nbsp;
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Fast%20Setup-1--Click%20Ready-success?style=for-the-badge" alt="Setup Ready"></a>
 </p>
 
 <p align="center">
@@ -104,24 +104,16 @@ By combining autonomous AI agents with a declarative grammar-of-graphics visual 
 
 ---
 
-### Option 2: Docker & Docker Compose
+### Option 2: Production Standalone Runner (One-Click)
 
-Deploy the production container in seconds:
-
-```bash
-# 1. Clone the repository & create environment file
-git clone https://github.com/techknomatic-org/Techknomatic_InsightCanvas.git
-cd Techknomatic_InsightCanvas
-cp .env.template .env
-
-# 2. Build and run with persistent storage mount
-docker compose up --build -d
+To run the unified production build (Frontend + Backend on port `5567`):
+```cmd
+run_production.bat
 ```
-Access the application at `http://localhost:5567`.
 
 ---
 
-### Option 3: Manual Terminal Setup
+### Option 3: Cross-Platform Terminal Setup (macOS / Linux / Windows)
 
 ```bash
 # 1. Install frontend packages and build bundle

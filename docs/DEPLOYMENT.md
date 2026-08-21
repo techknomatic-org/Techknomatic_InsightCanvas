@@ -1,6 +1,6 @@
 # InsightCanvas — Production Deployment & Operations Guide
 
-**InsightCanvas** by *Techknomatic Services Pvt. Ltd.* is designed for high-availability, low-latency deployment across cloud container platforms, private Kubernetes clusters, Docker hosts, and bare-metal servers.
+**InsightCanvas** by *Techknomatic Services Pvt. Ltd.* is designed for high-availability, lightweight, low-latency native deployment across Linux servers, Windows Server, Cloud Virtual Machines (AWS EC2, Azure VM, GCP Compute), and local enterprise infrastructure.
 
 ---
 
@@ -9,161 +9,98 @@
 ### 1.1 Minimum Hardware Requirements
 | Environment | CPU | RAM | Disk Storage | Target Workload |
 | :--- | :--- | :--- | :--- | :--- |
-| **Development / Test** | 2 vCPU | 4 GB | 10 GB SSD | 1-5 concurrent users, datasets < 50MB |
-| **Production (Standard)** | 4 vCPU | 8 GB | 50 GB NVMe | 10-50 concurrent users, datasets < 500MB |
-| **Production (High-Load)** | 8+ vCPU | 16-32 GB | 200+ GB NVMe | 100+ concurrent enterprise users |
+| **Development / Test** | 2 vCPU | 4 GB | 5 GB SSD | 1-5 concurrent users, datasets < 50MB |
+| **Production (Standard)** | 4 vCPU | 8 GB | 20 GB NVMe | 10-50 concurrent users, datasets < 500MB |
+| **Production (High-Load)** | 8+ vCPU | 16-32 GB | 100+ GB NVMe | 100+ concurrent enterprise users |
 
-### 1.2 Runtime Stack
-- **Frontend**: Single-Page Application (React 18 + TypeScript) compiled to static production chunks.
-- **Backend**: Python 3.11+ (Flask API with SSE streaming, caching, and background workers).
-- **Static Assets Delivery**: Flask serves `py-src/data_formulator/dist` natively over port `5567`.
-- **Database / Cache**: FileSystemCache / SQLite / Parquet workspace storage on persistent disk volumes.
+### 1.2 Native Lightweight Runtime Stack
+- **Frontend**: Single-Page Application (React 18 + TypeScript) compiled to optimized static production chunks.
+- **Backend**: Python 3.11+ (Flask API with SSE streaming, caching, and local subprocess sandboxes).
+- **Static Asset Serving**: Flask serves `py-src/data_formulator/dist` natively over port `5567` (No separate web server required).
+- **Storage / Cache**: High-performance Parquet storage, SQLite metadata, and `FileSystemCache` on local persistent disk.
 
 ---
 
-## 2. Containerized Deployment (Recommended)
+## 2. Fast Production Deployment (Native / Bare-Metal)
 
-### 2.1 Deployment via Docker Compose
+### 2.1 Linux Server Setup (Ubuntu / Debian / RHEL)
 
-1. **Clone the repository**:
+1. **Install Prerequisites**:
    ```bash
-   git clone <repository-url> insight-canvas
-   cd insight-canvas
+   sudo apt update && sudo apt install -y python3.11 python3.11-venv nodejs yarn curl git
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-2. **Configure Environment Variables**:
+2. **Clone and Configure**:
    ```bash
+   git clone https://github.com/techknomatic-org/Techknomatic_InsightCanvas.git /var/www/insightcanvas
+   cd /var/www/insightcanvas
    cp .env.template .env
    ```
-   Edit `.env` to configure your API keys and server secret:
+
+3. **Configure `.env`**:
    ```env
-   FLASK_SECRET_KEY=generate-a-strong-random-32-byte-hex-string
-   OPENAI_API_KEY=sk-proj-...
+   FLASK_SECRET_KEY=generate-a-random-32-byte-hex-key
+   OPENAI_API_KEY=sk-...
    SANDBOX=local
    DISABLE_DISPLAY_KEYS=true
-   DATA_FORMULATOR_HOME=/home/appuser/.data_formulator
+   DATA_FORMULATOR_HOME=/var/lib/insightcanvas
    ```
 
-3. **Launch the Application**:
+4. **Build Frontend & Sync Backend Dependencies**:
    ```bash
-   docker compose up --build -d
+   # Build optimized React bundle
+   yarn install --frozen-lockfile
+   yarn build
+
+   # Sync Python environment
+   uv sync
    ```
 
-4. **Verify Health & Logs**:
+5. **Create a Systemd Service (`/etc/systemd/system/insightcanvas.service`)**:
+   ```ini
+   [Unit]
+   Description=InsightCanvas Analytics Service (Techknomatic)
+   After=network.target
+
+   [Service]
+   Type=simple
+   User=www-data
+   WorkingDirectory=/var/www/insightcanvas
+   EnvironmentFile=/var/www/insightcanvas/.env
+   ExecStart=/root/.cargo/bin/uv run data_formulator --host 0.0.0.0 --port 5567
+   Restart=always
+   RestartSec=5
+   LimitNOFILE=65535
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+6. **Start and Enable Service**:
    ```bash
-   docker compose ps
-   docker compose logs -f data-formulator
+   sudo systemctl daemon-reload
+   sudo systemctl enable insightcanvas
+   sudo systemctl start insightcanvas
+   sudo systemctl status insightcanvas
    ```
-   Access the dashboard at `http://<server-ip>:5567`.
 
 ---
 
-### 2.2 Direct Docker Build & Run
+## 3. Windows Server / Windows Deployment
 
-```bash
-# Build the production image
-docker build -t insight-canvas:latest .
-
-# Run with persistent storage mount and environment file
-docker run -d \
-  --name insight-canvas \
-  --restart unless-stopped \
-  --env-file .env \
-  -p 5567:5567 \
-  -v insight_canvas_data:/home/appuser/.data_formulator \
-  insight-canvas:latest
-```
+1. **Automated Setup**:
+   Double-click `setup.bat` to automatically verify Python, Node.js, and install dependencies.
+2. **Production Run**:
+   Double-click `run_production.bat` to launch the unified server on `http://localhost:5567`.
+3. **Daily Development / Dual Server**:
+   Double-click `start.bat` to run backend (`:5567`) and frontend (`:5173`) in development mode with hot-reloading.
 
 ---
 
-## 3. Cloud Deployments
+## 4. Reverse Proxy Configuration (Nginx + SSL)
 
-### 3.1 Render Deployment
-InsightCanvas includes a native [`render.yaml`](file:///c:/Users/krishna.shelar/Desktop/Data%20Formulator/render.yaml) blueprint:
-1. Connect your Git repository to [Render.com](https://render.com).
-2. Create a new **Blueprint** service pointing to `render.yaml`.
-3. Set your secret environment variables (`OPENAI_API_KEY`, `FLASK_SECRET_KEY`) under the Render Environment Dashboard.
-4. Deploy will build the Docker container and attach health checks on `/`.
-
-### 3.2 AWS (ECS / Fargate or EC2)
-- Push the Docker image to **AWS ECR** (Elastic Container Registry).
-- Create an **ECS Task Definition** using `insight-canvas:latest`.
-- Map port `5567` to the Application Load Balancer (ALB).
-- Attach an **EFS Volume** mounted to `/home/appuser/.data_formulator` for persistent user workspace state.
-
-### 3.3 Microsoft Azure (Azure App Service / Azure Container Apps)
-- Build and push the image to **Azure Container Registry (ACR)**.
-- Deploy an **Azure Container App** or **Web App for Containers** with:
-  - Container Port: `5567`
-  - Ingress: External HTTP/HTTPS
-  - Storage Mount: Azure Files Share mounted to `/home/appuser/.data_formulator`
-
-### 3.4 Google Cloud Platform (GCP Cloud Run)
-```bash
-gcloud builds submit --tag gcr.io/[PROJECT-ID]/insight-canvas:latest
-gcloud run deploy insight-canvas \
-  --image gcr.io/[PROJECT-ID]/insight-canvas:latest \
-  --platform managed \
-  --port 5567 \
-  --memory 2Gi \
-  --cpu 2 \
-  --set-env-vars "DISABLE_DISPLAY_KEYS=true,SANDBOX=local"
-```
-
----
-
-## 4. Bare-Metal & Linux Systemd Deployment
-
-### 4.1 Prerequisites
-```bash
-sudo apt-get update && sudo apt-get install -y python3.11 python3.11-venv nodejs yarn curl
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-### 4.2 Build Frontend & Install Backend
-```bash
-# 1. Install dependencies & build frontend bundle
-yarn install --frozen-lockfile
-yarn build
-
-# 2. Sync Python environment
-uv sync --frozen
-```
-
-### 4.3 Create a Systemd Service
-Create `/etc/systemd/system/insightcanvas.service`:
-```ini
-[Unit]
-Description=InsightCanvas Analytics Service (Techknomatic)
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/var/www/insight-canvas
-EnvironmentFile=/var/www/insight-canvas/.env
-ExecStart=/root/.cargo/bin/uv run data_formulator --host 0.0.0.0 --port 5567
-Restart=always
-RestartSec=5
-LimitNOFILE=65535
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the service:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable insightcanvas
-sudo systemctl start insightcanvas
-sudo systemctl status insightcanvas
-```
-
----
-
-## 5. Reverse Proxy Configuration (Nginx + SSL)
-
-To serve InsightCanvas securely over HTTPS on standard ports (`80` / `443`):
+To serve InsightCanvas securely over HTTPS on standard port `443`:
 
 ```nginx
 # /etc/nginx/sites-available/insightcanvas.conf
@@ -196,7 +133,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Disable buffering for Server-Sent Events (SSE) AI streaming
+        # Disable buffering for real-time Server-Sent Events (SSE) AI streaming
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 600s;
@@ -207,15 +144,15 @@ server {
 
 ---
 
-## 6. Production Security Checklist
+## 5. Security Checklist
 
-| Check | Action | Description |
+| Check | Value | Purpose |
 | :--- | :--- | :--- |
-| **FLASK_SECRET_KEY** | Set in `.env` | Prevents session invalidation on restart and secures auth cookies |
-| **DISABLE_DISPLAY_KEYS** | Set to `true` | Hides provider API keys from being viewed in the client UI |
-| **SANDBOX** | Set to `local` or `docker` | Isolates AI Python code execution |
-| **HTTPS / TLS** | Enabled via Nginx/Caddy | Encrypts in-transit data and OAuth tokens |
-| **Volume Persistence** | `/home/appuser/.data_formulator` | Ensures user workspaces, tables, and sessions persist across container redeployments |
+| **FLASK_SECRET_KEY** | 32-byte random hex | Secures session cookies and validates code execution signatures |
+| **DISABLE_DISPLAY_KEYS** | `true` | Hides provider API keys from being displayed in client UI |
+| **SANDBOX** | `local` | Runs Python code transformations in confined local subprocesses |
+| **HTTPS / SSL** | Enabled via Nginx/Caddy | Encrypts in-transit data and user tokens |
+| **DATA_FORMULATOR_HOME** | Dedicated directory | Isolates user workspaces and Parquet files |
 
 ---
 
