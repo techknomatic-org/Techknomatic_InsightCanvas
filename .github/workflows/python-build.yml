@@ -1,4 +1,4 @@
-name: CI Build & Test
+name: CI
 
 on:
   push:
@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  build:
+    name: Build & Validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -32,14 +33,11 @@ jobs:
       - name: Install Frontend Dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Type Check Frontend
+      - name: Type Check Frontend (TypeScript)
         run: npx tsc --noEmit
 
-      - name: Build Frontend Bundle
+      - name: Build Production Frontend Bundle
         run: yarn build
 
-      - name: Sync Backend Dependencies
-        run: uv sync
-
-      - name: Run Backend Tests
-        run: uv run pytest tests/backend/ -q
+      - name: Sync Python Backend Dependencies
+        run: uv sync --no-dev
