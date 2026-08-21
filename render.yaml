@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: data-formulator
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: OPENAI_ENABLED
+        value: "true"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODELS
+        value: "gpt-4o,gpt-4o-mini"
+      - key: OPENROUTER_ENABLED
+        value: "true"
+      - key: OPENROUTER_ENDPOINT
+        value: "openrouter"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_API_BASE
+        value: "https://openrouter.ai/api/v1"
+      - key: OPENROUTER_MODELS
+        value: "openai/gpt-4o,openai/gpt-4o-mini,deepseek/deepseek-chat,meta-llama/llama-3.3-70b-instruct"
+      - key: DISABLE_DISPLAY_KEYS
+        value: "true"
+      - key: SANDBOX
+        value: "local"
