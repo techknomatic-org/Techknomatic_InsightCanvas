@@ -3,7 +3,7 @@
 
 """Security tests for the Superset SSO bridge test configuration.
 
-The bridge posts short-lived JWTs back to the Data Formulator frontend, so it
+The bridge posts short-lived JWTs back to the InsightCanvas frontend, so it
 must restrict target origins and render token payloads safely inside scripts.
 """
 from __future__ import annotations

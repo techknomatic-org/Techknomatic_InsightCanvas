@@ -1,4 +1,4 @@
-# Set up a local Data Formulator development environment
+# Set up a local InsightCanvas development environment
 How to set up your local machine.
 
 ## Prerequisites
@@ -41,7 +41,7 @@ uv run data_formulator --dev   # Run backend only (for frontend development)
         - **API keys**: set `{PROVIDER}_ENABLED=true`, `{PROVIDER}_API_KEY=...`, and `{PROVIDER}_MODELS=...` for each LLM provider you want to use. See the [LiteLLM setup](https://docs.litellm.ai/docs#litellm-python-sdk) guide for provider-specific fields.
         - **Server settings**: `DISABLE_DISPLAY_KEYS`, `SANDBOX`, etc.
         - **Azure Blob workspace** (optional): see [Azure Blob Storage Workspace](#azure-blob-storage-workspace) below.
-    - this lets Data Formulator automatically load API keys at startup so you don't need to enter them in the UI.
+    - this lets InsightCanvas automatically load API keys at startup so you don't need to enter them in the UI.
 
 
 - **Run the app**
@@ -126,7 +126,7 @@ package. The alias is wired in `vite.config.ts` and `vitest.config.ts`.
     pip install dist/data_formulator-<version>-py3-none-any.whl 
     ```
 
-    Once installed, you can run Data Formulator with:
+    Once installed, you can run InsightCanvas with:
     ```bash
     data_formulator
     ```
@@ -140,7 +140,7 @@ package. The alias is wired in `vite.config.ts` and `vitest.config.ts`.
 
 ## Docker
 
-Docker is the easiest way to run Data Formulator without installing Python or Node.js locally.
+Docker is the easiest way to run InsightCanvas without installing Python or Node.js locally.
 
 ### Quick start
 
@@ -172,9 +172,9 @@ docker run --rm -p 5567:5567 --env-file .env data-formulator
 
 ### Docker sandbox (`SANDBOX=docker`) is not supported inside a container
 
-The Docker sandbox backend works by calling `docker run -v <host_path>:...` to bind-mount temporary workspace directories into child containers. When Data Formulator itself runs in a Docker container those paths refer to the *container* filesystem, not the host, so Docker daemon cannot mount them and the feature does not work.
+The Docker sandbox backend works by calling `docker run -v <host_path>:...` to bind-mount temporary workspace directories into child containers. When InsightCanvas itself runs in a Docker container those paths refer to the *container* filesystem, not the host, so Docker daemon cannot mount them and the feature does not work.
 
-Use `SANDBOX=docker` only when running Data Formulator **directly on the host** (e.g. with `uv run data_formulator --sandbox docker` or `python -m data_formulator --sandbox docker`). When using the Docker image, keep the default `SANDBOX=local`.
+Use `SANDBOX=docker` only when running InsightCanvas **directly on the host** (e.g. with `uv run data_formulator --sandbox docker` or `python -m data_formulator --sandbox docker`). When using the Docker image, keep the default `SANDBOX=local`.
 
 
 ## Sandbox
@@ -342,7 +342,7 @@ data-formulator/                          ← container
 
 ## Deployment Profiles
 
-Data Formulator supports three deployment configurations. **All defaults are optimized for Profile 1 (single-user local)** — you only need to set flags when deploying as multi-user.
+InsightCanvas supports three deployment configurations. **All defaults are optimized for Profile 1 (single-user local)** — you only need to set flags when deploying as multi-user.
 
 ### Profile 1: Single-User Local (default)
 
@@ -492,7 +492,7 @@ FLASK_SECRET_KEY=<generate-with-secrets-token-hex-32>
 
 ### Identity System
 
-Data Formulator uses a **namespaced identity** system with three tiers:
+InsightCanvas uses a **namespaced identity** system with three tiers:
 - **Local mode** (`127.0.0.1`, no auth provider): Identity is `local:<os_username>`, determined by the server. The `X-Identity-Id` header is ignored. Vault and workspaces are tied to the OS user.
 - **Anonymous mode** (multi-user, no auth provider): Identity is `browser:<uuid>` where the UUID is generated in the browser's `localStorage`. The server trusts the client-provided `X-Identity-Id` header, but always forces the `browser:` prefix.
 - **Authenticated mode** (auth provider configured): Identity is `user:<verified_id>` from the auth provider. The `X-Identity-Id` header is ignored entirely.
@@ -518,7 +518,7 @@ Data Formulator uses a **namespaced identity** system with three tiers:
 
 ### Server Migration Checklist
 
-When migrating Data Formulator to a new server (or rebuilding a Docker container), the following secrets and data files **must** be carried over. Losing any of them will break the corresponding functionality.
+When migrating InsightCanvas to a new server (or rebuilding a Docker container), the following secrets and data files **must** be carried over. Losing any of them will break the corresponding functionality.
 
 | Item | Location | What breaks if lost |
 |------|----------|---------------------|
@@ -554,7 +554,7 @@ cp -r /backup/workspaces $DATA_FORMULATOR_HOME/workspaces
 
 ## Authentication Architecture
 
-Data Formulator supports a **hybrid identity system** with anonymous and authenticated modes.
+InsightCanvas supports a **hybrid identity system** with anonymous and authenticated modes.
 See **Deployment Profiles** above for which mode to use in each scenario.
 
 ### Identity Flow

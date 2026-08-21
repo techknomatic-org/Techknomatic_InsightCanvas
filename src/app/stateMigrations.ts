@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * Versioned migrations for the persisted Data Formulator state
+ * Versioned migrations for the persisted InsightCanvas state
  * (`session_state.json` on the server, IndexedDB for ephemeral, and exported
  * workspace zips — all the same JSON payload).
  *

@@ -1,7 +1,7 @@
 # Copyright (c) Techknomatic Services Pvt Ltd.
 # Licensed under the MIT License.
 
-"""Authentication and identity management for Data Formulator.
+"""Authentication and identity management for InsightCanvas.
 
 Pluggable single-provider model with anonymous fallback::
 

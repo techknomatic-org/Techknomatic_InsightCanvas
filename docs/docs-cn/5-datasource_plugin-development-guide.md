@@ -1,13 +1,13 @@
 # 自定义数据源 Loader 开发指南
 
-> **适用版本**: Data Formulator 0.7+
+> **适用版本**: InsightCanvas 0.7+
 > **面向读者**: 想接入新数据库、报表系统、对象存储或内部数据服务的管理员与开发者
 
 ---
 
 ## 1. 当前扩展模型
 
-Data Formulator 0.7 使用 `ExternalDataLoader + DataConnector` 作为统一的数据源扩展模型：
+InsightCanvas 0.7 使用 `ExternalDataLoader + DataConnector` 作为统一的数据源扩展模型：
 
 ```text
 ExternalDataLoader  # 具体数据源实现的适配器接口

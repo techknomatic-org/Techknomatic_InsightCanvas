@@ -442,7 +442,7 @@ export const DataFormulatorFC = ({ }) => {
         dispatch(dfActions.addMessages({
             timestamp: Date.now(),
             type: 'info',
-            component: 'data formulator',
+            component: 'InsightCanvas',
             value: t('messages.loadingExample', { title: session.title }),
         }));
 
@@ -463,7 +463,7 @@ export const DataFormulatorFC = ({ }) => {
             dispatch(dfActions.addMessages({
                 timestamp: Date.now(),
                 type: 'success',
-                component: 'data formulator',
+                component: 'InsightCanvas',
                 value: t('messages.loadSuccess', { title: session.title }),
             }));
         } catch (error: any) {
@@ -471,7 +471,7 @@ export const DataFormulatorFC = ({ }) => {
             dispatch(dfActions.addMessages({
                 timestamp: Date.now(),
                 type: 'error',
-                component: 'data formulator',
+                component: 'InsightCanvas',
                 value: t('messages.loadFailed', { title: session.title, error: error.message }),
             }));
         } finally {

@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 def get_data_formulator_home() -> Path:
     """
-    Get the Data Formulator home directory.
+    Get the InsightCanvas home directory.
 
     Resolution order:
     1. Flask app.config['CLI_ARGS']['data_dir'] (set via --data-dir CLI flag)

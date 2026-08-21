@@ -1,13 +1,13 @@
 # 数据源连接与导入指南
 
-> **适用版本**: Data Formulator 0.7+
-> **面向读者**: 使用 Data Formulator 连接数据库、文件存储或 BI 系统的用户与管理员
+> **适用版本**: InsightCanvas 0.7+
+> **面向读者**: 使用 InsightCanvas 连接数据库、文件存储或 BI 系统的用户与管理员
 
 ---
 
 ## 1. 功能简介
 
-Data Formulator 的 Load Data 页面会把已经配置或已经连接的数据源显示为独立卡片。
+InsightCanvas 的 Load Data 页面会把已经配置或已经连接的数据源显示为独立卡片。
 用户不再需要进入旧的 "Database" 标签页逐层选择数据源，而是直接点击对应卡片浏览、
 预览并导入数据。
 
@@ -61,7 +61,7 @@ Superset · prod
 4. 设置行数上限、排序或筛选条件。
 5. 点击导入按钮，把数据加载到当前 workspace。
 
-导入后的表会进入 Data Formulator 的普通数据表列表，可以继续用于可视化、清洗和 Agent
+导入后的表会进入 InsightCanvas 的普通数据表列表，可以继续用于可视化、清洗和 Agent
 分析。
 
 ---
@@ -91,7 +91,7 @@ BI 系统可以把一个 dashboard 表示为一个可批量导入的数据包。
 3. 右侧会显示该 dashboard 包含的数据集。
 4. 勾选需要导入的数据集。
 5. 设置每个数据集的行数上限。
-6. 点击导入，Data Formulator 会把每个数据集作为独立表导入 workspace。
+6. 点击导入，InsightCanvas 会把每个数据集作为独立表导入 workspace。
 
 如果某个数据集导入失败，其他数据集仍可能成功导入。完成后请查看提示信息中的成功和失败
 明细。
@@ -138,7 +138,7 @@ DATA_FORMULATOR_HOME/credentials.db
 
 ## 10. Local Folder
 
-**Connect Local Folder** 只在本地模式可用。它允许 Data Formulator 直接读取本机某个目录
+**Connect Local Folder** 只在本地模式可用。它允许 InsightCanvas 直接读取本机某个目录
 中的文件，适合桌面或个人使用场景。
 
 在多人服务器或云部署中，本机目录连接会被禁用，避免用户读取服务器上的任意文件。

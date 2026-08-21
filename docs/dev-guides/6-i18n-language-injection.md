@@ -8,7 +8,7 @@
 
 ## 1. 架构概览
 
-Data Formulator 的多语言处理分为两条链路：
+InsightCanvas 的多语言处理分为两条链路：
 
 1. **LLM 输出语言约束**：前端当前语言通过 `Accept-Language` 传给后端，后端构造
    `language_instruction` 注入 Agent prompt，让 LLM 生成用户界面语言的文本。

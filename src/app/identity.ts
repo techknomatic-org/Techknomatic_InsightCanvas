@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * Identity management for Data Formulator
+ * Identity management for InsightCanvas
  * 
  * This module provides a layered identity system:
  * 1. User identity (if logged in via auth provider) - highest priority

@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 """
-Data Lake module for Data Formulator.
+Data Lake module for InsightCanvas.
 
 This module provides a unified data management layer that:
 - Manages user workspaces with identity-based directories

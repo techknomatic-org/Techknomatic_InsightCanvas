@@ -1,17 +1,17 @@
-"""SQLite data loader — example plugin for Data Formulator.
+"""SQLite data loader — example plugin for InsightCanvas.
 
-This file is a complete, working example of a Data Formulator plugin.
+This file is a complete, working example of a InsightCanvas plugin.
 SQLite is part of the Python standard library, so this loader has **no
 extra dependencies** and is a good template for building your own.
 
 How to install
 --------------
-1. Make sure Data Formulator runs in single-user mode
+1. Make sure InsightCanvas runs in single-user mode
    (the default — ``WORKSPACE_BACKEND`` unset or ``local``).
 2. Copy this file to ``~/.data_formulator/plugins/`` (or whatever
    directory ``DF_PLUGIN_DIR`` points to).  Filename must end in
    ``_data_loader.py``.
-3. Restart Data Formulator.  A new "sqlite" connector should appear
+3. Restart InsightCanvas.  A new "sqlite" connector should appear
    alongside the built-ins.
 
 How to test it quickly

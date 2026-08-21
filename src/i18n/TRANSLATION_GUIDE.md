@@ -1,7 +1,7 @@
-# Data Formulator — Translation Guide
+# InsightCanvas — Translation Guide
 
 This document describes how the internationalization (i18n) system works in
-Data Formulator. It is intended for contributors who need to add, modify, or
+InsightCanvas. It is intended for contributors who need to add, modify, or
 review translation files, and for anyone adding support for a new language.
 
 ---

@@ -5,7 +5,7 @@
  * Chart Templates with UI icons.
  *
  * This module wraps the reusable flint-chart template definitions
- * with React icon components for display in the Data Formulator UI.
+ * with React icon components for display in the InsightCanvas UI.
  * The pure template logic (mark, encoding paths, post-processors) lives
  * in the flint-chart package.
  */

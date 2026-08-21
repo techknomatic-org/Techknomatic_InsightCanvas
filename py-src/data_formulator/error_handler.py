@@ -1,7 +1,7 @@
 # Copyright (c) Techknomatic Services Pvt Ltd.
 # Licensed under the MIT License.
 
-"""Unified error handling and response helpers for the Data Formulator Flask application.
+"""Unified error handling and response helpers for the InsightCanvas Flask application.
 
 Public entry points:
 

@@ -6,7 +6,7 @@
  *
  * Hosted/anonymous deployments turn off database connectors for security
  * (browser-supplied identity is spoofable). This panel explains that and
- * tells visitors how to install Data Formulator locally to unlock the
+ * tells visitors how to install InsightCanvas locally to unlock the
  * full feature set.
  */
 

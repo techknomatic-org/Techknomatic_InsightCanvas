@@ -3,7 +3,7 @@
 
 """Azure App Service built-in authentication (EasyAuth) provider.
 
-When Data Formulator is deployed on Azure App Service with authentication
+When InsightCanvas is deployed on Azure App Service with authentication
 enabled, Azure verifies the user's identity *before* the request reaches
 Flask and injects trusted headers:
 

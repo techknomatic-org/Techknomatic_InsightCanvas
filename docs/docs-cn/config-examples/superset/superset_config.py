@@ -172,7 +172,7 @@ class TokenExchangeView(BaseView):
 # =============================================================================
 # 统一的 FLASK_APP_MUTATOR
 #
-# Superset 启动时自动调用，注册所有 Data Formulator 集成所需的视图和中间件：
+# Superset 启动时自动调用，注册所有 InsightCanvas 集成所需的视图和中间件：
 #   1. SSOBridgeView      → /df-sso-bridge/           （SSO 弹窗桥接）
 #   2. TokenExchangeView  → /api/v1/df-token-exchange/ （同 IdP 换票）
 #   3. JWT→g.user 中间件                               （FAB 权限过滤器修复）

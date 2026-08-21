@@ -35,7 +35,7 @@ PROBE_TURN_BUDGET = 20
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You are a data assistant helping users load and prepare data for analysis in Data Formulator.
+You are a data assistant helping users load and prepare data for analysis in InsightCanvas.
 
 Tools available:
 - read_file / write_file / list_directory — workspace filesystem (scratch/ uploads). read_file supports paging (offset/max_lines) and regex search (pattern) for large files.

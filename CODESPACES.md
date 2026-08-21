@@ -1,5 +1,5 @@
-# Set up Data Formulator on Codespaces
-Use a preconfigured Codespace to get Data Formulator up and running quickly.
+# Set up InsightCanvas on Codespaces
+Use a preconfigured Codespace to get InsightCanvas up and running quickly.
 
 ## Prerequisites
 You will need a GitHub account and to be logged in to use Codespaces.
@@ -16,7 +16,7 @@ You will need a GitHub account and to be logged in to use Codespaces.
 The codespace is a VSCode development environment in the cloud. Once the Codespace is created, start Data Formuator with the following steps:
 
 * A toast about port forwarding will appear, click the **Open in Browser** button.
-* You will see the Data Formulator app!
+* You will see the InsightCanvas app!
 
 <kbd>
   <img width="528" alt="image" src="https://github.com/user-attachments/assets/cb9e2123-4a42-4926-8b59-5bafb9be25fa">

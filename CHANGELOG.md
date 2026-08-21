@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to Data Formulator are documented here. The format follows
+Notable changes to InsightCanvas are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [PEP 440](https://peps.python.org/pep-0440/).
 

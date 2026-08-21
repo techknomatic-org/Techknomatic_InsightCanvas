@@ -1,13 +1,13 @@
 # 服务器迁移指南
 
-> **适用版本**: Data Formulator 0.7+
+> **适用版本**: InsightCanvas 0.7+
 > **面向读者**: 部署运维人员
 
 ---
 
 ## 1. 概述
 
-将 Data Formulator 从旧服务器迁移到新服务器（包括 Docker 容器重建、云主机更换、版本升级等场景）时，需要正确搬运密钥文件和数据目录，否则会出现用户登录失效、凭证丢失、图表无法刷新等问题。
+将 InsightCanvas 从旧服务器迁移到新服务器（包括 Docker 容器重建、云主机更换、版本升级等场景）时，需要正确搬运密钥文件和数据目录，否则会出现用户登录失效、凭证丢失、图表无法刷新等问题。
 
 本文提供完整的迁移清单和操作步骤。
 
@@ -111,7 +111,7 @@ cp -r $DF_HOME/workspaces   /backup/workspaces
 ### 4.3 在新服务器上恢复
 
 ```bash
-# 1. 安装 Data Formulator（新版本或同版本）
+# 1. 安装 InsightCanvas（新版本或同版本）
 pip install data-formulator  # 或其他安装方式
 
 # 2. 恢复配置文件

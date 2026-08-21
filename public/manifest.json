@@ -1,9 +1,9 @@
 {
-  "short_name": "Data Formulator",
-  "name": "Data Formulator",
+  "short_name": "InsightCanvas",
+  "name": "InsightCanvas",
   "icons": [
     {
-      "src": "data-formulator-logo-128.png",
+      "src": "insight-canvas-logo-128.png",
       "type": "image/png",
       "sizes": "128x128"
     }

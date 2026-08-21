@@ -10,7 +10,7 @@ public URLs declared in :mod:`data_formulator.example_datasets_config`.
 
 The connector is registered unconditionally at startup so that even in
 ``--disable_database`` mode users still have a zero-config way to load
-data and explore Data Formulator.
+data and explore InsightCanvas.
 """
 
 from __future__ import annotations

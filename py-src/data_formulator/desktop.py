@@ -91,7 +91,7 @@ def _wait_until_ready(url: str, timeout: float = 30) -> None:
                 return
         except (urllib.error.URLError, TimeoutError):
             time.sleep(0.1)
-    raise RuntimeError("Data Formulator did not start within 30 seconds")
+    raise RuntimeError("InsightCanvas did not start within 30 seconds")
 
 
 _LOADING_HTML = """\
@@ -122,7 +122,7 @@ _LOADING_HTML = """\
         <div class="binary-row"><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell on">1</span></div>
         <div class="binary-row"><span class="binary-cell on">1</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell on">1</span><span class="binary-cell on">1</span><span class="binary-cell">0</span><span class="binary-cell">0</span></div>
     </div>
-    <div class="title">Loading Data Formulator...</div>
+    <div class="title">Loading InsightCanvas...</div>
         <script>
             if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 const cells = document.querySelectorAll('.binary-cell');
@@ -255,7 +255,7 @@ def run_desktop() -> None:
         # Show a lightweight loading page first so the user gets feedback while
         # the heavy backend imports and the Flask server start up.
         window = webview.create_window(
-            "Data Formulator",
+            "InsightCanvas",
             html=_LOADING_HTML,
             width=1440,
             height=900,

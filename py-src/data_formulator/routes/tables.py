@@ -395,7 +395,7 @@ def _table_metadata_to_source_metadata(meta: DatalakeTableMetadata) -> dict | No
 
 @tables_bp.route('/open-workspace', methods=['POST'])
 def open_workspace():
-    """Open the Data Formulator home directory in the system file manager."""
+    """Open the InsightCanvas home directory in the system file manager."""
     from flask import current_app
     from data_formulator.datalake.workspace import get_data_formulator_home
     import subprocess, platform

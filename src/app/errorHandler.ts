@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * Unified frontend error handler for Data Formulator.
+ * Unified frontend error handler for InsightCanvas.
  *
  * All API `.catch` blocks should call {@link handleApiError} instead of
  * writing ad-hoc `console.error` / empty-catch logic.  This ensures every

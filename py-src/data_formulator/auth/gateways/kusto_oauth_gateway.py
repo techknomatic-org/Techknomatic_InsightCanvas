@@ -129,9 +129,9 @@ def _frontend_origin(value: str) -> str:
     }
     is_local = parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}
     if not parsed.netloc or parsed.path or parsed.params or parsed.query or parsed.fragment:
-        raise AppError(ErrorCode.INVALID_REQUEST, "Invalid Data Formulator origin")
+        raise AppError(ErrorCode.INVALID_REQUEST, "Invalid InsightCanvas origin")
     if origin != request_origin and origin not in configured and not is_local:
-        raise AppError(ErrorCode.INVALID_REQUEST, "Data Formulator origin is not allowed")
+        raise AppError(ErrorCode.INVALID_REQUEST, "InsightCanvas origin is not allowed")
     return origin
 
 

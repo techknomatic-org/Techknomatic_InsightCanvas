@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 /**
- * Unified API client for Data Formulator.
+ * Unified API client for InsightCanvas.
  *
  * Provides:
  * - {@link ApiRequestError} — typed error class for API failures

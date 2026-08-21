@@ -628,7 +628,7 @@ export interface EncodingItem {
 /**
  * ChartTemplate extends the library's ChartTemplateDef with a UI icon.
  * The library definition is icon-free for reusability; this type adds
- * the React element used in the Data Formulator UI.
+ * the React element used in the InsightCanvas UI.
  */
 export type ChartTemplate = ChartTemplateDef & {
     icon: any;

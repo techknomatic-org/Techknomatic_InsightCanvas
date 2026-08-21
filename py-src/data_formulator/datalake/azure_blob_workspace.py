@@ -153,7 +153,7 @@ class AzureBlobWorkspace(Workspace):
         # skill-based analyst agent and the data-loading chat sandbox) need a
         # real ``scratch/`` directory on disk for sandboxed code execution,
         # cross-turn namespace serialization, and user file uploads. We back
-        # it with a stable per-workspace directory under the Data Formulator
+        # it with a stable per-workspace directory under the InsightCanvas
         # home so it survives across requests handled by this instance.
         # ``confined_scratch`` (inherited from :class:`Workspace`) returns this
         # jail, so callers work identically to the local backend.

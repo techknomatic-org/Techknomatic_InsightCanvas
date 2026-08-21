@@ -205,8 +205,8 @@ export function AnvilLoader({ height = '100vh', label = 'Loading InsightCanvas..
                 animation: `${textPulse} 2s ease-in-out infinite`,
               }}
             >
-              {typeof label === 'string' && label.toLowerCase().includes('data formulator')
-                ? label.replace(/data formulator/gi, 'InsightCanvas')
+              {typeof label === 'string' && label.toLowerCase().includes('InsightCanvas')
+                ? label.replace(/InsightCanvas/gi, 'InsightCanvas')
                 : label}
             </Typography>
           )}

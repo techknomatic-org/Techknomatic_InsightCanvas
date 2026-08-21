@@ -23,7 +23,7 @@ class _MinimalWorkspace:
         self._path = path
 
 # ---------------------------------------------------------------------------
-# Realistic Data Formulator code snippets (typical AI-generated transforms)
+# Realistic InsightCanvas code snippets (typical AI-generated transforms)
 # ---------------------------------------------------------------------------
 
 # 1. Simple column rename + filter (small, fast)
@@ -72,7 +72,7 @@ pivot = df.pivot_table(index=["year", "region"], columns="metric", values="value
 result_df = pivot.melt(id_vars=["year", "region"], var_name="metric", value_name="amount")
 """
 
-# 4. Multi-table join + derived columns (common Data Formulator pattern)
+# 4. Multi-table join + derived columns (common InsightCanvas pattern)
 CODE_JOIN = """\
 import pandas as pd
 import numpy as np
@@ -189,7 +189,7 @@ def print_results(mode: str, results: list[dict]):
 
 
 def main():
-    print("Data Formulator Sandbox Benchmark")
+    print("InsightCanvas Sandbox Benchmark")
     print(f"Running each benchmark: 1 warmup + 5 timed runs\n")
 
     # Create a temporary workspace directory

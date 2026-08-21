@@ -1,12 +1,12 @@
-# Microsoft Data Formulator: Complete Architecture & User Guide
+# Microsoft InsightCanvas: Complete Architecture & User Guide
 
-**Data Formulator** is an AI-powered interactive data analysis and visualization platform developed by **Microsoft Research**. It blends natural language intent with rich graphical UI interactions, allowing analysts, data scientists, and business users to transform messy data, discover insights through branching exploration threads, customize charts, and formulate rich analytical reports.
+**InsightCanvas** is an AI-powered interactive data analysis and visualization platform developed by **Microsoft Research**. It blends natural language intent with rich graphical UI interactions, allowing analysts, data scientists, and business users to transform messy data, discover insights through branching exploration threads, customize charts, and formulate rich analytical reports.
 
 ---
 
 ## 1. System Architecture Overview
 
-Data Formulator follows a decoupled client-server architecture with an embedded high-performance analytical engine and a multi-agent AI subsystem.
+InsightCanvas follows a decoupled client-server architecture with an embedded high-performance analytical engine and a multi-agent AI subsystem.
 
 ```mermaid
 graph TB
@@ -82,10 +82,10 @@ graph TB
 
 ---
 
-## 3. End-to-End User Guide: How to Use Data Formulator
+## 3. End-to-End User Guide: How to Use InsightCanvas
 
 ### Step 1: Ingesting & Connecting Data
-Data Formulator provides a unified ingestion dialog:
+InsightCanvas provides a unified ingestion dialog:
 1. **Local Files**: Drag-and-drop `.csv`, `.xlsx`, `.xls`, `.tsv`, `.json`, or `.parquet` files.
 2. **Databases & Warehouses**: Connect directly to **PostgreSQL**, **MySQL**, **MSSQL (SQL Server)**, **ClickHouse**, **Google BigQuery**, **Databricks SQL**, **AWS Athena**, **Azure CosmosDB / Kusto**, or **MongoDB**.
 3. **Images & Screenshots**: Paste a screenshot or photo containing a table or chart. The `DataLoadingAgent` parses the image and converts it into a structured dataset.
@@ -94,7 +94,7 @@ Data Formulator provides a unified ingestion dialog:
 ---
 
 ### Step 2: The "Data Thread" Visual Exploration
-Unlike standard chatbots where past context is lost in a vertical chat history, Data Formulator introduces **Data Threads**:
+Unlike standard chatbots where past context is lost in a vertical chat history, InsightCanvas introduces **Data Threads**:
 * **Branching Analysis (DAG)**: Every question or transformation creates a card on the canvas.
 * **Hypothesis Testing**: You can branch off from any point in the thread to explore alternative ideas without overwriting previous steps.
 * **Transformation Transparency**: The AI generates explicit Python/SQL transformations, which you can inspect, edit, and verify.
@@ -111,7 +111,7 @@ graph LR
 
 ### Step 3: Visual Encodings & Chart Generation
 * **Automatic Chart Synthesis**: When asking questions in natural language (e.g. *"Show revenue by product category over time"*), the AI synthesizes both the transformed dataset and the chart specification.
-* **Flint Semantic Visual Language**: Data Formulator uses [Flint](https://microsoft.github.io/flint-chart/) to generate concise, publication-quality visualizations with automatic scales, legends, and layouts.
+* **Flint Semantic Visual Language**: InsightCanvas uses [Flint](https://microsoft.github.io/flint-chart/) to generate concise, publication-quality visualizations with automatic scales, legends, and layouts.
 * **Manual Drag-and-Drop Encodings**: You can manually map columns to visual channels (X-axis, Y-axis, Color, Size, Row/Column facets) on the encoding shelf.
 
 ---
@@ -135,7 +135,7 @@ graph LR
 
 ## 4. AI Multi-Agent Subsystem Architecture
 
-Data Formulator breaks down complex analytical workflows into specialized autonomous agents:
+InsightCanvas breaks down complex analytical workflows into specialized autonomous agents:
 
 ```mermaid
 sequenceDiagram
@@ -168,7 +168,7 @@ sequenceDiagram
 
 ## 5. Security, Isolation & Sandboxing
 
-Because AI agents write and execute code on the fly, Data Formulator enforces a multi-tier security model:
+Because AI agents write and execute code on the fly, InsightCanvas enforces a multi-tier security model:
 
 1. **Local Sandbox (Default)**:
    * Runs in a warm Python subprocess.
@@ -193,7 +193,7 @@ Because AI agents write and execute code on the fly, Data Formulator enforces a 
 
 ### Directory Map
 ```
-Data Formulator/
+InsightCanvas/
 ├── py-src/data_formulator/       # Python Backend Source
 │   ├── agents/                   # Specialized AI Agents & Prompt Templates
 │   ├── analyst/                  # Central AnalystAgent & Tool Definitions

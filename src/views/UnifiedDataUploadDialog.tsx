@@ -1057,7 +1057,7 @@ const AddConnectionPanel: React.FC<{
 
     // Hosted/anonymous deployments disable connectors entirely. Replace the
     // loader picker with an upgrade panel so visitors learn what they get
-    // by installing Data Formulator locally.
+    // by installing InsightCanvas locally.
     if (disableConnectors) {
         return <LocalInstallUpgradePanel />;
     }

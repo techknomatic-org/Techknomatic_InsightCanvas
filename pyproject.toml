@@ -8,13 +8,12 @@ version = "0.8.0b1"
 
 requires-python = ">=3.11"
 authors = [
-  {name = "Chenglong Wang", email = "chenglong.wang@microsoft.com"},
-  {name = "Dan Marshall", email = "danmar@microsoft.com"},
+  {name = "Techknomatic Services Pvt. Ltd.", email = "support@techknomatic.com"},
 ]
 readme = "README.md"
 license = "MIT"
-description = "Data Formulator is a research prototype for data visualization powered by AI."
-keywords = ["data visualization", "LLM", "AI"]
+description = "InsightCanvas — Enterprise AI-powered conversational data analytics and interactive visualization platform."
+keywords = ["data visualization", "LLM", "AI", "analytics", "techknomatic"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python"

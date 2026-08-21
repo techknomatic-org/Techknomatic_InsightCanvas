@@ -1,7 +1,7 @@
 # Copyright (c) Techknomatic Services Pvt Ltd.
 # Licensed under the MIT License.
 
-"""Unified error types for the Data Formulator backend.
+"""Unified error types for the InsightCanvas backend.
 
 Every business error raised in routes / agents / data layer should be an
 ``AppError`` (or a subclass).  The global error handlers registered by
@@ -90,7 +90,7 @@ ERROR_CODE_HTTP_STATUS: dict[str, int] = {
 
 
 class AppError(Exception):
-    """Unified business exception for the Data Formulator backend.
+    """Unified business exception for the InsightCanvas backend.
 
     Parameters
     ----------

@@ -6,7 +6,7 @@ under `work/`).
 
 ## Goal
 
-Benchmark open-source (Ollama) models that drive Data Formulator's analyst agents —
+Benchmark open-source (Ollama) models that drive InsightCanvas's analyst agents —
 inspect tabular data, write transformation code, and commit a visualization — and report
 **two independent axes**:
 

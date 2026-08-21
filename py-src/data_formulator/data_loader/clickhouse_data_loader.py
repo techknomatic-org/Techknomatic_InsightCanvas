@@ -1,4 +1,4 @@
-"""ClickHouse connector for Data Formulator."""
+"""ClickHouse connector for InsightCanvas."""
 
 from __future__ import annotations
 

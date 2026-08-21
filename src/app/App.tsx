@@ -1597,7 +1597,7 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
                 ) : (
                     <>
                         <AnvilLoader
-                            label="loading data formulator..."
+                            label="loading InsightCanvas..."
                             action={isDesktopApp ? (
                                 <Link
                                     component="button"

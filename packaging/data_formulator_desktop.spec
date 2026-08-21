@@ -98,7 +98,7 @@ def _configure_windows_runtime(a):
 
 def _verify_windows_runtime():
     """Post-build check: the bundled assembly must exist and be byte-identical."""
-    bundle = project_root / "dist" / "Data Formulator" / "_internal" / "pythonnet" / "runtime" / "Python.Runtime.dll"
+    bundle = project_root / "dist" / "InsightCanvas" / "_internal" / "pythonnet" / "runtime" / "Python.Runtime.dll"
     if not bundle.exists():
         raise SystemExit(f"Windows bundle is missing {bundle}; the WinForms backend will fail at startup")
     if hashlib.sha256(bundle.read_bytes()).digest() != hashlib.sha256(_pythonnet_runtime_dll().read_bytes()).digest():
@@ -124,7 +124,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Data Formulator",
+    name="InsightCanvas",
     console=False,
     icon=str(icon_path),
 )
@@ -134,7 +134,7 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="Data Formulator",
+    name="InsightCanvas",
 )
 
 if sys.platform == "win32":
@@ -143,7 +143,7 @@ if sys.platform == "win32":
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Data Formulator.app",
+        name="InsightCanvas.app",
         bundle_identifier="com.microsoft.data-formulator",
         icon=str(icon_path),
     )

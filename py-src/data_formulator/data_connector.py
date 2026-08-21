@@ -2706,7 +2706,7 @@ def register_data_connectors(app: Flask) -> None:
     #    the one data source that remains available even in
     #    ``--disable_database`` mode — it has no auth, no external
     #    dependency beyond ``requests``, and gives users a zero-config
-    #    way to explore Data Formulator.
+    #    way to explore InsightCanvas.
     sample_loader_class = DATA_LOADERS.get("sample_datasets")
     if sample_loader_class and "sample_datasets" not in DATA_CONNECTORS:
         DATA_CONNECTORS["sample_datasets"] = DataConnector.from_loader(

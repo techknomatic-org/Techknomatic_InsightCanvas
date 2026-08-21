@@ -223,7 +223,7 @@ class CustomSsoSecurityManager(SupersetSecurityManager):
 
 
 # =============================================================================
-# 第三部分：Data Formulator SSO 桥接端点
+# 第三部分：InsightCanvas SSO 桥接端点
 #
 # 流程：
 #   1. DF 前端 window.open(/df-sso-bridge/?df_origin=http://df-host:5567)
@@ -243,7 +243,7 @@ _SSO_BRIDGE_TEMPLATE = """<!DOCTYPE html>
         window.opener.postMessage(payload, targetOrigin);
         setTimeout(function() { window.close(); }, 500);
     } else {
-        document.body.textContent = '登录成功，请关闭此窗口并返回 Data Formulator。';
+        document.body.textContent = '登录成功，请关闭此窗口并返回 InsightCanvas。';
     }
 })();
 </script>

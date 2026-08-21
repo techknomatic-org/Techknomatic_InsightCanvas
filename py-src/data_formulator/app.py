@@ -130,7 +130,7 @@ _FILE_HANDLER_MARKER = '_df_persistent_file_handler'
 
 
 def _resolve_data_home() -> Path:
-    """Resolve the Data Formulator home directory for logging.
+    """Resolve the InsightCanvas home directory for logging.
 
     Mirrors ``get_data_formulator_home()`` but is safe to call outside an
     application context (logging is configured before the app runs).
@@ -447,7 +447,7 @@ def get_app_config():
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Data Formulator")
+    parser = argparse.ArgumentParser(description="InsightCanvas")
     parser.add_argument("-p", "--port", type=int, default=int(os.environ.get('PORT', 5567)), help="The port number you want to use")
     parser.add_argument("--host", type=str, default=os.environ.get('HOST', '127.0.0.1'),
         help="Network interface to bind to (default: 127.0.0.1). "
@@ -478,7 +478,7 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get('SCRATCH_MAX_FILE_SIZE_MB', '20')),
         help="Max size (MB) of a single agent-written scratch file, e.g. a fetch_url download (default: 20)")
     parser.add_argument("--data-dir", type=str, default=None,
-        help="Data Formulator home directory for workspaces and sessions (default: ~/.data_formulator)")
+        help="InsightCanvas home directory for workspaces and sessions (default: ~/.data_formulator)")
     parser.add_argument("--dev", action='store_true', default=False,
         help="Launch the app in development mode (prevents the app from opening the browser automatically)")
     parser.add_argument("--workspace-backend", type=str,
@@ -501,7 +501,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_app():
-    print("Starting Data Formulator...", flush=True)
+    print("Starting InsightCanvas...", flush=True)
     
     configure_logging()
     args = parse_args()

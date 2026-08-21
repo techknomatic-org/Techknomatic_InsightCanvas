@@ -1,6 +1,6 @@
 # Test Plan
 
-This document captures the testing strategy for Data Formulator. It is meant to
+This document captures the testing strategy for InsightCanvas. It is meant to
 be a living document — update it as coverage grows and priorities shift.
 
 ---

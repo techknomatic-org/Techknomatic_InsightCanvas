@@ -1,4 +1,4 @@
-# Data Formulator — Data Loader Plugins
+# InsightCanvas — Data Loader Plugins
 
 Drop-in Python files that add new data-source connectors to Data
 Formulator without modifying its source code. If the built-in
@@ -13,7 +13,7 @@ one, rename it, and adapt the body.
 
 ## Quick start (3 steps)
 
-1. **Find your plugin directory.** It lives under your Data Formulator
+1. **Find your plugin directory.** It lives under your InsightCanvas
    home dir:
 
    ```
@@ -35,7 +35,7 @@ one, rename it, and adapt the body.
       "${DATA_FORMULATOR_HOME:-$HOME/.data_formulator}/plugins/"
    ```
 
-3. **Restart Data Formulator.** The new connector appears in the UI
+3. **Restart InsightCanvas.** The new connector appears in the UI
    automatically. No registry edits, no rebuilds.
 
 To verify it loaded, check the startup log for a line like:
@@ -192,7 +192,7 @@ anything importable from DF's venv is importable from your plugin.
 
 ## For AI coding agents
 
-When asked to **add a new data source** to a user's Data Formulator
+When asked to **add a new data source** to a user's InsightCanvas
 install, prefer writing a plugin file over modifying DF's source tree:
 
 1. Read [`sqlite_data_loader.py`](sqlite_data_loader.py) and the

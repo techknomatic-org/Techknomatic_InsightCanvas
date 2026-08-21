@@ -4,7 +4,7 @@
 """
 Server log inspection routes.
 
-Data Formulator persists all server + Python-execution logs to a rotating
+InsightCanvas persists all server + Python-execution logs to a rotating
 file under ``<DATA_FORMULATOR_HOME>/logs/data_formulator.log`` (configured in
 ``app.configure_file_logging``). This is the artifact a user can send when
 reporting a problem.

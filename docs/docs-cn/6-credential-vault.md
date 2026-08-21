@@ -1,6 +1,6 @@
 # 凭证保险箱（Credential Vault）
 
-> **适用版本**: Data Formulator 0.7+
+> **适用版本**: InsightCanvas 0.7+
 > **面向读者**: 部署运维人员、管理员、需要理解凭证保存行为的用户
 
 ---
@@ -109,7 +109,7 @@ service token 或通过 SSO exchange 获取目标系统 token。
 
 1. Session 中已有目标系统 token。
 2. refresh token 可续期。
-3. 用 Data Formulator 的 SSO token 换取目标系统 token。
+3. 用 InsightCanvas 的 SSO token 换取目标系统 token。
 4. 使用弹窗委托登录保存的 token。
 5. 使用 vault 中保存的静态凭证。
 6. 无可用凭证，提示用户重新授权或重新输入。
