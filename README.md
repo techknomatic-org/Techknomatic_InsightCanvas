@@ -1,205 +1,189 @@
-<h1 align="center">
-  <img src="./public/favicon.ico" alt="Data Formulator icon" width="28">&nbsp;
-  Data Formulator: AI-powered Data Visualization
-</h1>
-
+# InsightCanvas
 
 <p align="center">
-  🪄 Explore data with visualizations, powered by AI agents.
+  <strong>Turn your data into actionable business insights with AI.</strong>
 </p>
 
 <p align="center">
-  <a href="https://data-formulator.ai"><img src="https://img.shields.io/badge/🚀_Try_Online_Demo-data--formulator.ai-F59E0B?style=for-the-badge" alt="Try Online Demo"></a>
-  &nbsp;
-  <a href="#get-started"><img src="https://img.shields.io/badge/💻_Install_Locally-uvx_|_pip-3776AB?style=for-the-badge" alt="Install Locally"></a>
+  <a href="https://techknomatic.com"><img src="https://img.shields.io/badge/Powered%20By-Techknomatic%20Services%20Pvt%20Ltd-1B75BB?style=for-the-badge" alt="Techknomatic"></a>&nbsp;
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT"></a>&nbsp;
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/data_formulator/"><img src="https://img.shields.io/pypi/v/data_formulator.svg?label=pypi%3A%20data_formulator" alt="PyPI"></a>&ensp;
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>&ensp;
-  <a href="https://www.youtube.com/watch?v=GfTE2FLyMrs"><img src="https://img.shields.io/badge/YouTube-white?logo=youtube&logoColor=%23FF0000" alt="YouTube"></a>&ensp;
-  <a href="https://github.com/microsoft/data-formulator/actions/workflows/python-build.yml"><img src="https://github.com/microsoft/data-formulator/actions/workflows/python-build.yml/badge.svg" alt="build"></a>&ensp;
-  <a href="https://discord.gg/mYCZMQKYZb"><img src="https://img.shields.io/badge/discord-chat-green?logo=discord" alt="Discord"></a>
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white" alt="Flask">
 </p>
-
-<!-- [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/data-formulator?quickstart=1) -->
-<!-- 
-https://github.com/user-attachments/assets/8ca57b68-4d7a-42cb-bcce-43f8b1681ce2 -->
-
-
-## Why Data Formulator?
-
-Working with data is hard for two simple reasons:
-
-1. **Data lives everywhere.** Connecting agents to files, databases,
-   warehouses, and BI tools takes time. It is even harder when agents start
-   answering before the relationships between data sources are clear.
-2. **Questions evolve as you explore.** Each answer can lead to follow-up
-   questions, comparisons, and new directions. A long chat history makes it
-   hard to see where you are and how you got there.
-
-Data Formulator provides one visual workspace for exploring and analyzing data:
-
-1. **Data connectors** give agents a common way to connect to different data
-   sources and maintains a data memory to remember the relationships between them.
-2. **Data Threads** let you branch into different questions, compare paths,
-   and use visualizations to discover deeper insights without losing context.
-
-https://github.com/user-attachments/assets/8e4f8a08-6423-4227-a1f7-559e0126ce31
-
-> [!TIP]
-> **Love the charts?** They're built on [**Flint**](https://microsoft.github.io/flint-chart/). It's an open-source visualization language that compiles compact chart specs into polished visualizations.
-
-## News 🔥🔥🔥
-
-[08-15-2026] **Data Formulator 0.8 beta 1** (`0.8.0b1`) introduces:
-
-- **One unified flow:** load data, ask questions, review results, and branch in the Data Thread.
-- **More data sources:** use files, local folders, databases, and platforms such as Databricks.
-- **Better charts:** explore more Flint-powered charts, recommendations, themes, and styling tools.
-
-> Preview with `pip install --pre data_formulator==0.8.0b1` or `uvx data_formulator@0.8.0b1`.
-> Install the latest stable release (0.7) with `pip install data_formulator` or run instantly with `uvx data_formulator`.
-
-See the [changelog](CHANGELOG.md) for release details.
-
-## Previous Updates
-
-Here are milestones that lead to the current design:
-- **v0.7** (05-28-2026): Turn ANY data into insights in five steps — connect governed data sources, load via agents, explore with the unified `DataAgent` + Data Thread, refine 30+ chart types (semantic chart engine powered by [Flint](https://github.com/microsoft/flint-chart)) with a style-refinement agent, and share as reports. Plus persistent sessions & workspaces and a multilingual (English/Chinese) UI.
-- **v0.6** ([Demo](https://github.com/microsoft/data-formulator/releases/tag/0.6)): Real-time insights from live data — connect to URLs and databases with automatic refresh
-- **uv support**: Faster installation with [uv](https://docs.astral.sh/uv/) — `uvx data_formulator` or `uv pip install data_formulator`
-- **v0.5.1** ([Demo](https://github.com/microsoft/data-formulator/pull/200#issue-3635408217)): Community data loaders, US Map & Pie Chart, editable reports, snappier UI
-- **v0.5**: Vibe with your data, in control — agent mode, data extraction, reports
-- **v0.2.2** ([Demo](https://github.com/microsoft/data-formulator/pull/176)): Goal-driven exploration with agent recommendations and performance improvements
-- **v0.2.1.3/4** ([Readme](https://github.com/microsoft/data-formulator/tree/main/py-src/data_formulator/data_loader) | [Demo](https://github.com/microsoft/data-formulator/pull/155)): External data loaders (MySQL, PostgreSQL, MSSQL, Azure Data Explorer, S3, Azure Blob)
-- **v0.2** ([Demos](https://github.com/microsoft/data-formulator/releases/tag/0.2)): Large data support with DuckDB integration
-- **v0.1.7** ([Demos](https://github.com/microsoft/data-formulator/releases/tag/0.1.7)): Dataset anchoring for cleaner workflows
-- **v0.1.6** ([Demo](https://github.com/microsoft/data-formulator/releases/tag/0.1.6)): Multi-table support with automatic joins
-- **Model Support**: OpenAI, Azure, Ollama, Anthropic via [LiteLLM](https://github.com/BerriAI/litellm) ([feedback](https://github.com/microsoft/data-formulator/issues/49))
-- **Python Package**: Easy local installation ([try it](#get-started))
-- **Visualization Challenges**: Test your skills ([challenges](https://github.com/microsoft/data-formulator/issues/53))
-- **Data Extraction**: Parse data from images and text ([demo](https://github.com/microsoft/data-formulator/pull/31#issuecomment-2403652717))
-- **Initial Release**: [Blog](https://www.microsoft.com/en-us/research/blog/data-formulator-exploring-how-ai-can-help-analysts-create-rich-data-visualizations/) | [Video](https://youtu.be/3ndlwt0Wi3c)
-
-## Overview
-
-**Data Formulator** is a Microsoft Research project for data exploration with visualizations powered by AI agents. It combines *UI interactions* with *natural language* so analysts can communicate intent, branch into alternative analyses, and share results — starting from any data format (screenshot, text, CSV, or database).
-
-## Get Started
-
-Play with Data Formulator with one of the following options. 
-
-### Desktop downloads
-
-CI builds self-contained Windows and macOS applications for pull requests and
-every update to `main`. Download the latest archives from the **Artifacts**
-section of the most recent
-[desktop builds workflow](https://github.com/microsoft/data-formulator/actions/workflows/desktop-build.yml).
-Workflow artifacts are retained for 30 days. Tagged builds are also attached
-as permanent downloads to the corresponding
-[GitHub Release](https://github.com/microsoft/data-formulator/releases).
-
-Extract the archive, then launch Data Formulator using the instructions for
-your operating system:
-
-- **Windows:** Run `Data Formulator.exe`. If Microsoft Defender SmartScreen
-  appears, select **More info**, verify that you downloaded the archive from
-  this repository, and then select **Run anyway**.
-- **macOS:** Move `Data Formulator.app` to **Applications**. The first time you
-  open it, macOS may report that Apple could not verify the app. Open
-  **System Settings → Privacy & Security**, scroll to **Security**, and select
-  **Open Anyway** for Data Formulator. Confirm by selecting **Open** when
-  prompted.
-
-> [!WARNING]
-> These are automated preview builds and are not currently code-signed or
-> notarized. Only bypass the operating-system warning when the archive was
-> downloaded directly from this repository's workflow artifacts or releases.
-
-- **Option 1: Install via uv (recommended)**
-  
-  [uv](https://docs.astral.sh/uv/) is an extremely fast Python package manager. If you have uv installed, you can run Data Formulator directly without any setup:
-  
-  ```bash
-  uvx data_formulator
-  ```
-
-  Run `uvx data_formulator --help` to see all available options, such as custom port, sandboxing mode, and data storage location.
-
-- **Option 2: Install via pip**
-  
-  Use pip for installation (recommend: install it in a virtual environment).
-  
-  ```bash
-  pip install data_formulator # install
-  python -m data_formulator # run
-  ```
-
-  Data Formulator will be automatically opened in the browser at [http://localhost:5567](http://localhost:5567).
-
-- **Option 3: Run with Docker**
-
-  ```bash
-  docker compose up --build
-  ```
-
-  Open [http://localhost:5567](http://localhost:5567) in your browser. To stop, press `Ctrl+C` or run `docker compose down`.
-
-- **Option 4: Working as developer**
-  
-  You can build Data Formulator locally and develop your own version. Check out details in [DEVELOPMENT.md](DEVELOPMENT.md).
-
-
-## Documentation & Guides 📚
-
-Comprehensive documentation and operational manuals are available in the [`docs/`](docs/) directory:
-
-- 🌟 [**Features & Specifications**](docs/FEATURES.md): Comprehensive feature breakdown and capabilities.
-- 🚀 [**Production Deployment Guide**](docs/DEPLOYMENT.md): Containerization, Docker Compose, Cloud (Render/AWS/Azure/GCP), and Linux systemd.
-- 📐 [**Project Documentation & Architecture**](docs/PROJECT_DOCUMENTATION.md): Deep-dive into technical architecture, state model, and API protocols.
-- 🤝 [**Project Handover Guide**](docs/HANDOVER.md): Developer and operational handover manual.
-- 📖 [**User Guide & Tutorial**](docs/USER_GUIDE.md): End-user step-by-step tutorial.
-- 📘 [**User Handbook & Playbook**](docs/USER_HANDBOOK.md): Prompt patterns, chart selection matrices, and formulas.
 
 ---
 
-## Using InsightCanvas
+## 📖 Overview
 
-Start with the data you already have: upload CSV, TSV, Excel, JSON, screenshots,
-or text; connect to databases and data platforms; or ask the analyst to find and
-load the data you need. The analyst can discover sources, clarify your request,
-propose a loading plan, and let you review the data before adding it to the
-workspace.
+**InsightCanvas** is an enterprise-grade, conversational data exploration, visualization, and interactive reporting platform developed by **Techknomatic Services Pvt. Ltd.**
 
-Continue the conversation in the **Data Thread**. Ask questions in
-natural language and follow the reasoning through explanations, tables, and
-editable charts in one history. Refine a result directly, branch from any
-earlier step to explore an alternative, or delegate the next investigation to
-the analyst. When the analysis is ready, compose the results into a report to
-share.
+By combining autonomous AI agents with a declarative grammar-of-graphics visual canvas, InsightCanvas enables data analysts, engineers, business stakeholders, and executives to explore complex datasets, ask natural language questions, create publication-quality charts, and author live interactive reports in seconds.
 
-https://github.com/user-attachments/assets/164aff58-9f93-4792-b8ed-9944578fbb72
+---
 
-## Contributing
+## ✨ Key Capabilities
 
-This project welcomes contributions and suggestions. Most contributions require you to
-agree to a Contributor License Agreement (CLA) declaring that you have the right to,
-and actually do, grant us the rights to use your contribution. For details, visit
-https://cla.microsoft.com.
+| Capability | Description |
+| :--- | :--- |
+| 🤖 **Conversational AI Analytics** | Chat with an intelligent agent that understands your schemas, runs statistical analysis, and generates charts directly from natural language prompts. |
+| 🎤 **Multimodal & Voice Intake** | Ingest data by dragging & dropping files, pasting screenshots of data tables from your clipboard, or using the built-in Speech-to-Text microphone. |
+| 📊 **Multi-Engine Visualizations** | Declarative rendering engine supporting **Vega**, **Vega-Lite**, **Apache ECharts**, **D3.js**, and **Chart.js** for dozens of chart types. |
+| 🎨 **One-Click Style Refinement** | AI aesthetic polish agent adjusts typography, curated color palettes, mark opacity, grid contrast, and legends for executive presentations. |
+| 📝 **Live Interactive Reports** | Author Markdown reports with embedded live visualizations that automatically update whenever the underlying source data changes. |
+| 🔌 **Enterprise Data Connectors** | Connect directly to PostgreSQL, MySQL, Microsoft SQL Server, MongoDB, Cosmos DB, Azure Data Explorer (Kusto), Amazon S3, or local folders. |
+| 🔒 **Enterprise Sandboxing & Privacy** | Full datasets stay private in local storage or your database; Python code execution is isolated in secure subprocess/Docker sandboxes. |
+| 🌐 **Multi-Model LLM Gateway** | Works seamlessly with OpenAI (GPT-4o), Azure OpenAI, Anthropic Claude, Google Gemini, DeepSeek, OpenRouter, and local Ollama models. |
 
-When you submit a pull request, a CLA-bot will automatically determine whether you need
-to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the
-instructions provided by the bot. You will only need to do this once across all repositories using our CLA.
+---
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+## 🏛️ System Architecture
 
-## Trademarks
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            CLIENT LAYER (BROWSER)                           │
+│     React 18 SPA · TypeScript · Redux Toolkit · Vega / ECharts / D3        │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTP REST & SSE Streaming
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       APPLICATION SERVER (PYTHON / FLASK)                   │
+│                                                                             │
+│  ┌────────────────────────┐  ┌────────────────────┐  ┌───────────────────┐  │
+│  │   REST & SSE Routes    │  │ Agent Orchestrator │  │ ModelRegistry     │  │
+│  │ • /api/agent/stream    │  │ • Data Load Agent  │  │ • OpenAI / Azure  │  │
+│  │ • /api/tables          │  │ • Analytics Agent  │  │ • Claude / Gemini │  │
+│  │ • /api/data-loaders    │  │ • Diagnostic Agent │  │ • Local Ollama    │  │
+│  └───────────┬────────────┘  └─────────┬──────────┘  └─────────┬─────────┘  │
+│              │                         │                       │            │
+│              ▼                         ▼                       ▼            │
+│  ┌────────────────────────┐  ┌────────────────────┐  ┌───────────────────┐  │
+│  │ Data Connectors API    │  │ Python Sandbox     │  │ Security Scrubber │  │
+│  │ • SQL & NoSQL Engines  │  │ • Local / Docker   │  │ • Secret Sanitizer│  │
+│  │ • Cloud Lakes & S3     │  │ • Memory Limits    │  │ • HMAC Signing    │  │
+│  └────────────────────────┘  └────────────────────┘  └───────────────────┘  │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Parquet / SQLite I/O
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     PERSISTENT STORAGE ($DATA_FORMULATOR_HOME)              │
+│            Workspaces · User Datasets · Cached Schemas · Snapshots          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
+---
+
+## 🚀 Quick Start
+
+### Option 1: One-Click Windows Launchers (Recommended)
+
+1. **First-Time Setup** (Checks Python, Node.js, installs dependencies):
+   ```cmd
+   setup.bat
+   ```
+2. **Start Development Servers** (Launches Backend on `:5567` + Frontend on `:5173`):
+   ```cmd
+   start.bat
+   ```
+3. **Stop All Servers Cleanly**:
+   ```cmd
+   stop.bat
+   ```
+
+---
+
+### Option 2: Docker & Docker Compose
+
+Deploy the production container in seconds:
+
+```bash
+# 1. Clone the repository & create environment file
+git clone https://github.com/techknomatic-org/Techknomatic_InsightCanvas.git
+cd Techknomatic_InsightCanvas
+cp .env.template .env
+
+# 2. Build and run with persistent storage mount
+docker compose up --build -d
+```
+Access the application at `http://localhost:5567`.
+
+---
+
+### Option 3: Manual Terminal Setup
+
+```bash
+# 1. Install frontend packages and build bundle
+yarn install --frozen-lockfile
+yarn build
+
+# 2. Set up Python backend environment
+uv sync
+
+# 3. Configure environment
+cp .env.template .env
+
+# 4. Start the application server
+uv run data_formulator --host 0.0.0.0 --port 5567
+```
+
+---
+
+## 📚 Documentation & Technical Guides
+
+Comprehensive guides and operational manuals are available in the [`docs/`](docs/) directory:
+
+- 🌟 [**Features & Specifications**](docs/FEATURES.md): Full feature catalog and functional matrix.
+- 🚀 [**Production Deployment Guide**](docs/DEPLOYMENT.md): Containerization, Cloud (Render/AWS/Azure/GCP), Nginx SSL, and Systemd.
+- 📐 [**Project Technical Architecture**](docs/PROJECT_DOCUMENTATION.md): Deep-dive into technical architecture, Redux models, APIs, and sandboxing.
+- 🤝 [**Project Handover Guide**](docs/HANDOVER.md): Developer and operational handover manual.
+- 📖 [**User Guide & Tutorial**](docs/USER_GUIDE.md): Step-by-step visual tutorial and UI walkthrough.
+- 📘 [**User Handbook & Playbook**](docs/USER_HANDBOOK.md): Prompt engineering patterns, chart selection matrices, and formulas.
+
+---
+
+## ⚙️ Configuration Reference (`.env`)
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `OPENAI_API_KEY` | `""` | Primary OpenAI API Key for AI agent intelligence |
+| `FLASK_SECRET_KEY` | *(auto-generated)* | 32-byte hex key for securing session tokens |
+| `SANDBOX` | `local` | Sandbox execution mode (`local` or `docker`) |
+| `DISABLE_DISPLAY_KEYS` | `true` | Prevents API keys from being displayed in the client UI |
+| `DATA_FORMULATOR_HOME` | `~/.data_formulator` | Root storage directory for user tables, parquet files, and workspaces |
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+```bash
+# Frontend Type Check (0 errors)
+npx tsc --noEmit
+
+# Frontend Unit Tests
+yarn test
+
+# Backend Python Tests
+uv run pytest tests/backend/
+```
+
+---
+
+## 🏢 Ownership & Enterprise Support
+
+**InsightCanvas** is designed and maintained by **Techknomatic Services Pvt. Ltd.**
+
+- **Website**: [https://techknomatic.com](https://techknomatic.com)
+- **Contact & Support**: `support@techknomatic.com`
+- **License**: [MIT License](LICENSE)
+
+---
+
+<p align="center">
+  <strong>© Techknomatic Services Pvt. Ltd. All rights reserved.</strong>
+</p>
