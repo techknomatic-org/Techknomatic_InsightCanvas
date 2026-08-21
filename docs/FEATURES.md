@@ -48,7 +48,7 @@
   - **Diagnostics & Data Quality**: Automatically identifies null values, outliers, duplicate records, and structural anomalies.
   - **Data Sorting & Reshaping**: Handles complex joins, unpivoting (melt), pivoting, window aggregations, and calculated metrics.
 - **Sandboxed Execution**:
-  - Secure local or Docker-confined Python runtime execution preventing arbitrary system escape.
+  - Secure local subprocess Python runtime execution with strict timeouts and memory boundaries.
   - Streaming stdout/stderr and reasoning logs for transparent verification of AI reasoning steps.
 - **Branching & Data Threads**:
   - Non-destructive transformation history allowing users to fork analysis paths, backtrack to earlier states, or compare distinct transformation branches side-by-side.

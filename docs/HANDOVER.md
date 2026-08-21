@@ -36,8 +36,6 @@ This handover document provides all necessary technical knowledge, operational i
 
 ```
 InsightCanvas/
-├── Dockerfile                         # Production multi-stage Docker build
-├── docker-compose.yml                 # Docker Compose with persistent volume
 ├── render.yaml                        # Cloud deployment configuration
 ├── package.json / yarn.lock           # Frontend dependencies & build commands
 ├── pyproject.toml / uv.lock           # Python backend dependencies & metadata
@@ -126,7 +124,7 @@ Before committing code or deploying to production, execute the following test su
 | :--- | :--- | :--- |
 | `FLASK_SECRET_KEY` | *(Random 32-byte hex)* | Encrypts session cookies and validates agent signatures. |
 | `OPENAI_API_KEY` | `sk-...` | Primary OpenAI API Key for AI operations. |
-| `SANDBOX` | `local` | Sandbox execution mode (`local` or `docker`). |
+| `SANDBOX` | `local` | Python code execution sandbox (`local`). |
 | `DISABLE_DISPLAY_KEYS` | `true` (prod) / `false` (dev) | Prevents API keys from being displayed in the client UI. |
 | `DATA_FORMULATOR_HOME` | `~/.data_formulator` | Root storage directory for user tables, parquet files, and sessions. |
 

@@ -16,8 +16,7 @@ in `py-src/tests/` — those have been consolidated here).
 tests/
   conftest.py                          # adds py-src to sys.path
   test_plan.md                         # ← this file
-  run_test_dbs.sh                      # unified helper: start/stop/test all DBs
-  backend/                             # included in default pytest (no Docker needed)
+  backend/                             # included in default pytest (fast & native)
     unit/                              # pure functions, no Flask/network
     security/                          # security-focused tests
       test_sandbox_security.py         # sandbox confinement (file write, process exec)
@@ -31,13 +30,6 @@ tests/
       ...
     contract/                          # API boundary guarantees
     benchmarks/                        # performance benchmarks (not in CI)
-  plugin/                              # data loader tests (requires Docker, run separately)
-    mysql/                             # MySQL loader (Dockerfile + init.sql)
-    mongodb/                           # MongoDB loader (Dockerfile + init_data.js)
-    postgres/                          # PostgreSQL loader (Dockerfile + init.sql)
-    bigquery/                          # BigQuery emulator (Dockerfile + init_data.yaml)
-    cosmosdb/                          # Cosmos DB emulator (Dockerfile + seed_data.py)
-    run_test_dbs.sh                    # unified script to start/stop/test databases
   frontend/
     setup.ts                           # jest-dom matchers
     unit/                              # vitest tests for src/
@@ -46,16 +38,11 @@ tests/
 ### Running tests
 
 ```bash
-# Default: backend + frontend (no Docker needed, fast)
+# Run all backend unit & integration tests
 pytest
 
-# Plugin tests: data loader integrations (requires Docker)
-./tests/database-dockers/run_test_dbs.sh start    # start all test databases
-./tests/database-dockers/run_test_dbs.sh test      # run all loader tests
-./tests/database-dockers/run_test_dbs.sh stop      # tear down
-
-# Or one-shot per service
-./tests/database-dockers/run_test_dbs.sh test mysql
+# Run frontend tests
+yarn test
 ```
 
 ### What exists today
