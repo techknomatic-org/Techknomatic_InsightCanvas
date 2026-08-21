@@ -1,4 +1,10 @@
-# InsightCanvas
+<p align="center">
+  <a href="https://techknomatic.com" target="_blank" rel="noopener noreferrer">
+    <img src="./docs/assets/techknomatic-logo.svg" alt="Techknomatic Logo" width="320">
+  </a>
+</p>
+
+<h1 align="center">InsightCanvas</h1>
 
 <p align="center">
   <strong>Turn your data into actionable business insights with AI.</strong>
