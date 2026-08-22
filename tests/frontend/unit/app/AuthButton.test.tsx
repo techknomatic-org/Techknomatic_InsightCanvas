@@ -12,7 +12,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
     dispatch: vi.fn(),
-    flush: vi.fn(async () => {}),
+    flush: vi.fn(async () => { }),
     getAuthInfo: vi.fn(),
     getUserManager: vi.fn(),
     getBrowserId: vi.fn(() => "browser-123"),
