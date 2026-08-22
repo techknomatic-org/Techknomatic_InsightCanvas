@@ -191,12 +191,12 @@ export const About: FC<{}> = function About() {
             <Box sx={{ margin: '0 auto', py: { xs: 4, md: 6 }, px: { xs: 2.5, md: 5 }, maxWidth: 1160, width: '100%' }}>
                 
                 {/* ── Hero Section ───────────────────────────────────── */}
-                <Box component="header" sx={{ textAlign: 'center', mb: 5 }}>
+                <Box component="header" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', mb: 5 }}>
                     <Box
                         component="img"
                         src={theme.palette.mode === 'dark' ? techknomaticWhiteLogo : techknomaticLogo}
                         alt="Techknomatic"
-                        sx={{ height: { xs: 52, sm: 68 }, maxWidth: 320, width: 'auto', mb: 2, objectFit: 'contain' }}
+                        sx={{ height: { xs: 52, sm: 68 }, maxWidth: 320, width: 'auto', mx: 'auto', display: 'block', mb: 2.5, objectFit: 'contain' }}
                     />
                     
                     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, bgcolor: '#e0f2fe', color: '#0369a1', px: 2, py: 0.6, borderRadius: '9999px', mb: 2 }}>
