@@ -46,18 +46,14 @@ _MAX_DEPTH = {
 }
 
 KNOWLEDGE_LIMITS: dict[str, int] = {
-    "rule_description_max": 100,
-    "rules": 350,
-    # Soft length guidance for distilled workflows: the target the distill
-    # agent aims for, NOT a hard cap. Workflows may exceed it when an
-    # analysis genuinely needs the room (e.g. multiple abstraction levels).
-    # Writes are only rejected past WORKFLOW_HARD_MAX below.
-    "workflows": 6000,
+    "rule_description_max": 1000,
+    "rules": 25000,
+    "workflows": 25000,
 }
 
 # Absolute safety ceiling for a workflow body. Guards against runaway LLM
 # output while still letting rich, multi-section workflows through.
-WORKFLOW_HARD_MAX: int = 24000
+WORKFLOW_HARD_MAX: int = 50000
 
 # ---------------------------------------------------------------------------
 # Tokenization helpers for improved search scoring

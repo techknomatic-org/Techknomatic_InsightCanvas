@@ -45,7 +45,7 @@ export function useKnowledgeStore() {
     const [searchResults, setSearchResults] = useState<KnowledgeSearchResult[]>([]);
     const [searching, setSearching] = useState(false);
 
-    const DEFAULT_LIMITS: KnowledgeLimits = { rule_description_max: 100, rules: 350, workflows: 2000 };
+    const DEFAULT_LIMITS: KnowledgeLimits = { rule_description_max: 1000, rules: 25000, workflows: 25000 };
     const [limits, setLimits] = useState<KnowledgeLimits>(DEFAULT_LIMITS);
 
     const stateMap = { rules, workflows };
@@ -78,13 +78,16 @@ export function useKnowledgeStore() {
 
     useEffect(() => {
         const handler = (e: Event) => {
-            const cat = (e as CustomEvent).detail?.category as KnowledgeCategory | undefined;
-            if (cat) fetchList(cat);
-            else fetchAll();
+            const detail = (e as CustomEvent)?.detail;
+            if (detail?.category === 'rules' || detail?.category === 'workflows') {
+                fetchList(detail.category);
+            } else {
+                fetchAll();
+            }
         };
         window.addEventListener('knowledge-changed', handler);
         return () => window.removeEventListener('knowledge-changed', handler);
-    }, [fetchList, fetchAll]);
+    }, [fetchAll, fetchList]);
 
     const read = useCallback(async (
         category: KnowledgeCategory,
@@ -118,12 +121,12 @@ export function useKnowledgeStore() {
             }));
             await fetchList(category);
             return true;
-        } catch {
+        } catch (err: any) {
             dispatch(dfActions.addMessages({
                 timestamp: Date.now(),
                 type: 'error',
                 component: 'knowledge',
-                value: t('knowledge.failedToSave'),
+                value: err?.message || t('knowledge.failedToSave'),
             }));
             return false;
         }
