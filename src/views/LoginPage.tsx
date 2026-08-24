@@ -225,16 +225,6 @@ export const LoginPage: FC = () => {
         }
     }, []);
 
-    // If user is already authenticated in this session, redirect immediately based on model configuration
-    useEffect(() => {
-        const isLoggedIn = sessionStorage.getItem('df_logged_in') === 'true';
-
-        if (isLoggedIn) {
-            const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
-            window.location.href = isModelConfigured ? "/app" : "/app?configure_model=true";
-        }
-    }, []);
-
     // Check for errors returned in query params
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
