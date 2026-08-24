@@ -1557,12 +1557,9 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
     });
 
     const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-        const identity = useSelector((state: DataFormulatorState) => state.identity);
         const location = useLocation();
 
-        const isLoggedIn = identity?.type === 'user' || identity?.type === 'local' ||
-            sessionStorage.getItem('df_logged_in') === 'true' ||
-            localStorage.getItem('df_logged_in') === 'true';
+        const isLoggedIn = sessionStorage.getItem('df_logged_in') === 'true';
 
         if (!isLoggedIn) {
             return <Navigate to="/login" replace state={{ from: location }} />;

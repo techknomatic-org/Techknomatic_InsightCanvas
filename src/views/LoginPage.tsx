@@ -213,9 +213,8 @@ export const LoginPage: FC = () => {
             if (mgr) {
                 await mgr.signinRedirect();
             } else {
-                // If SSO is not enabled on local/standalone server, establish local session
+                // If SSO is not enabled on local/standalone server, establish session
                 sessionStorage.setItem('df_logged_in', 'true');
-                localStorage.setItem('df_logged_in', 'true');
                 const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
                 window.location.href = isModelConfigured ? "/app" : "/app?configure_model=true";
             }
@@ -226,17 +225,15 @@ export const LoginPage: FC = () => {
         }
     }, []);
 
-    // If user is already authenticated, redirect immediately based on model configuration
+    // If user is already authenticated in this session, redirect immediately based on model configuration
     useEffect(() => {
-        const isLoggedIn = identity?.type === 'user' || identity?.type === 'local' ||
-            sessionStorage.getItem('df_logged_in') === 'true' ||
-            localStorage.getItem('df_logged_in') === 'true';
+        const isLoggedIn = sessionStorage.getItem('df_logged_in') === 'true';
 
         if (isLoggedIn) {
             const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
             window.location.href = isModelConfigured ? "/app" : "/app?configure_model=true";
         }
-    }, [identity]);
+    }, []);
 
     // Check for errors returned in query params
     useEffect(() => {
