@@ -266,8 +266,8 @@ export const LoginPage: FC = () => {
                     transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
                     cursor: "default",
                     "&:hover": {
-                        borderColor: "#93C5FD",
-                        boxShadow: "0 20px 45px -12px rgba(147, 197, 253, 0.45), 0 8px 20px -4px rgba(147, 197, 253, 0.3), 0 0 0 1px #93C5FD",
+                        borderColor: "rgba(147, 197, 253, 0.55)",
+                        boxShadow: "0 20px 45px -12px rgba(147, 197, 253, 0.2), 0 8px 18px -4px rgba(147, 197, 253, 0.12), 0 0 0 1px rgba(147, 197, 253, 0.3)",
                         transform: "translateY(-2px)",
                     },
                 }}
