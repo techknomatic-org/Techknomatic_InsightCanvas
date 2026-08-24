@@ -109,6 +109,11 @@ export const AuthButton: FC = () => {
         }
     }, [mgr, isBackend, authInfo]);
 
+    const handleProfileClick = useCallback(() => {
+        sessionStorage.removeItem('df_logged_in');
+        window.location.href = "/login";
+    }, []);
+
     if (identity?.type === "user") {
         const label = String(identity.displayName || identity.id || '');
         return (
@@ -116,6 +121,7 @@ export const AuthButton: FC = () => {
                 <Tooltip title={label}>
                     <IconButton
                         size="small"
+                        onClick={handleProfileClick}
                         sx={{
                             color: "#ffffff",
                             width: 32,
