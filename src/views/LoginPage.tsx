@@ -258,17 +258,17 @@ export const LoginPage: FC = () => {
                     minHeight: { xs: "auto", md: 580 },
                     borderRadius: "22px",
                     overflow: "hidden",
-                    border: "1.5px solid rgba(226, 232, 240, 0.9)",
-                    boxShadow: "0 20px 50px -15px rgba(15, 23, 42, 0.08), 0 0 1px 1px rgba(0, 0, 0, 0.02)",
+                    border: "1px solid rgba(226, 232, 240, 0.9)",
+                    boxShadow: "0 20px 50px -15px rgba(15, 23, 42, 0.07), 0 0 1px 1px rgba(0, 0, 0, 0.02)",
                     display: "flex",
                     flexDirection: { xs: "column", md: "row" },
                     bgcolor: "#ffffff",
                     transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
                     cursor: "default",
                     "&:hover": {
-                        borderColor: "#8b5cf6",
-                        boxShadow: "0 24px 50px -12px rgba(139, 92, 246, 0.28), 0 12px 28px -6px rgba(139, 92, 246, 0.18), 0 0 0 1px rgba(139, 92, 246, 0.35)",
-                        transform: "translateY(-4px)",
+                        borderColor: "rgba(139, 92, 246, 0.4)",
+                        boxShadow: "0 20px 45px -12px rgba(139, 92, 246, 0.12), 0 8px 18px -4px rgba(139, 92, 246, 0.07), 0 0 0 1px rgba(139, 92, 246, 0.15)",
+                        transform: "translateY(-2px)",
                     },
                 }}
             >
