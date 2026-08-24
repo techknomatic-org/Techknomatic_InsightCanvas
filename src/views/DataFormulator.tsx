@@ -511,10 +511,9 @@ export const DataFormulatorFC = ({ }) => {
     }, []);
 
     useEffect(() => {
-        // Auto-select the first available model when none is selected.
-        // No connectivity check on load — errors surface on first use,
-        // and the user can manually test via the model selection dialog.
-        if (selectedModelId === undefined && models.length > 0) {
+        // Auto-select the first available model for existing users when none is currently selected.
+        const isConfigured = localStorage.getItem('df_model_configured') === 'true';
+        if (isConfigured && selectedModelId === undefined && models.length > 0) {
             dispatch(dfActions.selectModel(models[0].id));
         }
     }, [dispatch, models, selectedModelId]);

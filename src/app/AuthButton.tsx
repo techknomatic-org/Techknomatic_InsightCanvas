@@ -63,6 +63,8 @@ export const AuthButton: FC = () => {
     const isBackend = authInfo?.action === "backend";
 
     const handleSignOut = useCallback(async () => {
+        sessionStorage.removeItem('df_logged_in');
+        localStorage.removeItem('df_logged_in');
         if (isBackend) {
             await apiRequest(authInfo?.logout_url || "/api/auth/oidc/logout", { method: "POST" });
             const browserId = getBrowserId();
@@ -70,16 +72,23 @@ export const AuthButton: FC = () => {
             localStorage.setItem("df_identity_type", "browser");
             localStorage.setItem("df_browser_id", browserId);
             await persistor.flush();
-            window.location.href = "/";
+            window.location.href = "/login";
             return;
         }
-        if (!mgr) return;
+        if (!mgr) {
+            const browserId = getBrowserId();
+            dispatch(dfActions.setIdentity({ type: "browser", id: browserId }));
+            localStorage.setItem("df_identity_type", "browser");
+            localStorage.setItem("df_browser_id", browserId);
+            window.location.href = "/login";
+            return;
+        }
         try {
             await mgr.signoutRedirect();
         } catch {
             await mgr.removeUser();
             await persistor.purge();
-            window.location.href = "/";
+            window.location.href = "/login";
         }
     }, [mgr, isBackend, authInfo, dispatch]);
 

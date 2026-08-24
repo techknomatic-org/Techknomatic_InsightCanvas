@@ -3,9 +3,19 @@
   "name": "InsightCanvas",
   "icons": [
     {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
       "src": "insight-canvas-logo-128.png",
       "type": "image/png",
       "sizes": "128x128"
+    },
+    {
+      "src": "insight-canvas-logo-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
     }
   ],
   "start_url": ".",

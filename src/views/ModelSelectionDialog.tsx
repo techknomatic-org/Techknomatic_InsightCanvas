@@ -149,6 +149,26 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
     );
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('configure_model') === 'true' && appearance === 'sidebar') {
+            setModelDialogOpen(true);
+        }
+    }, [appearance]);
+
+    const handleCloseDialog = () => {
+        if (!isAddingModel) {
+            setModelDialogOpen(false);
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('configure_model')) {
+                params.delete('configure_model');
+                const newSearch = params.toString();
+                const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+                window.history.replaceState(null, '', newUrl);
+            }
+        }
+    };
+
+    useEffect(() => {
         if (!modelDialogOpen || !usesAzureCli) {
             setAzureCliStatus(null);
             return;
@@ -796,9 +816,7 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
         <Dialog
             maxWidth="lg"
             open={modelDialogOpen}
-            onClose={() => {
-                if (!isAddingModel) setModelDialogOpen(false);
-            }}
+            onClose={handleCloseDialog}
         >
             <DialogTitle>{t('model.models')}</DialogTitle>
             <DialogContent sx={{ minWidth: { sm: 720 } }}>{modelManagerView}</DialogContent>
@@ -822,7 +840,10 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
                         <Button
                             variant="contained"
                             disabled={!readyToTest || modelExists}
-                            onClick={handleSaveModel}
+                            onClick={async () => {
+                                await handleSaveModel();
+                                localStorage.setItem('df_model_configured', 'true');
+                            }}
                             startIcon={isAddingModel ? <CircularProgress size={iconVar.md} color="inherit" /> : undefined}
                         >
                             {isAddingModel ? t('model.testing') : t('model.testAndSave')}
@@ -830,13 +851,14 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
                     </>
                 ) : (
                     <>
-                        <Button variant="text" onClick={() => setModelDialogOpen(false)}>{t('model.cancel')}</Button>
+                        <Button variant="text" onClick={handleCloseDialog}>{t('model.cancel')}</Button>
                         <Button
                             variant="contained"
                             disabled={modelNotReady}
                             onClick={() => {
                                 dispatch(dfActions.selectModel(tempSelectedModelId));
-                                setModelDialogOpen(false);
+                                localStorage.setItem('df_model_configured', 'true');
+                                handleCloseDialog();
                             }}
                         >
                             {t('model.useModel', { modelName: tempModelName })}

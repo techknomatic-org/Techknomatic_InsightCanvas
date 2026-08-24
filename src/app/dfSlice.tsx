@@ -1092,8 +1092,10 @@ export const dataFormulatorSlice = createSlice({
             try {
                 if (action.payload) {
                     localStorage.setItem('df_selected_model', action.payload);
+                    localStorage.setItem('df_model_configured', 'true');
                 } else {
                     localStorage.removeItem('df_selected_model');
+                    localStorage.removeItem('df_model_configured');
                 }
             } catch { /* localStorage unavailable */ }
         },

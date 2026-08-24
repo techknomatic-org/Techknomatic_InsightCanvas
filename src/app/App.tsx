@@ -71,6 +71,7 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
     createBrowserRouter,
     Link as RouterLink,
+    Navigate,
     Outlet,
     RouterProvider,
     useLocation,
@@ -1555,6 +1556,26 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
         },
     });
 
+    const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+        const identity = useSelector((state: DataFormulatorState) => state.identity);
+        const location = useLocation();
+
+        const isLoggedIn = identity?.type === 'user' || identity?.type === 'local' ||
+            sessionStorage.getItem('df_logged_in') === 'true' ||
+            localStorage.getItem('df_logged_in') === 'true';
+
+        if (!isLoggedIn) {
+            return <Navigate to="/login" replace state={{ from: location }} />;
+        }
+
+        return <>{children}</>;
+    };
+
+    const RootRedirect: React.FC = () => {
+        const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
+        return <Navigate to={isModelConfigured ? "/app" : "/app?configure_model=true"} replace />;
+    };
+
     const router = useMemo(() => createBrowserRouter([
         {
             path: "/auth/callback",
@@ -1566,12 +1587,16 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
         },
         {
             path: "/",
-            element: <AppShell />,
+            element: (
+                <AuthGuard>
+                    <AppShell />
+                </AuthGuard>
+            ),
             errorElement: <ErrorBoundaryFallback />,
             children: [
                 {
                     index: true,
-                    element: <DataFormulatorFC />,
+                    element: <RootRedirect />,
                 },
                 {
                     path: "app",
