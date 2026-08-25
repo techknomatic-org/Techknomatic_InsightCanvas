@@ -81,6 +81,7 @@ import {
 } from "react-router-dom";
 import { About } from '../views/About';
 import { LoginPage } from '../views/LoginPage';
+import { IntelligenceHubView } from '../views/IntelligenceHub/IntelligenceHubView';
 import { MessageSnackbar } from '../views/MessageSnackbar';
 import { ChartRenderService } from '../views/ChartRenderService';
 import { DictTable } from '../components/ComponentType';
@@ -1110,7 +1111,8 @@ const AppShell: FC = () => {
     const generatedReports = useSelector((state: DataFormulatorState) => state.generatedReports);
 
     const isAboutPage = location.pathname === '/about';
-    const isAppPage = !isAboutPage;
+    const isIntelligenceHubPage = location.pathname.startsWith('/intelligence-hub');
+    const isAppPage = !isAboutPage && !isIntelligenceHubPage;
 
     // The desktop canvas (threads, encoding shelf, viz cards) genuinely needs
     // room, so the app shell floors content at MIN_SUPPORTED. Landing and phone
@@ -1227,8 +1229,9 @@ const AppShell: FC = () => {
                             )
                         )}
 
-                        {/* Right side: About button, Exit session & Profile Icon */}
+                        {/* Right side: Intelligence Hub, About button, Exit session & Profile Icon */}
                         <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TopNavButton to="/intelligence-hub" label="Intelligence Hub" selected={isIntelligenceHubPage} />
                             <TopNavButton to="/about" label={t('appBar.about')} selected={isAboutPage} />
                             {inSession && <ExitSessionButton />}
                             <AuthButton />
@@ -1598,6 +1601,10 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
                 {
                     path: "app",
                     element: <DataFormulatorFC />,
+                },
+                {
+                    path: "intelligence-hub",
+                    element: <IntelligenceHubView />,
                 },
                 {
                     path: "about",

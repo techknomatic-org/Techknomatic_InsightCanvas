@@ -43,6 +43,8 @@ import { generateUUID } from '../app/identity';
 import { VirtualizedCatalogTree } from '../components/VirtualizedCatalogTree';
 import { ScrollFadeContainer } from '../components/ScrollFade';
 
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { useNavigate, useLocation } from 'react-router-dom';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddIcon from '@mui/icons-material/Add';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
@@ -189,6 +191,8 @@ export const DataSourceSidebar: React.FC<{
     const isOpen = useSelector((state: DataFormulatorState) => state.dataSourceSidebarOpen);
     const disableConnectors = useSelector((state: DataFormulatorState) => state.serverConfig.DISABLE_DATA_CONNECTORS);
     const focusedConnectorId = useSelector((state: DataFormulatorState) => state.focusedConnectorId);
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const toggle = () => dispatch(dfActions.setDataSourceSidebarOpen(!isOpen));
 
@@ -402,6 +406,26 @@ export const DataSourceSidebar: React.FC<{
                             }}
                         >
                             <LightbulbOutlinedIcon sx={{ fontSize: 20 }} />
+                        </IconButton>
+                    </Tooltip>
+
+                    <Tooltip title="Intelligence Hub" placement="right">
+                        <IconButton
+                            size="small"
+                            onClick={() => navigate('/intelligence-hub')}
+                            sx={{
+                                width: 32,
+                                height: 32,
+                                color: '#ffffff',
+                                bgcolor: location.pathname.startsWith('/intelligence-hub') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                borderRadius: '8px',
+                                '&:hover': {
+                                    bgcolor: location.pathname.startsWith('/intelligence-hub') ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    color: '#ffffff',
+                                },
+                            }}
+                        >
+                            <AutoAwesomeIcon sx={{ fontSize: 20 }} />
                         </IconButton>
                     </Tooltip>
 

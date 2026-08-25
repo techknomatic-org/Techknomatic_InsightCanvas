@@ -1078,19 +1078,35 @@ def pick_local_directory():
             # returncode != 0 means user cancelled
 
         elif system == "Windows":
-            # Windows: PowerShell folder browser dialog
+            # Windows: PowerShell folder browser dialog (requires STA)
             ps_script = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
                 "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
                 "$f.Description = 'Select data folder'; "
                 "if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath } else { '' }"
             )
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", ps_script],
-                capture_output=True, text=True, timeout=120,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                folder = result.stdout.strip()
+            try:
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-STA", "-Command", ps_script],
+                    capture_output=True, text=True, timeout=120,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    folder = result.stdout.strip()
+            except Exception as e:
+                logger.debug("PowerShell folder picker failed: %s", e)
+
+            if not folder:
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes("-topmost", True)
+                    folder = filedialog.askdirectory(
+                        title="Select data folder") or None
+                    root.destroy()
+                except Exception as e:
+                    logger.debug("Tkinter folder picker fallback failed: %s", e)
 
         else:
             # Linux: try zenity (GNOME) → kdialog (KDE) → tkinter
