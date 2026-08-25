@@ -63,11 +63,21 @@ def _get_sessions_dir(identity_id: str) -> Path:
     return s_dir
 
 
-def _get_or_create_workspace(identity_id: str) -> Workspace:
-    """Get active workspace from request header or create a default user workspace."""
-    ws_id = get_active_workspace_id() or f"intelligence_hub_{identity_id.replace(':', '_')}"
+def _get_or_create_workspace(identity_id: str, requested_ws_id: str | None = None) -> Workspace:
+    """Get active workspace from request body/header or create a default user workspace."""
+    ws_id = requested_ws_id or get_active_workspace_id() or f"intelligence_hub_{identity_id.replace(':', '_')}"
     mgr = get_workspace_manager(identity_id)
     if not mgr.workspace_exists(ws_id):
+        # Check if user has an existing active session workspace with data
+        existing_workspaces = mgr.list_workspaces()
+        for candidate_id in reversed(existing_workspaces):
+            try:
+                candidate_ws = mgr.open_workspace(candidate_id, identity_id)
+                if len(candidate_ws.list_tables()) > 0:
+                    logger.info("Found tables in existing workspace '%s'", candidate_id)
+                    return candidate_ws
+            except Exception:
+                pass
         mgr.create_workspace(ws_id)
     return mgr.open_workspace(ws_id, identity_id)
 
@@ -92,23 +102,47 @@ def _profile_table(workspace: Workspace, table_name: str) -> dict[str, Any]:
                 break
 
     if not resolved_name:
-        raise AppError(ErrorCode.NOT_FOUND, f"Table '{table_name}' not found in workspace. Available: {workspace.list_tables()}")
+        meta = workspace.get_table_metadata(table_name)
+        if meta:
+            resolved_name = meta.name
+
+    if not resolved_name:
+        raise AppError(ErrorCode.NOT_FOUND, f"Table '{table_name}' not found in workspace. Available tables: {workspace.list_tables()}")
 
     table_name = resolved_name
-    parquet_path = workspace.get_parquet_path(table_name)
-    p_str = str(parquet_path).replace("\\", "/")
 
-    con = duckdb.connect(":memory:")
+    sample_df = pd.DataFrame()
+    total_rows = 0
+    schema_df = pd.DataFrame()
+
+    # Try fast DuckDB parquet profiling first
     try:
-        table_esc = f"read_parquet('{p_str}')"
-        row_count_res = con.execute(f"SELECT COUNT(*) FROM {table_esc}").fetchone()
-        total_rows = int(row_count_res[0]) if row_count_res else 0
+        parquet_path = workspace.get_parquet_path(table_name)
+        p_str = str(parquet_path).replace("\\", "/")
+        con = duckdb.connect(":memory:")
+        try:
+            table_esc = f"read_parquet('{p_str}')"
+            row_count_res = con.execute(f"SELECT COUNT(*) FROM {table_esc}").fetchone()
+            total_rows = int(row_count_res[0]) if row_count_res else 0
 
-        schema_df = con.execute(f"DESCRIBE SELECT * FROM {table_esc}").df()
-        sample_limit = min(500, max(50, total_rows)) if total_rows > 0 else 0
-        sample_df = con.execute(f"SELECT * FROM {table_esc} LIMIT {sample_limit}").df() if sample_limit > 0 else pd.DataFrame()
-    finally:
-        con.close()
+            schema_df = con.execute(f"DESCRIBE SELECT * FROM {table_esc}").df()
+            sample_limit = min(500, max(50, total_rows)) if total_rows > 0 else 0
+            sample_df = con.execute(f"SELECT * FROM {table_esc} LIMIT {sample_limit}").df() if sample_limit > 0 else pd.DataFrame()
+        finally:
+            con.close()
+    except Exception as exc:
+        logger.info("Direct DuckDB parquet profiling for '%s' (%s), using workspace.read_data_as_df", table_name, exc)
+        try:
+            sample_df = workspace.read_data_as_df(table_name)
+            total_rows = len(sample_df)
+            schema_df = pd.DataFrame([
+                {"column_name": col, "column_type": str(dtype)}
+                for col, dtype in sample_df.dtypes.items()
+            ])
+            sample_df = sample_df.head(500)
+        except Exception as df_err:
+            raise AppError(ErrorCode.DATA_LOAD_ERROR, f"Could not read table '{table_name}': {df_err}") from df_err
+
 
     columns_profile = []
     measures = []
@@ -716,13 +750,20 @@ def profile_data():
 
     data = request.get_json() or {}
     table_names = data.get("tables", [])
+    requested_ws_id = data.get("workspace_id")
 
     if not table_names:
         raise AppError(ErrorCode.INVALID_REQUEST, "Please select at least one table")
 
-    workspace = _get_or_create_workspace(identity_id)
-    profile = _build_full_profile(workspace, table_names)
-    return json_ok({"profile": profile})
+    try:
+        workspace = _get_or_create_workspace(identity_id, requested_ws_id)
+        profile = _build_full_profile(workspace, table_names)
+        return json_ok({"profile": profile})
+    except AppError:
+        raise
+    except Exception as exc:
+        logger.error("Error profiling data: %s", exc, exc_info=True)
+        raise AppError(ErrorCode.DATA_LOAD_ERROR, f"Failed to profile tables: {exc}") from exc
 
 
 @intelligence_bp.route("/suggestions", methods=["POST"])

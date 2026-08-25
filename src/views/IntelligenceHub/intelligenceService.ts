@@ -22,11 +22,14 @@ export const INTELLIGENCE_URLS = {
     GET_SESSION: (id: string) => `/api/intelligence/sessions/${id}`,
 };
 
-export async function profileTables(tables: string[], connectorId?: string): Promise<DataProfile> {
+export async function profileTables(tables: string[], connectorId?: string, workspaceId?: string): Promise<DataProfile> {
     const res = await apiRequest<{ profile: DataProfile }>(INTELLIGENCE_URLS.PROFILE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tables, connector_id: connectorId }),
+        headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'X-Workspace-Id': workspaceId } : {}),
+        },
+        body: JSON.stringify({ tables, connector_id: connectorId, workspace_id: workspaceId }),
     });
     return res.data.profile;
 }

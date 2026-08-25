@@ -243,7 +243,7 @@ export const IntelligenceHubView: React.FC = () => {
             }
 
             // Profile tables in workspace
-            const prof = await profileTables(tablesToLoad, selectedConnector.id);
+            const prof = await profileTables(tablesToLoad, selectedConnector.id, currentWs.id);
             setProfile(prof);
             setStep('workspace');
         } catch (err: any) {
