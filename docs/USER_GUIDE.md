@@ -171,11 +171,80 @@ InsightCanvas features an integrated dynamic report authoring environment:
 ---
 
 ## 7. Exporting & Sharing
-
 - **Export High-Res Graphics**: Hover over any chart, click the three-dot menu (**⋮**), and select **Save as PNG** or **Save as SVG**.
 - **Export Formatted Data**: Click **Download CSV** or **Download Parquet** from any table view.
 - **Export Complete Workspace**: Go to **Settings (⚙) → Export Workspace** to download a portable `.zip` archive containing all tables, charts, and data threads.
 
 ---
 
+## 8. Intelligence Hub: 1-Click Automated BI Dashboards
+
+**Intelligence Hub** provides autonomous, zero-configuration dashboard synthesis directly from your connected database or imported tables.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       INTELLIGENCE HUB WORKSPACE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  🏢 [Healthcare Facility Overview]             [STORE / REGION ▼] [All]     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Total Revenue│  │ Total Visits │  │ Avg Wait Time│  │ Active Staff │     │
+│  │   $4.82M     │  │    1,240     │  │   14.2 min   │  │     185      │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────┐   ┌───────────────────────────────┐      │
+│  │ Visual #1: Monthly Trajectory │   │ Visual #2: Dept Breakdown     │      │
+│  │ [Ascending Line Chart]        │   │ [Top 15 Column Chart]         │      │
+│  └───────────────────────────────┘   └───────────────────────────────┘      │
+│  ┌───────────────────────────────┐   ┌───────────────────────────────┐      │
+│  │ Visual #3: Revenue Share      │   │ Visual #4: Age Distribution   │      │
+│  │ [Top 7 Donut + 'Other']       │   │ [Binned Histogram]            │      │
+│  └───────────────────────────────┘   └───────────────────────────────┘      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Step 8.1: Generating an Automated Dashboard
+1. Click **Intelligence Hub** in the top navigation bar.
+2. Select any connected database source or table from the catalog.
+3. Click any auto-generated **Dashboard Suggestion** chip or type a custom goal into the accent-bar prompt box (e.g. *"Show hospital patient throughput and department revenue"*).
+4. InsightCanvas profiles the schemas, builds the `_unified_analytics` view, and synthesizes 4 KPI cards and 6 multi-dimensional charts.
+
+### Step 8.2: Dynamic Slicer Cross-Filtering
+- Use the **Slicer Filter Bar** at the top right of the canvas to filter by dimension (e.g. Department, Store, Product Line).
+- All 4 KPIs and 6 charts update in real-time without reloading the page.
+
+---
+
+## 9. Executive Intelligence Reports with Embedded Visuals
+
+Generate publication-ready, C-suite strategic intelligence reports with a single click.
+
+### Step 9.1: Generating an Executive Report
+1. On your active dashboard in Intelligence Hub, click the **Executive Report** button in the top navigation bar.
+2. The AI Strategic Analyst synthesizes an in-depth briefing structured into:
+   - **Executive Summary & Strategic Highlights**
+   - **KPI Performance Deep-Dive & Root-Cause Attribution**
+   - **Multi-Dimensional Visual Analytics Walkthrough**
+   - **Cross-Metric Risk Evaluation**
+   - **Prioritized Strategic Action Roadmap** (Immediate, 30-Day, 90-Day initiatives)
+
+### Step 9.2: Viewing & Exporting Reports
+- **Visual KPI Scorecard**: Rendered at the top of the report with exact formatted values and baseline comparisons.
+- **Embedded Visual Charts**: All 6 interactive charts are rendered inline with their respective analysis sections.
+- **Download PDF**: Click **Download PDF** or **Print Report** to produce an aligned, multi-page PDF document without browser URL/timestamp headers.
+- **Markdown Export**: Click the **Download Markdown (.md)** button to export the raw text for Obsidian, Notion, or internal wikis.
+
+---
+
+## 10. Exporting Dashboards to High-Resolution PDF & Images
+
+1. In the top navigation bar of Intelligence Hub, click **Export (▼)**.
+2. Choose your preferred format:
+   - **Download PDF**: Produces an upright, high-resolution portrait PDF snapshot of the dashboard.
+   - **Download JPG**: High-DPI compressed JPEG snapshot.
+   - **Download PNG**: Lossless high-resolution PNG graphic.
+
+---
+
 *InsightCanvas — Built by Techknomatic Services Pvt. Ltd. (support@techknomatic.com)*
+

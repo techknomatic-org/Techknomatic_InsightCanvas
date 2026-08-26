@@ -166,6 +166,41 @@ sequenceDiagram
 
 ---
 
+## 4. Intelligence Hub & Executive Strategic Reporting Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as Intelligence Workspace
+    participant Hub as Intelligence Engine (Flask)
+    participant DuckDB as In-Memory DuckDB (_unified_analytics)
+    participant LLM as Multi-Model LLM Gateway
+    participant Report as Executive Report Synthesizer
+
+    User->>UI: Selects Connected Database & Requests Dashboard
+    UI->>Hub: POST /api/intelligence/generate-dashboard
+    Hub->>DuckDB: Builds _unified_analytics View across multi-table Parquet lake
+    Hub->>LLM: Ingests column inventory & prompts for DashboardSpec
+    LLM-->>Hub: Returns raw DashboardSpec (4 KPIs, 6 Vizzes, 1 Slicer)
+    Hub->>Hub: Runs Self-Healing Validation & Smart Aggregation Overrides
+    Hub->>DuckDB: Hydrates KPI metrics & chart datasets
+    Hub-->>UI: Returns fully hydrated DashboardSpec
+    UI->>User: Renders 4 KPI scorecards + 6 Vega-Lite charts + Slicer bar
+
+    opt User Requests Executive Report
+        User->>UI: Clicks "Executive Report"
+        UI->>Hub: POST /api/intelligence/generate-report
+        Hub->>Report: Packages KPI metrics, chart data summaries, and active slicer
+        Report->>LLM: Prompts for 5-section strategic analysis & action roadmap
+        LLM-->>Report: Returns structured analytical Markdown
+        Report-->>UI: Streams report document
+        UI->>User: Displays report with embedded KPI scorecards & live SVG charts
+    end
+```
+
+---
+
 ## 5. Security, Isolation & Sandboxing
 
 Because AI agents write and execute code on the fly, InsightCanvas enforces a multi-tier security model:
@@ -200,15 +235,24 @@ InsightCanvas/
 │   ├── data_loader/              # Database & Cloud Storage Connectors
 │   ├── datalake/                 # DuckDB & Parquet Workspace Storage
 │   ├── routes/                   # Flask REST API & Streaming Endpoints
+│   │   ├── intelligence.py       # Intelligence Hub & Executive Report Routes
+│   │   ├── connectors.py         # Multi-Database Catalog & Ingestion Routes
+│   │   └── agents.py             # Agent Exploration & Code Generation Routes
 │   ├── sandbox/                  # Local & Docker Code Execution Sandboxes
 │   └── app.py                    # Flask Application Entry Point
 ├── src/                          # TypeScript / React Frontend Source
 │   ├── app/                      # Redux Store, Tokens, Layout Providers
 │   ├── components/               # Reusable UI Widgets & Catalog Trees
-│   ├── views/                    # DataThread, VisualizationView, ReportView
+│   ├── views/                    # Core UI Views
+│   │   ├── IntelligenceHub/      # Intelligence Workspace, Reports & Visuals
+│   │   ├── DataThread/           # Interactive DAG Transformation Canvas
+│   │   ├── VisualizationView/    # Chart Encoding Shelf & Multi-Engine Canvas
+│   │   └── ReportView/           # Rich-Text Dynamic Document Editor
 │   └── index.tsx                 # Frontend Entrypoint
+├── docs/                         # Comprehensive Documentation & Architecture Guides
 ├── .env                          # Local Environment & API Keys Configuration
 ├── setup.bat                     # Full automated setup script
 ├── start.bat                     # One-click start script
 └── stop.bat                      # One-click stop script
 ```
+

@@ -104,18 +104,44 @@ export const IntelligenceHubView: React.FC = () => {
 
             const tree = data.tree || [];
             const dbList: DatabaseItem[] = [];
+
+            // Helper to recursively count tables under a node
+            const countTablesInNode = (nodes: any[]): number => {
+                let count = 0;
+                nodes.forEach((n) => {
+                    if (n.node_type === 'table' || n.node_type === 'file' || (!n.children && n.name)) {
+                        count++;
+                    }
+                    if (n.children && n.children.length > 0) {
+                        count += countTablesInNode(n.children);
+                    }
+                });
+                return count;
+            };
+
             tree.forEach((node) => {
-                if (node.node_type === 'database' || node.node_type === 'folder' || node.node_type === 'dataset') {
+                const isContainer =
+                    node.node_type === 'namespace' ||
+                    node.node_type === 'database' ||
+                    node.node_type === 'schema' ||
+                    node.node_type === 'folder' ||
+                    node.node_type === 'dataset' ||
+                    (node.children && node.children.length > 0);
+
+                if (isContainer) {
+                    const tableCount = node.children ? countTablesInNode(node.children) : 0;
                     dbList.push({
-                        id: node.name,
+                        id: node.path ? node.path.join('.') : node.name,
                         name: node.name,
-                        nodeType: node.node_type,
+                        nodeType: node.node_type || 'database',
                         path: node.path || [node.name],
                         children: node.children || [],
+                        tableCount,
                     });
                 }
             });
 
+            // If flat tables were returned directly without namespace/schema containers
             if (dbList.length === 0 && tree.length > 0) {
                 dbList.push({
                     id: connector.display_name || connector.id,
@@ -123,6 +149,7 @@ export const IntelligenceHubView: React.FC = () => {
                     nodeType: 'database',
                     path: [connector.id],
                     children: tree,
+                    tableCount: tree.length,
                 });
             }
 
@@ -141,24 +168,24 @@ export const IntelligenceHubView: React.FC = () => {
         setStep('tables');
 
         const tableList: CatalogTableItem[] = [];
-        const extractTablesRecursive = (nodes: any[]) => {
+        const extractTablesRecursive = (nodes: any[], parentPath: string[] = []) => {
             nodes.forEach((n) => {
                 if (n.node_type === 'table' || n.node_type === 'file' || (!n.children && n.name)) {
                     tableList.push({
-                        id: n.name,
+                        id: n.path ? n.path.join('.') : n.name,
                         name: n.name,
-                        path: n.path || [n.name],
+                        path: n.path || [...parentPath, n.name],
                         metadata: n.metadata,
                     });
                 }
                 if (n.children && n.children.length > 0) {
-                    extractTablesRecursive(n.children);
+                    extractTablesRecursive(n.children, n.path || [...parentPath, n.name]);
                 }
             });
         };
 
         if (db.children && db.children.length > 0) {
-            extractTablesRecursive(db.children);
+            extractTablesRecursive(db.children, db.path);
         }
 
         setTables(tableList);

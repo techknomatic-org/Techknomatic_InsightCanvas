@@ -98,3 +98,7 @@ Thumbs.db
 .gemini/
 .cursor/
 .claude/
+
+# Excluded documentation PDFs
+Data-Formulator-Architecture-Overview.pdf
+Data-Formulator-Plain-English-Guide.pdf

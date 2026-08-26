@@ -38,12 +38,14 @@ By combining autonomous AI agents with a declarative grammar-of-graphics visual 
 
 | Capability | Description |
 | :--- | :--- |
+| ⚡ **Intelligence Hub & Auto-Dashboards** | 1-Click automated BI dashboard generation from any data source with 4 KPI scorecards, 6 multi-dimensional charts, and dynamic cross-filtering. |
+| 📑 **Executive Intelligence Reports** | In-depth AI strategic intelligence reports with embedded live visual charts, KPI scorecards, root-cause attribution, and prioritized action roadmaps. |
 | 🤖 **Conversational AI Analytics** | Chat with an intelligent agent that understands your schemas, runs statistical analysis, and generates charts directly from natural language prompts. |
-| 🎤 **Multimodal & Voice Intake** | Ingest data by dragging & dropping files, pasting screenshots of data tables from your clipboard, or using the built-in Speech-to-Text microphone. |
+| 🔌 **Multi-Database Enterprise Connectors** | Connect to PostgreSQL, MySQL, SQL Server, MongoDB, Cosmos DB, Azure Data Explorer, S3, or local folders with interactive multi-database catalog navigation. |
+| 🎯 **Self-Healing Agent Accuracy Engine** | Built-in column inventory, fuzzy schema matching, and self-healing repair loops to eliminate SQL errors and hallucinated fields. |
 | 📊 **Multi-Engine Visualizations** | Declarative rendering engine supporting **Vega**, **Vega-Lite**, **Apache ECharts**, **D3.js**, and **Chart.js** for dozens of chart types. |
+| 📥 **Pixel-Perfect PDF & Image Export** | Export upright, high-resolution dashboards and multi-page executive reports to PDF, JPG, and PNG with zero browser artifacts. |
 | 🎨 **One-Click Style Refinement** | AI aesthetic polish agent adjusts typography, curated color palettes, mark opacity, grid contrast, and legends for executive presentations. |
-| 📝 **Live Interactive Reports** | Author Markdown reports with embedded live visualizations that automatically update whenever the underlying source data changes. |
-| 🔌 **Enterprise Data Connectors** | Connect directly to PostgreSQL, MySQL, Microsoft SQL Server, MongoDB, Cosmos DB, Azure Data Explorer (Kusto), Amazon S3, or local folders. |
 | 🔒 **Enterprise Sandboxing & Privacy** | Full datasets stay private in local storage or your database; Python code execution is isolated in secure subprocess/Docker sandboxes. |
 | 🌐 **Multi-Model LLM Gateway** | Works seamlessly with OpenAI (GPT-4o), Azure OpenAI, Anthropic Claude, Google Gemini, DeepSeek, OpenRouter, and local Ollama models. |
 

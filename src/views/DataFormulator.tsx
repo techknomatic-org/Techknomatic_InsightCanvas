@@ -64,11 +64,9 @@ import { UnifiedDataUploadDialog, UploadTabType, DataLoadMenu, ConnectorInstance
 import { ReportView } from './ReportView';
 import { DataSourceSidebar } from './DataSourceSidebar';
 import GitHubIcon from '@mui/icons-material/GitHub';
-import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import TerminalOutlinedIcon from '@mui/icons-material/TerminalOutlined';
-import { ExampleSession, exampleSessions, ExampleSessionCard, fetchExampleSessions } from './ExampleSessions';
 import { useToolbarActions } from '../app/ToolbarActionsContext';
 import { useDataRefresh, useDerivedTableRefresh } from '../app/useDataRefresh';
 import { useTranslation } from 'react-i18next';
@@ -189,14 +187,6 @@ export const DataFormulatorFC = ({ }) => {
         setPageConnectors([]);
         refreshPageConnectors();
     }, [refreshPageConnectors, identityKey]);
-
-    // ── Demo sessions (loaded from manifest, fallback to hardcoded) ─────
-    const [demoSessions, setDemoSessions] = useState<ExampleSession[]>(exampleSessions);
-    useEffect(() => {
-        fetchExampleSessions().then(sessions => {
-            if (sessions.length > 0) setDemoSessions(sessions);
-        });
-    }, []);
 
     // ── Workspace list (shown on landing page) ────────────────────
     const [savedWorkspaces, setSavedWorkspaces] = useState<WorkspaceSummary[]>([]);
@@ -434,49 +424,6 @@ export const DataFormulatorFC = ({ }) => {
             dispatch(dfActions.setActiveWorkspace({ id: generateSessionId(), displayName: 'Untitled Session' }));
         }
         dispatch(dfActions.queueAnalystTask({ text, images, attachments }));
-    };
-
-    const handleLoadExampleSession = async (session: ExampleSession) => {
-        dispatch(dfActions.setSessionLoading({ loading: true, label: t('messages.loadingExample', { title: session.title }) }));
-
-        dispatch(dfActions.addMessages({
-            timestamp: Date.now(),
-            type: 'info',
-            component: 'InsightCanvas',
-            value: t('messages.loadingExample', { title: session.title }),
-        }));
-
-        try {
-            // Fetch the workspace zip
-            const res = await fetch(session.workspace);
-            if (!res.ok) throw new Error(`Failed to fetch ${session.workspace}`);
-            const blob = await res.blob();
-            const file = new File([blob], `${session.id}.zip`, { type: 'application/zip' });
-
-            // Import via the standard workspace import flow (parquet + state)
-            const wsId = generateSessionId();
-            // Set workspace ID first so fetchWithIdentity sends X-Workspace-Id header
-            dispatch(dfActions.setActiveWorkspace({ id: wsId, displayName: session.title }));
-            const state = await importWorkspace(file, wsId, session.title);
-            dispatch(dfActions.loadState({ ...state, activeWorkspace: { id: wsId, displayName: session.title } }));
-
-            dispatch(dfActions.addMessages({
-                timestamp: Date.now(),
-                type: 'success',
-                component: 'InsightCanvas',
-                value: t('messages.loadSuccess', { title: session.title }),
-            }));
-        } catch (error: any) {
-            console.error('Error loading session:', error);
-            dispatch(dfActions.addMessages({
-                timestamp: Date.now(),
-                type: 'error',
-                component: 'InsightCanvas',
-                value: t('messages.loadFailed', { title: session.title, error: error.message }),
-            }));
-        } finally {
-            dispatch(dfActions.setSessionLoading({ loading: false }));
-        }
     };
 
     useEffect(() => {
@@ -812,28 +759,39 @@ export const DataFormulatorFC = ({ }) => {
     );
 
     let footer = <Box sx={{
-        color: 'text.secondary', display: 'flex',
-        backgroundColor: 'rgba(255, 255, 255, 0.89)',
-        alignItems: 'center', justifyContent: 'center',
+        color: 'text.secondary',
+        display: 'flex',
+        flexWrap: 'wrap',
+        backgroundColor: 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+        rowGap: 0.25,
+        columnGap: 0.75,
         py: 0.75,
-        borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+        px: 2,
+        borderTop: 'none',
+        width: '100%',
+        boxSizing: 'border-box',
+        zIndex: 10,
+        position: 'relative',
+        mt: 'auto',
     }}>
         <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: textVar.sm }}
+            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
             target="_blank" rel="noopener noreferrer"
             href="https://techknomatic.com/privacy-policy/">Privacy & Cookies</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 1 }} />
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
         <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: textVar.sm }}
+            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
             target="_blank" rel="noopener noreferrer"
             href="https://techknomatic.com/terms-and-conditions/">Terms of Use</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 1 }} />
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
         <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: textVar.sm }}
+            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
             target="_blank" rel="noopener noreferrer"
             href="https://techknomatic.com/contact-us/">Contact Us</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 1 }} />
-        <Typography sx={{ display: 'inline', fontSize: textVar.sm, color: 'text.secondary', fontWeight: 500, ml: 0.5 }}>
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
+        <Typography sx={{ display: 'inline', fontSize: '12px', color: 'text.secondary', fontWeight: 500, textAlign: 'center', px: 0.5, lineHeight: 1.3 }}>
             © {new Date().getFullYear()} Techknomatic Services Pvt. Ltd.
         </Typography>
     </Box>;
@@ -865,9 +823,10 @@ export const DataFormulatorFC = ({ }) => {
             ml: { xs: 2, sm: 4, md: 6, lg: 8 },
             mr: { xs: 2, sm: 3, md: 4 },
             pt: { xs: 2, sm: 2.5, md: 3.5 },
-            pb: 8,
+            pb: 4,
             display: 'flex',
             flexDirection: 'column',
+            flex: '1 0 auto',
             maxWidth: 1060,
             width: '100%',
             boxSizing: 'border-box',
@@ -988,57 +947,6 @@ export const DataFormulatorFC = ({ }) => {
                     serverConfig={serverConfig}
                     connectors={pageConnectors}
                 />
-            </Box>
-
-            {/* Demos Section matching reference image */}
-            <Box sx={{ mt: 0.5, width: '100%' }}>
-                <Typography sx={{ color: '#1a1a2e', fontSize: '12px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'left', mb: 1.5, fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif" }}>
-                    {t('landing.demos', { defaultValue: 'DEMOS' })}
-                </Typography>
-                <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                    width: '100%',
-                }}>
-                    <Box sx={{
-                        flex: 1,
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-                        gap: 1.5,
-                        width: '100%',
-                    }}>
-                        {demoSessions.slice(0, 4).map((session) => (
-                            <ExampleSessionCard
-                                key={session.id}
-                                session={session}
-                                onClick={() => handleLoadExampleSession(session)}
-                            />
-                        ))}
-                    </Box>
-                    {demoSessions.length > 4 && (
-                        <IconButton
-                            size="small"
-                            onClick={() => openUploadDialog('menu')}
-                            sx={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: '50%',
-                                bgcolor: '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                                color: '#1e293b',
-                                flexShrink: 0,
-                                '&:hover': {
-                                    bgcolor: '#f1f5f9',
-                                    borderColor: '#cbd5e1',
-                                },
-                            }}
-                        >
-                            <ChevronRightRoundedIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                    )}
-                </Box>
             </Box>
 
             {/* Bottom Right Floating Info Icon */}

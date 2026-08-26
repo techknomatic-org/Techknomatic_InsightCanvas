@@ -20,6 +20,7 @@ import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import { ChatMessage } from './intelligenceTypes';
 
 interface ChatPanelProps {
@@ -93,8 +94,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setInput('');
     };
 
-    // 1. Centralized Prompt Mode (Matches Landing Page Input Box Styling)
+    // 1. Centralized Prompt Mode (Matches Landing Page Input Box Styling with Gorgeous Accent Bar)
     if (variant === 'central') {
+        const hasInput = Boolean(input.trim());
+
         return (
             <Paper
                 elevation={0}
@@ -103,128 +106,167 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     maxWidth: 780,
                     mx: 'auto',
                     borderRadius: '16px',
-                    border: '1.5px solid #e2e8f0',
+                    border: '1px solid #e2e8f0',
                     bgcolor: '#ffffff',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                    p: 1.5,
+                    boxShadow: '0 4px 20px rgba(0, 29, 82, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02)',
+                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                    position: 'relative',
+                    overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 1,
+                    '&:hover': {
+                        borderColor: '#cbd5e1',
+                        boxShadow: '0 6px 24px rgba(0, 29, 82, 0.08)',
+                    },
                     '&:focus-within': {
-                        borderColor: '#1B75BB',
-                        boxShadow: '0 8px 26px rgba(27, 117, 187, 0.12)',
+                        borderColor: '#93c5fd',
+                        boxShadow: '0 10px 30px rgba(27, 117, 187, 0.14), 0 0 0 3px rgba(56, 189, 248, 0.12)',
+                        '& .top-accent-bar': {
+                            height: '4px',
+                            filter: 'brightness(1.08)',
+                        },
                     },
                 }}
             >
-                {/* Top row: Sparkle Badge + Textarea input */}
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.2, width: '100%' }}>
-                    <Box
-                        sx={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: '10px',
-                            bgcolor: '#f0f7ff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            mt: 0.2,
-                        }}
-                    >
-                        <AutoAwesomeRoundedIcon sx={{ fontSize: 18, color: '#1B75BB' }} />
+                {/* Sleek Gradient Accent Bar at the top */}
+                <Box
+                    className="top-accent-bar"
+                    sx={{
+                        width: '100%',
+                        height: '3.5px',
+                        background: 'linear-gradient(90deg, #1B75BB 0%, #0ea5e9 35%, #6366f1 70%, #8b5cf6 100%)',
+                        transition: 'height 0.2s ease, filter 0.2s ease',
+                    }}
+                />
+
+                <Box sx={{ p: 2, pt: 1.8, display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+                    {/* Top row: Gradient Sparkle Avatar Badge + Textarea input */}
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, width: '100%' }}>
+                        <Box
+                            sx={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: '10px',
+                                background: 'linear-gradient(135deg, rgba(27, 117, 187, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
+                                border: '1px solid rgba(27, 117, 187, 0.18)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                mt: 0.1,
+                                boxShadow: '0 2px 6px rgba(27, 117, 187, 0.08)',
+                            }}
+                        >
+                            <AutoAwesomeRoundedIcon sx={{ fontSize: 18, color: '#1B75BB' }} />
+                        </Box>
+
+                        <TextField
+                            fullWidth
+                            multiline
+                            minRows={1}
+                            maxRows={3}
+                            variant="standard"
+                            placeholder={placeholder}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                            disabled={loading}
+                            InputProps={{
+                                disableUnderline: true,
+                                sx: {
+                                    fontSize: '13.5px',
+                                    color: '#0f172a',
+                                    lineHeight: 1.5,
+                                    fontWeight: 450,
+                                },
+                            }}
+                        />
                     </Box>
 
-                    <TextField
-                        fullWidth
-                        multiline
-                        minRows={1}
-                        maxRows={3}
-                        variant="standard"
-                        placeholder={placeholder}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
+                    {/* Bottom toolbar: Helper text on the left & Voice + Send buttons on the right */}
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            pt: 0.8,
+                            borderTop: '1px solid #f1f5f9',
                         }}
-                        disabled={loading}
-                        InputProps={{
-                            disableUnderline: true,
-                            sx: {
-                                fontSize: '13.5px',
-                                color: '#0f172a',
-                                lineHeight: 1.5,
-                            },
-                        }}
-                    />
-                </Box>
+                    >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, pl: 0.5 }}>
+                            <KeyboardReturnOutlinedIcon sx={{ fontSize: 13, color: '#94a3b8' }} />
+                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px', fontWeight: 500 }}>
+                                Press Enter to generate
+                            </Typography>
+                        </Box>
 
-                {/* Bottom toolbar: Voice input on the left/right & Send button */}
-                <Box
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        pt: 0.5,
-                        borderTop: '1px solid #f8fafc',
-                    }}
-                >
-                    <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px', pl: 0.5 }}>
-                        Press Enter to generate
-                    </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {/* Voice Input Button */}
+                            <Tooltip title={isListening ? 'Listening... click to stop' : 'Voice input'}>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleVoiceToggle}
+                                    sx={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: '8px',
+                                        color: isListening ? '#ef4444' : '#64748b',
+                                        bgcolor: isListening ? '#fee2e2' : 'transparent',
+                                        animation: isListening ? 'pulse 1.5s infinite' : 'none',
+                                        '@keyframes pulse': {
+                                            '0%': { transform: 'scale(1)', opacity: 1 },
+                                            '50%': { transform: 'scale(1.1)', opacity: 0.8 },
+                                            '100%': { transform: 'scale(1)', opacity: 1 },
+                                        },
+                                        '&:hover': {
+                                            bgcolor: isListening ? '#fecaca' : '#f1f5f9',
+                                            color: isListening ? '#dc2626' : '#1B75BB',
+                                        },
+                                    }}
+                                >
+                                    {isListening ? <MicIcon sx={{ fontSize: 18 }} /> : <MicNoneOutlinedIcon sx={{ fontSize: 18 }} />}
+                                </IconButton>
+                            </Tooltip>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {/* Voice Input Button */}
-                        <Tooltip title={isListening ? 'Listening... click to stop' : 'Voice input'}>
+                            {/* Send Button with Smooth Gradient & Elevation */}
                             <IconButton
-                                size="small"
-                                onClick={handleVoiceToggle}
+                                onClick={handleSend}
+                                disabled={!hasInput || loading}
                                 sx={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: '8px',
-                                    color: isListening ? '#ef4444' : '#64748b',
-                                    bgcolor: isListening ? '#fee2e2' : 'transparent',
-                                    animation: isListening ? 'pulse 1.5s infinite' : 'none',
-                                    '@keyframes pulse': {
-                                        '0%': { transform: 'scale(1)', opacity: 1 },
-                                        '50%': { transform: 'scale(1.1)', opacity: 0.8 },
-                                        '100%': { transform: 'scale(1)', opacity: 1 },
-                                    },
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: '9px',
+                                    background: hasInput
+                                        ? 'linear-gradient(135deg, #1B75BB 0%, #4F46E5 100%)'
+                                        : '#e2e8f0',
+                                    color: hasInput ? '#ffffff' : '#94a3b8',
+                                    boxShadow: hasInput ? '0 3px 10px rgba(27, 117, 187, 0.3)' : 'none',
+                                    transition: 'all 0.2s ease',
                                     '&:hover': {
-                                        bgcolor: isListening ? '#fecaca' : '#f1f5f9',
-                                        color: isListening ? '#dc2626' : '#1B75BB',
+                                        background: hasInput
+                                            ? 'linear-gradient(135deg, #145d97 0%, #4338ca 100%)'
+                                            : '#e2e8f0',
+                                        transform: hasInput ? 'scale(1.04)' : 'none',
+                                    },
+                                    '&.Mui-disabled': {
+                                        bgcolor: '#e2e8f0',
+                                        color: '#94a3b8',
+                                        boxShadow: 'none',
                                     },
                                 }}
                             >
-                                {isListening ? <MicIcon sx={{ fontSize: 18 }} /> : <MicNoneOutlinedIcon sx={{ fontSize: 18 }} />}
+                                {loading ? (
+                                    <CircularProgress size={16} sx={{ color: '#ffffff' }} />
+                                ) : (
+                                    <ArrowUpwardIcon sx={{ fontSize: 18 }} />
+                                )}
                             </IconButton>
-                        </Tooltip>
-
-                        {/* Send Button */}
-                        <IconButton
-                            color="primary"
-                            onClick={handleSend}
-                            disabled={!input.trim() || loading}
-                            sx={{
-                                width: 32,
-                                height: 32,
-                                bgcolor: '#1B75BB',
-                                color: '#ffffff',
-                                borderRadius: '8px',
-                                '&:hover': { bgcolor: '#145d97' },
-                                '&.Mui-disabled': { bgcolor: '#e2e8f0', color: '#94a3b8' },
-                            }}
-                        >
-                            {loading ? (
-                                <CircularProgress size={16} sx={{ color: '#ffffff' }} />
-                            ) : (
-                                <ArrowUpwardIcon sx={{ fontSize: 18 }} />
-                            )}
-                        </IconButton>
+                        </Box>
                     </Box>
                 </Box>
             </Paper>
@@ -239,13 +281,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 position: 'fixed',
                 bottom: 24,
                 right: 24,
-                width: { xs: 'calc(100vw - 32px)', sm: 390 },
-                height: 500,
-                maxHeight: 'calc(100vh - 120px)',
+                width: 380,
+                height: 520,
+                zIndex: 1200,
                 borderRadius: '16px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid #e2e8f0',
                 bgcolor: '#ffffff',
-                zIndex: 1300,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -257,6 +298,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 },
             }}
         >
+            {/* Top Accent Bar for Floating Window */}
+            <Box
+                sx={{
+                    width: '100%',
+                    height: '3px',
+                    background: 'linear-gradient(90deg, #1B75BB 0%, #0ea5e9 40%, #6366f1 100%)',
+                }}
+            />
+
             {/* Header */}
             <Box
                 sx={{
@@ -271,7 +321,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Avatar sx={{ width: 28, height: 28, bgcolor: '#1B75BB' }}>
+                    <Avatar sx={{ width: 28, height: 28, background: 'linear-gradient(135deg, #1B75BB 0%, #4F46E5 100%)' }}>
                         <SmartToyOutlinedIcon sx={{ fontSize: 16, color: '#ffffff' }} />
                     </Avatar>
                     <Box>
@@ -348,22 +398,36 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 )}
 
                 {loading && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', p: 1, bgcolor: '#ffffff', borderRadius: '8px', width: 'fit-content' }}>
-                        <CircularProgress size={14} sx={{ color: '#1B75BB' }} />
-                        <Typography variant="caption" sx={{ fontStyle: 'italic', fontSize: '11.5px' }}>
-                            {loadingText}
-                        </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, alignSelf: 'flex-start' }}>
+                        <Avatar sx={{ width: 24, height: 24, bgcolor: '#1B75BB' }}>
+                            <SmartToyOutlinedIcon sx={{ fontSize: 14 }} />
+                        </Avatar>
+                        <Box sx={{ p: 1.2, px: 1.6, borderRadius: '14px 14px 14px 2px', bgcolor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <CircularProgress size={14} sx={{ color: '#1B75BB' }} />
+                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                {loadingText}
+                            </Typography>
+                        </Box>
                     </Box>
                 )}
                 <div ref={messagesEndRef} />
             </Box>
 
-            {/* Input Bar with Voice Support */}
-            <Box sx={{ p: 1.2, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: '#ffffff' }}>
+            {/* Input Footer */}
+            <Box
+                sx={{
+                    p: 1.5,
+                    borderTop: '1px solid #e2e8f0',
+                    bgcolor: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                }}
+            >
                 <TextField
                     fullWidth
                     size="small"
-                    placeholder="Type changes (e.g. 'Change KPI 2 to Avg')..."
+                    placeholder="Refine (e.g. 'Use donut for chart 2')..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -375,13 +439,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     disabled={loading}
                     sx={{
                         '& .MuiOutlinedInput-root': {
-                            borderRadius: '8px',
+                            borderRadius: '10px',
                             fontSize: '12.5px',
+                            bgcolor: '#f8fafc',
+                            '& fieldset': { borderColor: '#e2e8f0' },
+                            '&:hover fieldset': { borderColor: '#cbd5e1' },
+                            '&.Mui-focused fieldset': { borderColor: '#1B75BB' },
                         },
                     }}
                 />
 
-                <Tooltip title={isListening ? 'Listening...' : 'Voice input'}>
+                <Tooltip title={isListening ? 'Listening...' : 'Voice'}>
                     <IconButton
                         size="small"
                         onClick={handleVoiceToggle}
@@ -390,7 +458,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                             bgcolor: isListening ? '#fee2e2' : 'transparent',
                         }}
                     >
-                        {isListening ? <MicIcon sx={{ fontSize: 18 }} /> : <MicNoneOutlinedIcon sx={{ fontSize: 18 }} />}
+                        {isListening ? <MicIcon fontSize="small" /> : <MicNoneOutlinedIcon fontSize="small" />}
                     </IconButton>
                 </Tooltip>
 
@@ -402,7 +470,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         bgcolor: '#1B75BB',
                         color: '#ffffff',
                         borderRadius: '8px',
-                        flexShrink: 0,
                         '&:hover': { bgcolor: '#145d97' },
                         '&.Mui-disabled': { bgcolor: '#e2e8f0', color: '#94a3b8' },
                     }}

@@ -498,7 +498,6 @@ export { type ConnectorInstance } from '../components/ComponentType';
 
 // Map connector source_type (class name) to i18n key suffix
 const CONNECTOR_TYPE_KEY_MAP: Record<string, string> = {
-    SampleDatasetsLoader: 'sample_datasets',
     MySQLDataLoader: 'mysql',
     PostgreSQLDataLoader: 'postgresql',
     MSSQLDataLoader: 'mssql',

@@ -7,6 +7,7 @@ Provides data-driven intelligent dashboard generation, dataset profiling,
 AI suggestions, DuckDB-powered multi-table query execution, and session management.
 """
 
+import difflib
 import json
 import logging
 import math
@@ -264,12 +265,153 @@ def _build_full_profile(workspace: Workspace, table_names: list[str]) -> dict[st
 
 
 # ---------------------------------------------------------------------------
+# LLM Accuracy Helpers: Spec Stripping, Column Inventory & Validation
+# ---------------------------------------------------------------------------
+
+def _strip_spec_for_llm(spec: dict[str, Any]) -> dict[str, Any]:
+    """Remove hydrated data, vega specs, and computed values from a dashboard
+    spec so the LLM only sees the structural definition it needs to modify."""
+    stripped = {
+        "title": spec.get("title"),
+        "description": spec.get("description"),
+        "filter": {
+            "table": spec.get("filter", {}).get("table"),
+            "field": spec.get("filter", {}).get("field"),
+            "label": spec.get("filter", {}).get("label"),
+            "selected_value": spec.get("filter", {}).get("selected_value"),
+        },
+    }
+    stripped["kpis"] = []
+    for kpi in spec.get("kpis", []):
+        stripped["kpis"].append({
+            "id": kpi.get("id"),
+            "title": kpi.get("title"),
+            "table": kpi.get("table"),
+            "measure_column": kpi.get("measure_column"),
+            "aggregation": kpi.get("aggregation"),
+            "format": kpi.get("format"),
+            "subtitle": kpi.get("subtitle"),
+            "comparison": kpi.get("comparison"),
+        })
+    stripped["visualizations"] = []
+    for viz in spec.get("visualizations", []):
+        stripped["visualizations"].append({
+            "id": viz.get("id"),
+            "title": viz.get("title"),
+            "description": viz.get("description"),
+            "table": viz.get("table"),
+            "chart_type": viz.get("chart_type"),
+            "x_field": viz.get("x_field"),
+            "y_field": viz.get("y_field"),
+            "color_field": viz.get("color_field"),
+            "aggregation": viz.get("aggregation"),
+        })
+    return stripped
+
+
+def _build_column_inventory(profile: dict[str, Any] | None) -> str:
+    """Build a human-readable column inventory from the data profile.
+
+    Returns a formatted text block listing every table with its columns,
+    types, semantic roles and sample values so the LLM knows exactly what
+    columns are available."""
+    if not profile or not profile.get("tables"):
+        return "No column inventory available."
+    lines: list[str] = []
+    for t in profile["tables"]:
+        t_name = t.get("table_name", "unknown")
+        lines.append(f"\n### Table: {t_name}  (rows: {t.get('row_count', '?')})")
+        lines.append(f"  Measures: {', '.join(t.get('measures', [])) or 'none'}")
+        lines.append(f"  Dimensions: {', '.join(t.get('dimensions', [])) or 'none'}")
+        lines.append(f"  Temporal: {', '.join(t.get('temporal_columns', [])) or 'none'}")
+        lines.append("  Columns:")
+        for c in t.get("columns", []):
+            sample = ", ".join(str(v) for v in c.get("sample_values", [])[:3])
+            distinct = c.get("distinct_count", "?")
+            lines.append(f"    - {c['name']}  type={c.get('type','?')}  semantic={c.get('semantic_type','?')}  distinct={distinct}  samples=[{sample}]")
+    return "\n".join(lines)
+
+
+def _validate_and_fix_spec(
+    spec: dict[str, Any],
+    profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate column references in a dashboard spec and auto-correct
+    near-misses using fuzzy matching against the actual schema."""
+    if not profile or not profile.get("tables"):
+        return spec
+
+    # Build lookup: table_name -> set of column names
+    table_col_sets: dict[str, set[str]] = {}
+    all_columns: set[str] = set()
+    all_columns_list: list[str] = []
+    for t in profile["tables"]:
+        t_name = t.get("table_name", "")
+        cols = {c["name"] for c in t.get("columns", [])}
+        table_col_sets[t_name] = cols
+        all_columns.update(cols)
+        all_columns_list.extend(cols)
+
+    # De-duplicate the list but preserve order
+    seen: set[str] = set()
+    unique_cols: list[str] = []
+    for c in all_columns_list:
+        if c not in seen:
+            unique_cols.append(c)
+            seen.add(c)
+
+    def _fuzzy_fix(col_name: str | None, table_name: str | None = None) -> str | None:
+        if not col_name:
+            return col_name
+        # Exact match
+        if col_name in all_columns:
+            return col_name
+        # Case-insensitive match
+        lower_map = {c.lower(): c for c in all_columns}
+        if col_name.lower() in lower_map:
+            fixed = lower_map[col_name.lower()]
+            logger.info("Column auto-fix: '%s' -> '%s' (case)", col_name, fixed)
+            return fixed
+        # Fuzzy match
+        candidates = unique_cols
+        if table_name and table_name in table_col_sets:
+            candidates = list(table_col_sets[table_name])
+        matches = difflib.get_close_matches(col_name.lower(), [c.lower() for c in candidates], n=1, cutoff=0.6)
+        if matches:
+            # Map back to original casing
+            fixed = lower_map.get(matches[0], col_name)
+            logger.info("Column auto-fix: '%s' -> '%s' (fuzzy)", col_name, fixed)
+            return fixed
+        logger.warning("Column '%s' not found in schema and no fuzzy match available", col_name)
+        return col_name
+
+    # Fix filter
+    flt = spec.get("filter") or {}
+    if flt.get("field"):
+        flt["field"] = _fuzzy_fix(flt["field"], flt.get("table"))
+    spec["filter"] = flt
+
+    # Fix KPIs
+    for kpi in spec.get("kpis", []):
+        kpi["measure_column"] = _fuzzy_fix(kpi.get("measure_column"), kpi.get("table"))
+
+    # Fix visualizations
+    for viz in spec.get("visualizations", []):
+        viz["x_field"] = _fuzzy_fix(viz.get("x_field"), viz.get("table"))
+        viz["y_field"] = _fuzzy_fix(viz.get("y_field"), viz.get("table"))
+        viz["color_field"] = _fuzzy_fix(viz.get("color_field"), viz.get("table"))
+
+    return spec
+
+
+# ---------------------------------------------------------------------------
 # Multi-Table Unified Relational Engine
 # ---------------------------------------------------------------------------
 
 def _setup_unified_duckdb_views(workspace: Workspace, con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     """Register all workspace tables in DuckDB and synthesize a unified joined model."""
     table_columns: dict[str, list[str]] = {}
+    table_column_types: dict[str, dict[str, str]] = {}  # table -> {col_name: col_type}
     table_rows: dict[str, int] = {}
     table_names = workspace.list_tables()
 
@@ -279,7 +421,10 @@ def _setup_unified_duckdb_views(workspace: Workspace, con: duckdb.DuckDBPyConnec
             p_str = str(p_path).replace("\\", "/")
             con.execute(f"CREATE OR REPLACE VIEW \"{t_name}\" AS SELECT * FROM read_parquet('{p_str}')")
             schema_df = con.execute(f"DESCRIBE SELECT * FROM \"{t_name}\"").df()
-            table_columns[t_name] = [str(c) for c in schema_df["column_name"].tolist()]
+            col_names = [str(c) for c in schema_df["column_name"].tolist()]
+            col_types = [str(t).upper() for t in schema_df["column_type"].tolist()]
+            table_columns[t_name] = col_names
+            table_column_types[t_name] = dict(zip(col_names, col_types))
             r_cnt = con.execute(f"SELECT COUNT(*) FROM \"{t_name}\"").fetchone()
             table_rows[t_name] = int(r_cnt[0]) if r_cnt else 0
         except Exception as e:
@@ -341,6 +486,7 @@ def _setup_unified_duckdb_views(workspace: Workspace, con: duckdb.DuckDBPyConnec
 
     return {
         "table_columns": table_columns,
+        "table_column_types": table_column_types,
         "fact_table": fact_table,
         "unified_columns": unified_columns,
     }
@@ -401,6 +547,7 @@ def _build_vega_lite_spec(
     y_field: str | None,
     color_field: str | None,
     data_records: list[dict[str, Any]],
+    is_temporal: bool = False,
 ) -> dict[str, Any]:
     """Assemble a modern, visually stunning Vega-Lite specification."""
     c_type = (chart_type or "bar").lower()
@@ -461,18 +608,35 @@ def _build_vega_lite_spec(
             }
     else:
         if x_field:
-            encoding["x"] = {
-                "field": x_field,
-                "type": "nominal" if c_type in ("bar", "column") else "ordinal",
-                "axis": {
-                    "labelAngle": -25 if len(data_records) > 5 else 0,
-                    "labelLimit": 110,
-                    "labelColor": "#64748b",
-                    "tickColor": "#cbd5e1",
-                    "domainColor": "#cbd5e1",
-                    "title": None,
-                },
-            }
+            # Use temporal type for date/time fields — clean, readable axis labels
+            if is_temporal:
+                encoding["x"] = {
+                    "field": x_field,
+                    "type": "temporal",
+                    "axis": {
+                        "format": "%b %Y",
+                        "labelAngle": -30,
+                        "labelLimit": 110,
+                        "labelColor": "#64748b",
+                        "tickColor": "#cbd5e1",
+                        "domainColor": "#cbd5e1",
+                        "title": None,
+                        "tickCount": {"interval": "month", "step": 1} if len(data_records) <= 12 else {"interval": "month", "step": 3},
+                    },
+                }
+            else:
+                encoding["x"] = {
+                    "field": x_field,
+                    "type": "nominal" if c_type in ("bar", "column") else "ordinal",
+                    "axis": {
+                        "labelAngle": -25 if len(data_records) > 5 else 0,
+                        "labelLimit": 110,
+                        "labelColor": "#64748b",
+                        "tickColor": "#cbd5e1",
+                        "domainColor": "#cbd5e1",
+                        "title": None,
+                    },
+                }
         if y_field:
             encoding["y"] = {
                 "field": y_field,
@@ -496,7 +660,8 @@ def _build_vega_lite_spec(
 
     tooltip = []
     if x_field:
-        tooltip.append({"field": x_field, "type": "nominal", "title": str(x_field).replace("_", " ").title()})
+        x_tooltip_type = "temporal" if is_temporal else "nominal"
+        tooltip.append({"field": x_field, "type": x_tooltip_type, "title": str(x_field).replace("_", " ").title()})
     if y_field:
         tooltip.append({"field": y_field, "type": "quantitative", "title": str(y_field).replace("_", " ").title()})
     if color_field and color_field not in (x_field, y_field):
@@ -536,7 +701,13 @@ def _hydrate_dashboard_spec(
     try:
         model_info = _setup_unified_duckdb_views(workspace, con)
         table_columns = model_info["table_columns"]
+        table_column_types = model_info["table_column_types"]
         unified_cols = model_info["unified_columns"]
+
+        # Build a global column -> type lookup for temporal detection
+        all_col_types: dict[str, str] = {}
+        for _t_cols in table_column_types.values():
+            all_col_types.update(_t_cols)
 
         # Helper to resolve table for columns
         def _find_query_source(cols: list[str]) -> str:
@@ -585,6 +756,23 @@ def _hydrate_dashboard_spec(
             measure = kpi.get("measure_column")
             agg = (kpi.get("aggregation") or "SUM").upper()
             fmt = kpi.get("format") or "number"
+
+            # Smart aggregation override based on column semantics
+            if measure:
+                m_lower = measure.lower()
+                if any(k in m_lower for k in ("rate", "percent", "ratio", "efficiency", "utilization", "score", "average", "avg", "pct")):
+                    if agg == "SUM":
+                        agg = "AVG"
+                        logger.info("Smart agg override: '%s' changed SUM→AVG (rate/percent/score column)", measure)
+                if any(k in m_lower for k in ("_id", "_key")) or m_lower in ("id", "key"):
+                    if agg in ("SUM", "AVG"):
+                        agg = "COUNT"
+                        logger.info("Smart agg override: '%s' changed %s→COUNT (ID/key column)", measure, kpi.get("aggregation"))
+                # Auto-fix format based on column name
+                if any(k in m_lower for k in ("rate", "percent", "pct", "ratio")) and fmt not in ("percent",):
+                    fmt = "percent"
+                elif any(k in m_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend")) and fmt not in ("currency",):
+                    fmt = "currency"
 
             val_formatted = "N/A"
             raw_val = None
@@ -644,8 +832,13 @@ def _hydrate_dashboard_spec(
             })
 
         spec["kpis"] = hydrated_kpis
-
         # 3. Hydrate Exactly 6 Visualizations
+        # Build a fast column-existence lookup from registered DuckDB views
+        all_known_cols: set[str] = set()
+        for cols_list in table_columns.values():
+            all_known_cols.update(cols_list)
+        all_known_cols.update(unified_cols)
+
         hydrated_visuals = []
         for viz in spec.get("visualizations", [])[:6]:
             v_title = viz.get("title", "Chart")
@@ -656,11 +849,42 @@ def _hydrate_dashboard_spec(
             color_col = viz.get("color_field")
             agg = (viz.get("aggregation") or "SUM").upper()
 
+            # Smart aggregation override for y-axis based on column semantics
+            if y_col:
+                y_lower = y_col.lower()
+                if any(k in y_lower for k in ("rate", "percent", "ratio", "efficiency", "utilization", "score", "average", "avg", "pct")):
+                    if agg == "SUM":
+                        agg = "AVG"
+
             records = []
-            if x_col and y_col:
+            query_status = "ok"
+            query_error_detail = ""
+            x_is_temporal = False
+
+            # Detect if x_col is a temporal (date/time/timestamp) column
+            if x_col:
+                x_col_type = all_col_types.get(x_col, "").upper()
+                x_col_lower = x_col.lower()
+                if any(t in x_col_type for t in ("DATE", "TIME", "TIMESTAMP")) or \
+                   any(k in x_col_lower for k in ("date", "time", "timestamp", "created_at", "updated_at")):
+                    x_is_temporal = True
+
+            # Pre-flight: check column existence
+            missing_cols = []
+            for col_name, col_label in [(x_col, "x_field"), (y_col, "y_field")]:
+                if col_name and col_name not in all_known_cols:
+                    missing_cols.append(f"{col_label}='{col_name}'")
+            if missing_cols:
+                query_status = "column_not_found"
+                query_error_detail = f"Missing columns: {', '.join(missing_cols)}"
+                logger.warning("Chart '%s': %s", v_title, query_error_detail)
+
+            if x_col and y_col and query_status == "ok":
                 needed_cols = [x_col, y_col]
-                if color_col:
+                if color_col and color_col in all_known_cols:
                     needed_cols.append(color_col)
+                elif color_col and color_col not in all_known_cols:
+                    color_col = None  # Drop invalid color field silently
                 if filter_active and filter_field:
                     needed_cols.append(filter_field)
 
@@ -671,41 +895,110 @@ def _hydrate_dashboard_spec(
                     escaped_val = str(filter_value).replace("'", "''")
                     where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
 
-                group_cols = [f'"{x_col}"']
-                if color_col and color_col != x_col:
-                    group_cols.append(f'"{color_col}"')
-                group_str = ", ".join(group_cols)
-
                 # Proper aggregation expression
-                y_agg_expr = f'{agg}("{y_col}")' if agg != "COUNT" else f'COUNT("{y_col}")'
+                clean_agg = agg.upper()
+                if "DISTINCT" in clean_agg or "UNIQUE" in clean_agg:
+                    y_agg_expr = f'COUNT(DISTINCT "{y_col}")'
+                elif clean_agg in ("COUNT",):
+                    y_agg_expr = f'COUNT("{y_col}")'
+                elif clean_agg in ("AVG", "AVERAGE", "MEAN"):
+                    y_agg_expr = f'AVG("{y_col}")'
+                elif clean_agg in ("MIN", "MINIMUM"):
+                    y_agg_expr = f'MIN("{y_col}")'
+                elif clean_agg in ("MAX", "MAXIMUM"):
+                    y_agg_expr = f'MAX("{y_col}")'
+                else:
+                    y_agg_expr = f'SUM("{y_col}")'
 
-                sql = f"""
-                SELECT {group_str}, {y_agg_expr} AS "{y_col}"
-                FROM {target_src}
-                {where_clause}
-                GROUP BY {group_str}
-                ORDER BY "{y_col}" DESC
-                LIMIT 30
-                """
+                # ── BI Best Practice: Smart query construction per chart type ──
+                if c_type in ("pie", "donut"):
+                    # Pie/Donut: limit to top 7 slices, group the rest as "Other"
+                    inner_sql = f"""
+                    SELECT \"{x_col}\", {y_agg_expr} AS \"{y_col}\"
+                    FROM {target_src}
+                    {where_clause}
+                    GROUP BY \"{x_col}\"
+                    ORDER BY \"{y_col}\" DESC
+                    """
+                    sql = f"""
+                    WITH ranked AS (
+                        {inner_sql}
+                    ),
+                    top_n AS (
+                        SELECT *, ROW_NUMBER() OVER (ORDER BY \"{y_col}\" DESC) AS rn
+                        FROM ranked
+                    )
+                    SELECT
+                        CASE WHEN rn <= 7 THEN \"{x_col}\"::VARCHAR ELSE 'Other' END AS \"{x_col}\",
+                        SUM(\"{y_col}\") AS \"{y_col}\"
+                    FROM top_n
+                    GROUP BY CASE WHEN rn <= 7 THEN \"{x_col}\"::VARCHAR ELSE 'Other' END
+                    ORDER BY \"{y_col}\" DESC
+                    """
+                elif x_is_temporal and c_type in ("line", "area"):
+                    # Temporal line/area: aggregate to month level, sort ascending
+                    group_cols_parts = [f'DATE_TRUNC(\'month\', \"{x_col}\"::TIMESTAMP) AS \"{x_col}\"']
+                    group_by_parts = [f'DATE_TRUNC(\'month\', \"{x_col}\"::TIMESTAMP)']
+                    if color_col and color_col != x_col:
+                        group_cols_parts.append(f'\"{color_col}\"')
+                        group_by_parts.append(f'\"{color_col}\"')
+                    select_str = ", ".join(group_cols_parts)
+                    group_by_str = ", ".join(group_by_parts)
+                    sql = f"""
+                    SELECT {select_str}, {y_agg_expr} AS \"{y_col}\"
+                    FROM {target_src}
+                    {where_clause}
+                    GROUP BY {group_by_str}
+                    ORDER BY \"{x_col}\" ASC
+                    LIMIT 36
+                    """
+                else:
+                    # Bar/scatter/other: standard categorical query, top N
+                    row_limit = 15 if c_type in ("bar", "column") else 30
+                    group_cols = [f'"{x_col}"']
+                    if color_col and color_col != x_col:
+                        group_cols.append(f'"{color_col}"')
+                    group_str = ", ".join(group_cols)
+                    sql = f"""
+                    SELECT {group_str}, {y_agg_expr} AS "{y_col}"
+                    FROM {target_src}
+                    {where_clause}
+                    GROUP BY {group_str}
+                    ORDER BY "{y_col}" DESC
+                    LIMIT {row_limit}
+                    """
+
                 try:
                     v_df = _execute_safe_query(con, sql)
                     records = df_to_safe_records(v_df)
+                    if not records:
+                        query_status = "no_data"
                 except Exception as e:
-                    # Fallback query without where clause
+                    # Fallback: simple query without temporal aggregation or where clause
                     try:
+                        group_cols_fb = [f'"{x_col}"']
+                        if color_col and color_col != x_col:
+                            group_cols_fb.append(f'"{color_col}"')
+                        group_str_fb = ", ".join(group_cols_fb)
                         fb_sql = f"""
-                        SELECT {group_str}, {y_agg_expr} AS "{y_col}"
+                        SELECT {group_str_fb}, {y_agg_expr} AS "{y_col}"
                         FROM {target_src}
-                        GROUP BY {group_str}
+                        GROUP BY {group_str_fb}
                         ORDER BY "{y_col}" DESC
-                        LIMIT 30
+                        LIMIT 15
                         """
                         v_df = _execute_safe_query(con, fb_sql)
                         records = df_to_safe_records(v_df)
+                        if not records:
+                            query_status = "no_data"
                     except Exception as fb_err:
+                        query_status = "query_error"
+                        query_error_detail = str(fb_err)[:200]
                         logger.warning("Error querying chart '%s': %s", v_title, fb_err)
+            elif query_status == "ok":
+                query_status = "missing_fields"
 
-            vega_spec = _build_vega_lite_spec(v_title, c_type, x_col, y_col, color_col, records)
+            vega_spec = _build_vega_lite_spec(v_title, c_type, x_col, y_col, color_col, records, is_temporal=x_is_temporal)
 
             hydrated_visuals.append({
                 "id": viz.get("id", str(uuid.uuid4())),
@@ -719,6 +1012,8 @@ def _hydrate_dashboard_spec(
                 "aggregation": agg,
                 "data": records,
                 "vega_spec": vega_spec,
+                "_query_status": query_status,
+                "_query_error": query_error_detail if query_error_detail else None,
             })
 
         while len(hydrated_visuals) < 6:
@@ -862,13 +1157,26 @@ def generate_dashboard():
 
     tables_summary = []
     for t in profile.get("tables", []):
+        cols_with_samples = []
+        for c in t.get("columns", []):
+            col_info: dict[str, Any] = {
+                "name": c["name"],
+                "type": c["type"],
+                "semantic_type": c["semantic_type"],
+                "distinct_count": c.get("distinct_count"),
+            }
+            sample_vals = c.get("sample_values", [])
+            if sample_vals:
+                col_info["sample_values"] = sample_vals[:3]
+            cols_with_samples.append(col_info)
         tables_summary.append({
             "table_name": t["table_name"],
             "row_count": t["row_count"],
             "measures": t.get("measures", []),
             "dimensions": t.get("dimensions", []),
             "temporal_columns": t.get("temporal_columns", []),
-            "columns": [{"name": c["name"], "type": c["type"], "semantic_type": c["semantic_type"]} for c in t.get("columns", [])],
+            "columns": cols_with_samples,
+            "sample_records": t.get("sample_records", [])[:3],
         })
 
     system_prompt = f"""You are an expert dashboard and analytics architect for InsightCanvas.
@@ -881,12 +1189,22 @@ LAYOUT REQUIREMENTS (STRICT):
    - Choose diverse, complementary chart types from ('bar', 'line', 'area', 'scatter', 'donut', 'pie').
    - Use 'line' or 'area' for temporal/trend fields.
    - Use 'bar' or 'donut' for categorical breakdowns.
-   - Pick valid measure columns for y_field and dimension columns for x_field.
+   - ALWAYS assign dimension/categorical columns to x_field and numeric/measure columns to y_field.
    - Ensure high analytical value and zero redundancy.
 
-CRITICAL RULES:
-- ONLY use table names and column names that ACTUALLY EXIST in the provided schema.
-- Do NOT invent or hallucinate column names.
+CRITICAL COLUMN RULES:
+- ONLY use table names and column names that ACTUALLY EXIST in the provided schema below.
+- Do NOT invent, guess, or hallucinate column names. Every x_field, y_field, color_field, and measure_column MUST match an exact column name from the schema.
+- Use the 'sample_values' and 'distinct_count' fields to understand data distribution and choose meaningful axes.
+- For KPIs: use measure (numeric) columns with SUM/AVG/MAX/MIN aggregation, or use identifier columns with COUNT aggregation.
+- For visualizations: x_field should be a dimension/categorical column, y_field should be a numeric/measure column.
+
+AGGREGATION ACCURACY RULES:
+- For columns containing rates, percentages, ratios, or averages (e.g. utilization_percentage, defect_rate, efficiency_score): use AVG, never SUM.
+- For columns that are counts or quantities (e.g. total_output, units_produced, quantity): use SUM.
+- For ID or key columns: use COUNT(DISTINCT).
+- For monetary/currency columns (e.g. cost, price, revenue, salary): use SUM for totals, AVG for per-unit metrics.
+- Match the 'format' field to the data semantics: use 'percent' for rate/percentage measures, 'currency' for monetary, 'integer' for counts.
 
 Return ONLY valid JSON matching this structure:
 {{
@@ -939,7 +1257,75 @@ Return ONLY valid JSON matching this structure:
         json_objs = extract_json_objects(content)
         raw_spec = json_objs[0] if json_objs else json.loads(content)
 
+        # Post-LLM validation: fix hallucinated column names
+        raw_spec = _validate_and_fix_spec(raw_spec, profile)
+
         hydrated = _hydrate_dashboard_spec(workspace, raw_spec, filter_value="All")
+
+        # ── Self-Healing Validation Loop ──
+        # Check for broken KPIs and visuals, auto-repair them via LLM
+        broken_kpis = []
+        for i, kpi in enumerate(hydrated.get("kpis", [])):
+            if kpi.get("formatted_value") in ("N/A", "—", None, "") or kpi.get("raw_value") is None:
+                broken_kpis.append({"index": i, "id": kpi.get("id"), "title": kpi.get("title"),
+                                    "measure_column": kpi.get("measure_column"), "table": kpi.get("table"),
+                                    "reason": "KPI value is N/A — column may not exist or aggregation failed"})
+
+        broken_visuals = []
+        for i, viz in enumerate(hydrated.get("visualizations", [])):
+            status = viz.get("_query_status", "ok")
+            if status != "ok":
+                broken_visuals.append({"index": i, "id": viz.get("id"), "title": viz.get("title"),
+                                       "x_field": viz.get("x_field"), "y_field": viz.get("y_field"),
+                                       "chart_type": viz.get("chart_type"), "table": viz.get("table"),
+                                       "status": status, "error": viz.get("_query_error", "")})
+
+        if broken_kpis or broken_visuals:
+            logger.info("Self-healing: %d broken KPIs, %d broken visuals detected. Attempting auto-repair.",
+                        len(broken_kpis), len(broken_visuals))
+            column_inventory = _build_column_inventory(profile)
+            stripped = _strip_spec_for_llm(hydrated)
+
+            repair_prompt = f"""The dashboard you generated has accuracy issues. Some KPIs show N/A values and some visualizations have empty data because of incorrect column references.
+
+BROKEN KPIs (showing N/A):
+{json.dumps(broken_kpis, indent=2) if broken_kpis else "None"}
+
+BROKEN VISUALIZATIONS (empty/error):
+{json.dumps(broken_visuals, indent=2) if broken_visuals else "None"}
+
+Current Dashboard Spec:
+{json.dumps(stripped, indent=2)}
+
+Available Columns (use ONLY these exact names):
+{column_inventory}
+
+FIX INSTRUCTIONS:
+1. For each broken KPI: replace measure_column with a VALID column name from the Available Columns that is a numeric/measure type. Choose an appropriate aggregation.
+2. For each broken visualization: replace x_field and y_field with VALID column names. x_field must be a dimension/categorical column, y_field must be a numeric/measure column.
+3. Keep all working KPIs and visualizations UNCHANGED.
+4. Return the COMPLETE fixed dashboard spec (all 4 KPIs + 6 visualizations).
+
+Return ONLY valid JSON with the complete fixed dashboard specification (same structure as the original)."""
+
+            try:
+                repair_response = client.get_completion(
+                    messages=[
+                        {"role": "system", "content": "You are a dashboard repair assistant. Fix broken column references using only the available columns provided."},
+                        {"role": "user", "content": repair_prompt},
+                    ],
+                    reasoning_effort=reasoning_effort_for("analyst", client.model),
+                )
+                repair_content = repair_response.choices[0].message.content or ""
+                repair_objs = extract_json_objects(repair_content)
+                if repair_objs:
+                    repaired_spec = repair_objs[0]
+                    repaired_spec = _validate_and_fix_spec(repaired_spec, profile)
+                    hydrated = _hydrate_dashboard_spec(workspace, repaired_spec, filter_value="All")
+                    logger.info("Self-healing: successfully repaired dashboard spec")
+            except Exception as repair_err:
+                logger.warning("Self-healing repair failed (using original): %s", repair_err)
+
         return json_ok({"dashboard": hydrated})
     except Exception as exc:
         logger.error("Error generating dashboard: %s", exc, exc_info=True)
@@ -986,48 +1372,81 @@ def chat_refinement():
     client = _get_client_from_request(model_config)
     lang_inst = build_language_instruction(_get_ui_lang(), mode="full")
 
+    # Strip noise from dashboard spec — remove hydrated data, vega specs,
+    # computed KPI values so the LLM only sees structural definitions
+    stripped_dashboard = _strip_spec_for_llm(current_dashboard)
+    column_inventory = _build_column_inventory(profile)
+
     system_prompt = f"""You are the Intelligence Assistant for InsightCanvas.
 The user wants to modify or ask a question about their current generated dashboard.
 
-Current Dashboard State:
-{json.dumps(current_dashboard, ensure_ascii=False, indent=2)}
+Current Dashboard Specification (structural definition only):
+{json.dumps(stripped_dashboard, ensure_ascii=False, indent=2)}
 
-Available Tables & Schema:
-{json.dumps(profile.get("tables", []), ensure_ascii=False, indent=2) if profile else "See current dashboard tables"}
+Available Columns (full inventory — use ONLY these exact column names):
+{column_inventory}
 
-INSTRUCTIONS:
-1. If the user is asking to modify a KPI, replace a visualization, change chart types, or adjust metrics:
-   - Provide a helpful, clear assistant response.
-   - Update the modified fields in the dashboard specification (e.g. changing title, measure_column, aggregation, format, chart_type, x_field, y_field).
-   - Ensure the structure maintains: exactly 4 KPIs, 1 Filter, 6 Visualizations.
-2. If the user is asking a general analytical question about the data or dashboard:
-   - Answer accurately based on the metrics and data.
-   - Keep the dashboard specification unchanged.
+MODIFICATION RULES (CRITICAL — follow precisely):
+1. When the user asks to change a chart, KPI, axis, field, or metric:
+   - You MUST actually modify the corresponding fields (x_field, y_field, measure_column, chart_type, aggregation, color_field, title, etc.) in the updated_dashboard.
+   - Do NOT return the same specification unchanged when the user asks for a modification.
+   - In your reply, state EXACTLY which fields you changed (e.g. "Changed viz_3.x_field from 'Employee_ID' to 'Department'").
+   - Always use column names EXACTLY as they appear in the Available Columns inventory above.
+2. When the user asks a general analytical question:
+   - Answer accurately and keep the dashboard specification unchanged.
+3. Always maintain: exactly 4 KPIs, 1 Filter, 6 Visualizations.
+4. For axis changes: x_field should typically be a dimension/categorical column; y_field should be a numeric/measure column.
 
 Return ONLY a JSON object:
 {{
-  "reply": "Assistant message to the user explaining what was updated or answered",
-  "updated_dashboard": <full updated dashboard specification object>
+  "reply": "Assistant message explaining what was changed or answered, including specific field changes",
+  "updated_dashboard": <full updated dashboard specification object with ALL fields including filter, kpis, visualizations>
 }}
 """
     system_prompt = inject_language_instruction(system_prompt, lang_inst)
 
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in chat_history[-6:]:
+    for msg in chat_history[-10:]:
         messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
     messages.append({"role": "user", "content": user_message})
 
-    try:
+    def _call_llm(msgs: list[dict]) -> tuple[str, dict[str, Any]]:
         response = client.get_completion(
-            messages=messages,
+            messages=msgs,
             reasoning_effort=reasoning_effort_for("analyst", client.model),
         )
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
         parsed = json_objs[0] if json_objs else json.loads(content)
+        return parsed.get("reply", "Dashboard updated."), parsed.get("updated_dashboard", current_dashboard)
 
-        reply_text = parsed.get("reply", "Dashboard updated.")
-        updated_spec = parsed.get("updated_dashboard", current_dashboard)
+    try:
+        reply_text, updated_spec = _call_llm(messages)
+
+        # Diff detection: if the user asked for a modification but the spec
+        # is unchanged, retry once with a stronger nudge
+        modification_keywords = ["change", "update", "modify", "replace", "switch", "use", "set", "make",
+                                 "show", "display", "add", "remove", "swap", "convert", "move", "put", "want"]
+        user_wants_change = any(kw in user_message.lower() for kw in modification_keywords)
+
+        if user_wants_change:
+            stripped_updated = _strip_spec_for_llm(updated_spec)
+            if json.dumps(stripped_updated, sort_keys=True) == json.dumps(stripped_dashboard, sort_keys=True):
+                logger.warning("LLM returned unchanged spec despite modification request. Retrying with stronger nudge.")
+                nudge_msg = (
+                    f"IMPORTANT: Your previous response did NOT actually change any fields in the dashboard. "
+                    f"The user explicitly asked: '{user_message}'. "
+                    f"You MUST modify the relevant fields (x_field, y_field, measure_column, chart_type, etc.) "
+                    f"in the updated_dashboard JSON. Return the corrected JSON now."
+                )
+                retry_messages = messages + [
+                    {"role": "assistant", "content": json.dumps({"reply": reply_text, "updated_dashboard": stripped_updated})},
+                    {"role": "user", "content": nudge_msg},
+                ]
+                reply_text, updated_spec = _call_llm(retry_messages)
+
+        # Post-LLM validation: fix hallucinated column names
+        updated_spec = _validate_and_fix_spec(updated_spec, profile)
 
         hydrated = _hydrate_dashboard_spec(
             workspace,
@@ -1040,6 +1459,142 @@ Return ONLY a JSON object:
         })
     except Exception as exc:
         logger.error("Error in intelligence chat: %s", exc, exc_info=True)
+        raise classify_and_wrap_llm_error(exc) from exc
+
+
+@intelligence_bp.route("/generate-report", methods=["POST"])
+def generate_dashboard_report():
+    """Generate an in-depth analytical executive report by analyzing dashboard KPIs, filters, and charts."""
+    identity_id = get_identity_id()
+    if not identity_id:
+        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+
+    data = request.get_json() or {}
+    dashboard = data.get("dashboard")
+    profile = data.get("profile")
+    model_config = data.get("model")
+
+    if not dashboard:
+        raise AppError(ErrorCode.INVALID_REQUEST, "Dashboard data is required for report generation")
+
+    client = _get_client_from_request(model_config)
+    lang_inst = build_language_instruction(_get_ui_lang(), mode="full")
+
+    # Extract clean context from dashboard
+    dash_title = dashboard.get("title", "Executive Intelligence Dashboard")
+    dash_desc = dashboard.get("description", "")
+    filter_info = dashboard.get("filter") or {}
+    selected_filter = filter_info.get("selected_value", "All")
+    filter_label = filter_info.get("label") or filter_info.get("field", "Dimension")
+
+    # Summarize KPIs
+    kpi_summaries = []
+    for k in dashboard.get("kpis", []):
+        kpi_summaries.append({
+            "title": k.get("title"),
+            "formatted_value": k.get("formatted_value"),
+            "measure": k.get("measure_column"),
+            "aggregation": k.get("aggregation"),
+            "subtitle": k.get("subtitle"),
+            "comparison": k.get("comparison"),
+        })
+
+    # Summarize Visualizations with top records
+    viz_summaries = []
+    for v in dashboard.get("visualizations", []):
+        viz_summaries.append({
+            "title": v.get("title"),
+            "chart_type": v.get("chart_type"),
+            "x_field": v.get("x_field"),
+            "y_field": v.get("y_field"),
+            "color_field": v.get("color_field"),
+            "aggregation": v.get("aggregation"),
+            "top_data_points": v.get("data", [])[:8],
+        })
+
+    analytical_context = {
+        "dashboard_title": dash_title,
+        "dashboard_description": dash_desc,
+        "active_filter": {
+            "field": filter_label,
+            "selected_value": selected_filter,
+        },
+        "kpi_metrics": kpi_summaries,
+        "visualizations": viz_summaries,
+    }
+
+    system_prompt = f"""You are a Principal Executive Business Intelligence Analyst & Strategic Director.
+Your task is to analyze the provided analytical dashboard—including all 4 Key Performance Indicators (KPIs), the active slice filter, and the 6 visualization datasets—and generate an in-depth, executive-ready analytical intelligence report in GitHub-flavored Markdown.
+
+REPORT GUIDELINES:
+1. **Tone**: Authoritative, strategic, quantitative, and actionable. Written for C-suite executives, Board members, and VP-level stakeholders.
+2. **Data Accuracy (STRICT)**: Use ONLY the exact numbers, percentages, KPI values, and categorical breakdowns present in the provided analytical context. Reference exact numbers from the data.
+3. **Analytical Rigor**: Do not merely list numbers—explain the 'why', the business root causes, operational mechanisms, cross-metric correlations, and strategic risks/opportunities.
+4. **Visual Cross-Referencing**: Specifically refer to each of the 6 charts by their exact titles so readers can cross-reference the visual charts in the report.
+
+STRUCTURE REQUIRED:
+# Executive Intelligence Report: {dash_title}
+
+> **Analytical Scope**: Scope Filter: `{filter_label} = {selected_filter}` | Generated on {datetime.now().strftime("%B %d, %Y")}
+
+## 1. Executive Summary & Strategic Overview
+- 2-3 high-impact paragraphs summarizing overall organizational performance, health, key strengths, and critical vulnerabilities under the current analytical scope.
+- **Top Strategic Highlights**: 3-4 bullet points capturing the most notable successes, high-risk flags, and inflection points.
+
+## 2. KPI Performance Deep-Dive & Root-Cause Attribution
+- Detailed breakdown of each of the 4 KPI metrics:
+  - **Metric Value & Definition**: Exact value, computation method, and benchmark status.
+  - **Performance Drivers**: What operational, market, or resource factors explain this number.
+  - **Variance & Baseline Comparison**: Contextualize against historical trends or targets.
+
+## 3. Multi-Dimensional Visual Analytics & Trend Interpretations
+- Detailed analytical walkthrough of each of the 6 visualization charts:
+  - For each chart, provide:
+    - **Observed Distribution / Trajectory**: Key leaders, laggards, seasonal shifts, or concentration ratios.
+    - **Analytical Finding**: What this visual reveals about operational bottlenecks, product/segment health, or capacity utilization.
+    - **Notable Outliers**: Specific anomalies or exceptional data points that warrant management attention.
+
+## 4. Cross-Metric Correlations & Risk Evaluation
+- Cross-synthesize relationships between the KPI summary numbers and the granular dimensional charts (e.g. how specific segments or time periods drive the overall KPI).
+- Identify systemic risks: margin compression, capacity constraints, quality degradation, attrition, or revenue concentration.
+
+## 5. Strategic Recommendations & Prioritized Action Roadmap
+- Provide 4-5 concrete, high-ROI strategic initiatives.
+- For each recommendation, structure as:
+  - **Initiative**: Clear, actionable title.
+  - **Recommended Action**: Specific operational or strategic steps.
+  - **Expected Business Impact**: Measurable improvement in efficiency, cost reduction, or output.
+  - **Priority & Timeline**: (High / Medium / Low | Immediate / 30-Day / 90-Day).
+
+Return ONLY the complete Markdown document. Do not wrap in JSON or code fences."""
+
+    system_prompt = inject_language_instruction(system_prompt, lang_inst)
+    user_query = f"Dashboard Analytical Data:\n{json.dumps(analytical_context, ensure_ascii=False, indent=2)}"
+
+    try:
+        response = client.get_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query},
+            ],
+            reasoning_effort=reasoning_effort_for("analyst", client.model),
+        )
+        report_md = response.choices[0].message.content or ""
+        # Clean potential markdown wrapping if LLM enclosed the whole output in ```markdown
+        if report_md.startswith("```markdown"):
+            report_md = report_md[len("```markdown"):].strip()
+        elif report_md.startswith("```"):
+            report_md = report_md[3:].strip()
+        if report_md.endswith("```"):
+            report_md = report_md[:-3].strip()
+
+        return json_ok({
+            "title": f"Report - {dash_title}",
+            "report": report_md,
+            "created_at": datetime.now().isoformat(),
+        })
+    except Exception as exc:
+        logger.error("Error generating intelligence report: %s", exc, exc_info=True)
         raise classify_and_wrap_llm_error(exc) from exc
 
 

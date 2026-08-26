@@ -2717,19 +2717,3 @@ def register_data_connectors(app: Flask) -> None:
     for key, reason in DISABLED_LOADERS.items():
         if key not in DATA_CONNECTORS:
             logger.info("Source '%s' not available: %s", key, reason)
-
-    # 3. Always register the built-in sample datasets connector. This is
-    #    the one data source that remains available even in
-    #    ``--disable_database`` mode — it has no auth, no external
-    #    dependency beyond ``requests``, and gives users a zero-config
-    #    way to explore InsightCanvas.
-    sample_loader_class = DATA_LOADERS.get("sample_datasets")
-    if sample_loader_class and "sample_datasets" not in DATA_CONNECTORS:
-        DATA_CONNECTORS["sample_datasets"] = DataConnector.from_loader(
-            sample_loader_class,
-            source_id="sample_datasets",
-            display_name="Example Datasets",
-            icon="dataset",
-        )
-        _ADMIN_CONNECTOR_IDS.add("sample_datasets")
-        logger.info("Registered built-in 'sample_datasets' connector")

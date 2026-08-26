@@ -1,7 +1,7 @@
 // Copyright (c) Techknomatic Services Pvt Ltd.
 // Licensed under the MIT License.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -9,11 +9,21 @@ import {
     CircularProgress,
     Alert,
     Tooltip,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
 } from '@mui/material';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import ImageIcon from '@mui/icons-material/Image';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import {
     DataProfile,
@@ -31,6 +41,7 @@ import {
     loadSessionDetail,
     saveSession,
     deleteSession,
+    generateExecutiveReport,
 } from './intelligenceService';
 
 import { RecentSessionsSidebar } from './RecentSessionsSidebar';
@@ -39,6 +50,8 @@ import { DashboardFilterBar } from './DashboardFilterBar';
 import { KpiGrid } from './KpiGrid';
 import { VisualizationGrid } from './VisualizationGrid';
 import { ChatPanel } from './ChatPanel';
+import { IntelligenceReportDialog } from './IntelligenceReportDialog';
+import { downloadDashboardImage, downloadDashboardPdf } from './dashboardExport';
 
 interface IntelligenceWorkspaceProps {
     sourceId: string;
@@ -76,7 +89,19 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState<boolean>(false);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
+    // Executive Report Dialog state
+    const [reportDialogOpen, setReportDialogOpen] = useState<boolean>(false);
+    const [reportLoading, setReportLoading] = useState<boolean>(false);
+    const [reportMarkdown, setReportMarkdown] = useState<string>('');
+    const [reportTitle, setReportTitle] = useState<string>('');
+    const [reportError, setReportError] = useState<string | null>(null);
+
+    // Export menu anchor
+    const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
+    const exportOpen = Boolean(exportAnchorEl);
+
     const [error, setError] = useState<string | null>(null);
+    const dashboardCanvasRef = useRef<HTMLDivElement>(null);
 
     // 1. Initial Load: Fetch Suggestions & List Sessions
     useEffect(() => {
@@ -111,6 +136,8 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     const handleGenerate = async (prompt: string, titleHint?: string) => {
         setError(null);
         setGeneratingDashboard(true);
+        // Clear previous report cache when new dashboard generated
+        setReportMarkdown('');
 
         const newMsg: ChatMessage = {
             id: String(Date.now()),
@@ -227,6 +254,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         setSessionsDrawerOpen(false);
         setError(null);
         setActiveSessionId(sess.id);
+        setReportMarkdown('');
 
         try {
             const fullDetail = await loadSessionDetail(sess.id);
@@ -252,6 +280,85 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             }
         } catch (err) {
             console.error('Failed to delete session', err);
+        }
+    };
+
+    // 7. Executive Report Generation
+    const handleOpenReport = async () => {
+        if (!dashboard) return;
+        setReportDialogOpen(true);
+        setReportTitle(`Executive Intelligence Report - ${dashboard.title}`);
+
+        // If report already generated for this current dashboard state, don't re-fetch unless requested
+        if (reportMarkdown) return;
+
+        setReportLoading(true);
+        setReportError(null);
+
+        try {
+            const res = await generateExecutiveReport(dashboard, profile, modelConfig);
+            setReportMarkdown(res.report);
+            if (res.title) setReportTitle(res.title);
+        } catch (err: any) {
+            setReportError(err?.message || 'Failed to generate executive report');
+        } finally {
+            setReportLoading(false);
+        }
+    };
+
+    const handleRegenerateReport = async () => {
+        if (!dashboard) return;
+        setReportLoading(true);
+        setReportError(null);
+        try {
+            const res = await generateExecutiveReport(dashboard, profile, modelConfig);
+            setReportMarkdown(res.report);
+            if (res.title) setReportTitle(res.title);
+        } catch (err: any) {
+            setReportError(err?.message || 'Failed to regenerate executive report');
+        } finally {
+            setReportLoading(false);
+        }
+    };
+
+    // 8. Export Dashboard (PDF / JPG / PNG)
+    const getCanvasElement = (): HTMLElement | null => {
+        return (
+            dashboardCanvasRef.current ||
+            (document.getElementById('intelligence-dashboard-canvas') as HTMLElement | null)
+        );
+    };
+
+    const handleExportPdf = async () => {
+        const el = getCanvasElement();
+        if (!el || !dashboard) return;
+        try {
+            const filterContext = dashboard.filter
+                ? `${dashboard.filter.label || dashboard.filter.field} = ${dashboard.filter.selected_value || 'All'}`
+                : undefined;
+            await downloadDashboardPdf(el, dashboard.title, filterContext);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to export dashboard as PDF');
+        }
+    };
+
+    const handleExportJpg = async () => {
+        const el = getCanvasElement();
+        if (!el || !dashboard) return;
+        try {
+            await downloadDashboardImage(el, `${dashboard.title}-Dashboard`, 'jpg');
+        } catch (err: any) {
+            setError(err?.message || 'Failed to export dashboard as JPG');
+        }
+    };
+
+    const handleExportPng = async () => {
+        const el = getCanvasElement();
+        if (!el || !dashboard) return;
+        try {
+            await downloadDashboardImage(el, `${dashboard.title}-Dashboard`, 'png');
+        } catch (err: any) {
+            setError(err?.message || 'Failed to export dashboard as PNG');
         }
     };
 
@@ -286,6 +393,8 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         justifyContent: 'space-between',
                         mb: dashboard ? 2 : 1,
                         flexShrink: 0,
+                        flexWrap: 'wrap',
+                        gap: 1,
                     }}
                 >
                     {/* Top Left: ONLY Intelligence Workspace with proper icon */}
@@ -319,7 +428,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     </Box>
 
                     {/* Top Right Controls */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flexWrap: 'wrap' }}>
                         {/* Change Tables action button */}
                         <Button
                             size="small"
@@ -357,6 +466,121 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                 Recent Sessions ({sessions.length})
                             </Button>
                         </Tooltip>
+
+                        {/* When dashboard exists: Quick Header Export & Report Buttons */}
+                        {dashboard && (
+                            <>
+                                {/* Executive Report Button in Header */}
+                                <Tooltip title="Analyze dashboard KPIs and generate an executive report">
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={
+                                            reportLoading ? (
+                                                <CircularProgress size={14} sx={{ color: '#4F46E5' }} />
+                                            ) : (
+                                                <AutoAwesomeIcon sx={{ fontSize: 15, color: '#4F46E5' }} />
+                                            )
+                                        }
+                                        onClick={handleOpenReport}
+                                        disabled={reportLoading}
+                                        sx={{
+                                            textTransform: 'none',
+                                            borderRadius: '8px',
+                                            fontWeight: 600,
+                                            fontSize: '12.5px',
+                                            borderColor: '#c7d2fe',
+                                            color: '#4338ca',
+                                            bgcolor: '#eef2ff',
+                                            px: 1.5,
+                                            py: 0.4,
+                                            '&:hover': {
+                                                bgcolor: '#e0e7ff',
+                                                borderColor: '#818cf8',
+                                            },
+                                        }}
+                                    >
+                                        Executive Report
+                                    </Button>
+                                </Tooltip>
+
+                                {/* Export Dashboard Button in Header */}
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+                                    endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 16 }} />}
+                                    onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                                    sx={{
+                                        textTransform: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '12.5px',
+                                        fontWeight: 600,
+                                        borderColor: '#cbd5e1',
+                                        color: '#334155',
+                                        bgcolor: '#ffffff',
+                                        px: 1.5,
+                                        py: 0.4,
+                                    }}
+                                >
+                                    Export
+                                </Button>
+
+                                <Menu
+                                    anchorEl={exportAnchorEl}
+                                    open={exportOpen}
+                                    onClose={() => setExportAnchorEl(null)}
+                                    PaperProps={{
+                                        sx: {
+                                            borderRadius: '10px',
+                                            minWidth: 190,
+                                            boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+                                            border: '1px solid #e2e8f0',
+                                            mt: 0.8,
+                                        },
+                                    }}
+                                >
+                                    <MenuItem
+                                        onClick={() => {
+                                            setExportAnchorEl(null);
+                                            handleExportPdf();
+                                        }}
+                                        sx={{ py: 1, fontSize: '13px', fontWeight: 500 }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 32, color: '#dc2626' }}>
+                                            <PictureAsPdfIcon sx={{ fontSize: 18 }} />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Download as PDF" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                                    </MenuItem>
+
+                                    <MenuItem
+                                        onClick={() => {
+                                            setExportAnchorEl(null);
+                                            handleExportJpg();
+                                        }}
+                                        sx={{ py: 1, fontSize: '13px', fontWeight: 500 }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 32, color: '#1B75BB' }}>
+                                            <ImageIcon sx={{ fontSize: 18 }} />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Download as JPG" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                                    </MenuItem>
+
+                                    <MenuItem
+                                        onClick={() => {
+                                            setExportAnchorEl(null);
+                                            handleExportPng();
+                                        }}
+                                        sx={{ py: 1, fontSize: '13px', fontWeight: 500 }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 32, color: '#10b981' }}>
+                                            <ImageIcon sx={{ fontSize: 18 }} />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Download as PNG" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                                    </MenuItem>
+                                </Menu>
+                            </>
+                        )}
 
                         {/* Show/Hide Assistant Button (shown when dashboard is populated) */}
                         {dashboard && (
@@ -481,13 +705,25 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 {/* 3. FULL-SCREEN DASHBOARD VIEW: 1 Filter + 4 KPIs + 6 Charts */}
                 {/* ============================================================ */}
                 {dashboard && !generatingDashboard && (
-                    <Box sx={{ width: '100%', pb: 4 }}>
-                        {/* 1. Dynamic Top Filter */}
+                    <Box
+                        id="intelligence-dashboard-canvas"
+                        ref={dashboardCanvasRef}
+                        sx={{
+                            width: '100%',
+                            pb: 4,
+                            bgcolor: '#f8fafc',
+                            p: { xs: 1, md: 1.5 },
+                            borderRadius: '14px',
+                        }}
+                    >
+                        {/* 1. Dynamic Top Filter Bar with Integrated Export & Report Actions */}
                         {dashboard.filter && (
                             <DashboardFilterBar
                                 filter={dashboard.filter}
                                 onFilterChange={handleFilterChange}
                                 filtering={filtering}
+                                dashboardTitle={dashboard.title}
+                                dashboardDescription={dashboard.description}
                             />
                         )}
 
@@ -514,7 +750,22 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         onClose={() => setShowAssistant(false)}
                     />
                 )}
+
+                {/* ============================================================ */}
+                {/* 5. EXECUTIVE INTELLIGENCE REPORT DIALOG / VIEWER */}
+                {/* ============================================================ */}
+                <IntelligenceReportDialog
+                    open={reportDialogOpen}
+                    onClose={() => setReportDialogOpen(false)}
+                    reportTitle={reportTitle || `Executive Report - ${dashboard?.title || 'Dashboard'}`}
+                    reportMarkdown={reportMarkdown}
+                    loading={reportLoading}
+                    error={reportError}
+                    onRegenerate={handleRegenerateReport}
+                    dashboard={dashboard}
+                />
             </Box>
         </Box>
     );
 };
+

@@ -102,4 +102,60 @@
 
 ---
 
+### 2.7 Intelligence Hub & Automated BI Dashboards
+- **Zero-Touch Dashboard Synthesis**:
+  - Automatically profiles ingested relational or Parquet datasets, identifies cross-table primary/foreign key relationships, and synthesizes complete analytical dashboards in seconds.
+  - Generates domain-tailored titles, subtitles, and domain icons (Healthcare, Manufacturing, HR, Sales, Finance, Education, Logistics, Gaming, Media, Analytics).
+- **Executive KPI Performance Scorecard**:
+  - Computes 4 high-level strategic KPI metric cards with proper aggregation rules (Sum, Avg, Count, Min, Max), currency/percentage formatting, and baseline performance comparison badges.
+- **6 Multi-Dimensional Visual Analytics Grid**:
+  - Renders 6 distinct interactive Vega-Lite visual charts per dashboard:
+    - Temporal timeline trajectories with ascending chronological ordering (`%b %Y`).
+    - Categorical ranking breakdowns (Top 15 bar charts).
+    - Composition and distribution visuals (Top 7 donut/pie charts with `"Other"` grouping).
+    - Multi-variable scatter correlations and density heatmaps.
+- **Dynamic Slicer & In-Memory DuckDB Cross-Filtering**:
+  - Auto-detects optimal dimension columns for global slice filtering (e.g. Department, Store, Region, Category).
+  - Instantly updates all 4 KPIs and 6 visualization charts across tables via in-memory DuckDB query execution (`_unified_analytics` view).
+
+---
+
+### 2.8 Self-Healing Agent Accuracy Engine & BI Guardrails
+- **Column Inventory & Fuzzy Schema Matching**:
+  - Builds an explicit dictionary of verified column names, physical data types, and distinct sample values before passing to LLMs.
+  - Corrects casing discrepancies and hallucinated field names using case-insensitive and `difflib` fuzzy matching.
+- **Self-Healing Execution Loop**:
+  - Post-hydration validation detects any `N/A` KPI metrics or query execution failures.
+  - Automatically triggers an LLM auto-repair pass with explicit error context to fix queries and regenerate accurate metrics without user intervention.
+- **Smart Aggregation Override**:
+  - Detects pre-calculated rates, averages, percentages, and efficiencies in column names and overrides incorrect `SUM()` aggregations to `AVG()`.
+  - Enforces `COUNT(DISTINCT column)` for cardinality metrics.
+
+---
+
+### 2.9 Executive Intelligence Strategic Reporting
+- **In-Depth C-Suite Strategic Narrative**:
+  - Generates comprehensive strategic briefings structured into 5 sections:
+    1. **Executive Summary & Strategic Overview**: Overall organizational health and top strategic highlights.
+    2. **KPI Performance Deep-Dive & Root-Cause Attribution**: Exact metric values, benchmarks, and operational drivers.
+    3. **Multi-Dimensional Visual Analytics & Trend Dynamics**: Granular walkthrough of each of the 6 charts with leader/laggard findings and outlier detection.
+    4. **Cross-Metric Correlations & Risk Evaluation**: Systemic risk analysis, margin pressure, and capacity bottlenecks.
+    5. **Strategic Recommendations & Prioritized Action Roadmap**: Actionable initiatives with expected impact and implementation timelines (Immediate / 30-Day / 90-Day).
+- **Embedded Live Visuals & Scorecards**:
+  - Embeds the 4 KPI scorecard cards and all 6 live SVG visualization charts directly within the report document alongside the analytical commentary.
+
+---
+
+### 2.10 High-DPI Export Pipeline (PDF, JPG, PNG)
+- **Pixel-Perfect Multi-Page PDF Export**:
+  - Paged print document layout with `@page { margin: 0mm; }` and repeating `<thead>`/`<tfoot>` margin spacers.
+  - Completely suppresses browser-generated URLs (`localhost:...`), timestamps, and headers.
+  - Implements `break-inside: avoid` on bullet points, paragraphs, tables, KPI cards, and charts to prevent text slicing across page splits.
+- **Standalone Dashboard Image & PDF Export**:
+  - 2x High-DPI canvas captures for JPG and PNG exports.
+  - Upright, unrotated portrait PDF export with scope filter badges and zero branding watermark clutter.
+
+---
+
 *Copyright © Techknomatic Services Pvt. Ltd. All rights reserved.*
+

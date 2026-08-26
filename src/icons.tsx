@@ -110,8 +110,6 @@ const CONNECTOR_ICON_MAP: Record<string, React.FC<SvgIconProps>> = {
  *      (`mysql`, `sample_datasets`, ...).
  *  We index by both so a single comparator works for both call sites. */
 const CONNECTOR_CATEGORY_ORDER: Record<string, number> = {
-    // Example Datasets (always top)
-    sample_datasets: -100, SampleDatasetsLoader: -100,
     // Local
     local_folder: -1, LocalFolderDataLoader: -1,
     // Relational DB

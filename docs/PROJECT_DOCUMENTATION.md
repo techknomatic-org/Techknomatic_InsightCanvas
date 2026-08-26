@@ -247,8 +247,16 @@ data: {"type": "result", "table_id": "tbl_a1b2c3", "preview": [...]}
 | :--- | :--- | :--- | :--- |
 | `/api/server-config` | `GET` | — | Feature flags, available models, auth status |
 | `/api/upload/scratch` | `POST` | `multipart/form-data` (file) | Scratch file path |
-| `/api/data-loaders/discover` | `POST` | `{ "connector_id": "...", "config": {...} }` | Catalog schema, tables, views |
-| `/api/data-loaders/load-table`| `POST` | `{ "connector_id": "...", "table": "..." }` | Parquet table reference & schema metadata |
+| `/api/connectors/get-catalog-tree` | `POST` | `{ "connector_id": "..." }` | Hierarchical multi-database and table tree |
+| `/api/connectors/import-data` | `POST` | `{ "connector_id": "...", "database": "...", "table": "..." }` | Ingestion status & Parquet file reference |
+| `/api/intelligence/profile` | `POST` | `{ "table_names": [...] }` | Data profile summary & schema graph |
+| `/api/intelligence/suggestions` | `POST` | `{ "table_names": [...] }` | Automated dashboard goal recommendations |
+| `/api/intelligence/generate-dashboard` | `POST` | `{ "user_goal": "...", "table_names": [...] }` | Complete hydrated DashboardSpec (4 KPIs, 6 Vizzes, Slicer) |
+| `/api/intelligence/query-filter` | `POST` | `{ "dashboard": {...}, "filter": {...} }` | Filtered KPI values and visualization datasets via DuckDB |
+| `/api/intelligence/refine` | `POST` | `{ "dashboard": {...}, "user_instruction": "..." }` | Modified & self-healed DashboardSpec |
+| `/api/intelligence/generate-report` | `POST` | `{ "dashboard": {...} }` | In-depth C-suite Markdown analytical report |
+| `/api/intelligence/sessions` | `GET` | — | Saved dashboard sessions list |
+| `/api/intelligence/sessions/save` | `POST` | `{ "session_id": "...", "dashboard": {...} }` | Persistence confirmation |
 | `/api/workspaces` | `GET` | — | List of available user workspaces |
 | `/api/workspaces/export` | `POST` | `{ "workspace_id": "..." }` | ZIP binary stream |
 | `/api/workspaces/import` | `POST` | `multipart/form-data` (.zip) | Restored workspace summary |

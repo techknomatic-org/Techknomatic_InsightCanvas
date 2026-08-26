@@ -31,6 +31,7 @@ export interface DatabaseItem {
     nodeType: string;
     path: string[];
     children?: any[];
+    tableCount?: number;
 }
 
 interface DatabaseSelectorProps {
@@ -71,7 +72,7 @@ export const DatabaseSelector: React.FC<DatabaseSelectorProps> = ({
                         Select Database / Schema
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Source: <strong>{connector.display_name || connector.id}</strong>
+                        Source: <strong>{connector.display_name || connector.id}</strong> ({databases.length} database{databases.length === 1 ? '' : 's'} available)
                     </Typography>
                 </Box>
             </Box>
@@ -132,21 +133,41 @@ export const DatabaseSelector: React.FC<DatabaseSelectorProps> = ({
                                         onClick={() => onSelectDatabase(db)}
                                         sx={{
                                             borderRadius: '8px',
-                                            mb: 0.5,
+                                            mb: 0.75,
+                                            p: 1.5,
+                                            border: '1px solid #f1f5f9',
                                             transition: 'all 0.15s ease',
                                             '&:hover': {
-                                                bgcolor: 'rgba(27, 117, 187, 0.06)',
+                                                bgcolor: 'rgba(27, 117, 187, 0.05)',
+                                                borderColor: '#93c5fd',
                                                 transform: 'translateX(3px)',
                                             },
                                         }}
                                     >
-                                        <ListItemIcon sx={{ minWidth: 36, color: '#1B75BB' }}>
-                                            <FolderIcon fontSize="small" />
+                                        <ListItemIcon sx={{ minWidth: 40, color: '#1B75BB' }}>
+                                            <StorageIcon fontSize="medium" />
                                         </ListItemIcon>
                                         <ListItemText
                                             primary={db.name}
-                                            primaryTypographyProps={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}
+                                            primaryTypographyProps={{ fontWeight: 600, color: '#1e293b', fontSize: '15px' }}
                                         />
+                                        {db.tableCount !== undefined && (
+                                            <Box
+                                                component="span"
+                                                sx={{
+                                                    fontSize: '12px',
+                                                    fontWeight: 600,
+                                                    color: '#475569',
+                                                    bgcolor: '#f1f5f9',
+                                                    px: 1.2,
+                                                    py: 0.4,
+                                                    borderRadius: '12px',
+                                                    mr: 1,
+                                                }}
+                                            >
+                                                {db.tableCount} table{db.tableCount === 1 ? '' : 's'}
+                                            </Box>
+                                        )}
                                         <ChevronRightIcon sx={{ color: '#94a3b8', fontSize: 20 }} />
                                     </ListItemButton>
                                 ))}

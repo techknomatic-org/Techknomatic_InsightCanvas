@@ -14,6 +14,7 @@ export const INTELLIGENCE_URLS = {
     PROFILE: '/api/intelligence/profile',
     SUGGESTIONS: '/api/intelligence/suggestions',
     GENERATE_DASHBOARD: '/api/intelligence/generate-dashboard',
+    GENERATE_REPORT: '/api/intelligence/generate-report',
     QUERY_FILTER: '/api/intelligence/query-filter',
     CHAT: '/api/intelligence/chat',
     SESSIONS: '/api/intelligence/sessions',
@@ -97,6 +98,26 @@ export async function sendChatMessage(
                 message,
                 profile,
                 history,
+                model,
+            }),
+        }
+    );
+    return res.data;
+}
+
+export async function generateExecutiveReport(
+    dashboard: DashboardSpec,
+    profile?: DataProfile,
+    model?: any
+): Promise<{ report: string; title: string; created_at: string }> {
+    const res = await apiRequest<{ report: string; title: string; created_at: string }>(
+        INTELLIGENCE_URLS.GENERATE_REPORT,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dashboard,
+                profile,
                 model,
             }),
         }
