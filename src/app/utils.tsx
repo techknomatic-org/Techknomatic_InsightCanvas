@@ -177,8 +177,9 @@ async function _doFetch(
     options: RequestInit = {}
 ): Promise<Response> {
     const urlString = typeof url === 'string' ? url : url.toString();
+    const isApiRequest = urlString.startsWith('/api/') || urlString.includes('/api/');
 
-    if (urlString.startsWith('/api/')) {
+    if (isApiRequest) {
         const headers = new Headers(options.headers);
 
         const namespacedIdentity = await getCurrentNamespacedIdentity();

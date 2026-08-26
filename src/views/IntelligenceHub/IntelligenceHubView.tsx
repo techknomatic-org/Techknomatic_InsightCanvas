@@ -254,7 +254,10 @@ export const IntelligenceHubView: React.FC = () => {
                 try {
                     await apiRequest(CONNECTOR_ACTION_URLS.IMPORT_DATA, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Workspace-Id': currentWs.id,
+                        },
                         body: JSON.stringify({
                             connector_id: selectedConnector.id,
                             table_name: tName,

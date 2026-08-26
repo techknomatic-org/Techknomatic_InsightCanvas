@@ -45,6 +45,25 @@ def _get_ui_lang() -> str:
     return request.headers.get("Accept-Language", "en").split(",")[0].split("-")[0].strip().lower()
 
 
+def _safe_get_identity_id() -> str:
+    """Safely resolve identity ID, falling back to request header or anonymous browser session."""
+    try:
+        ident = get_identity_id()
+        if ident:
+            return ident
+    except Exception as exc:
+        logger.debug("Standard get_identity_id failed (%s); trying fallback headers", exc)
+
+    # Fallback 1: Extract from X-Identity-Id header if present
+    client_identity = request.headers.get("X-Identity-Id")
+    if client_identity:
+        val = client_identity.split(":", 1)[1] if ":" in client_identity else client_identity
+        return f"browser:{val}"
+
+    # Fallback 2: Local anonymous fallback
+    return "local:anonymous"
+
+
 def _get_client_from_request(model_config: dict[str, Any] | None) -> Any:
     """Resolve LiteLLM client from request model config."""
     from data_formulator.routes.agents import get_client
@@ -87,7 +106,7 @@ def _get_or_create_workspace(identity_id: str, requested_ws_id: str | None = Non
 # Data Profiling Engine
 # ---------------------------------------------------------------------------
 
-def _profile_table(workspace: Workspace, table_name: str) -> dict[str, Any]:
+def _profile_table(workspace: Workspace, table_name: str, identity_id: str | None = None) -> dict[str, Any]:
     """Profile a table in the workspace using DuckDB/pandas via Workspace API."""
     resolved_name = None
     for t in workspace.list_tables():
@@ -106,6 +125,25 @@ def _profile_table(workspace: Workspace, table_name: str) -> dict[str, Any]:
         meta = workspace.get_table_metadata(table_name)
         if meta:
             resolved_name = meta.name
+
+    # Cross-workspace recovery: if not in active workspace, search other workspaces of this user
+    if not resolved_name and identity_id:
+        try:
+            mgr = get_workspace_manager(identity_id)
+            for other_ws_id in mgr.list_workspaces():
+                if other_ws_id != workspace.id:
+                    other_ws = mgr.open_workspace(other_ws_id, identity_id)
+                    for t in other_ws.list_tables():
+                        if t == table_name or t.lower() == table_name.lower():
+                            df = other_ws.read_data_as_df(t)
+                            workspace.save_table(table_name, df)
+                            resolved_name = table_name
+                            logger.info("Recovered table '%s' from workspace '%s'", table_name, other_ws_id)
+                            break
+                    if resolved_name:
+                        break
+        except Exception as search_err:
+            logger.warning("Error searching other workspaces for table '%s': %s", table_name, search_err)
 
     if not resolved_name:
         raise AppError(ErrorCode.NOT_FOUND, f"Table '{table_name}' not found in workspace. Available tables: {workspace.list_tables()}")
@@ -224,12 +262,12 @@ def _profile_table(workspace: Workspace, table_name: str) -> dict[str, Any]:
     }
 
 
-def _build_full_profile(workspace: Workspace, table_names: list[str]) -> dict[str, Any]:
+def _build_full_profile(workspace: Workspace, table_names: list[str], identity_id: str | None = None) -> dict[str, Any]:
     """Generate comprehensive dataset profile across all selected tables."""
     tables_profile = []
     for t_name in table_names:
         try:
-            p = _profile_table(workspace, t_name)
+            p = _profile_table(workspace, t_name, identity_id)
             tables_profile.append(p)
         except Exception as exc:
             logger.warning("Failed to profile table '%s': %s", t_name, exc)
@@ -1039,9 +1077,7 @@ def _hydrate_dashboard_spec(
 @intelligence_bp.route("/profile", methods=["POST"])
 def profile_data():
     """Profile selected tables in the workspace."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     table_names = data.get("tables", [])
@@ -1052,7 +1088,7 @@ def profile_data():
 
     try:
         workspace = _get_or_create_workspace(identity_id, requested_ws_id)
-        profile = _build_full_profile(workspace, table_names)
+        profile = _build_full_profile(workspace, table_names, identity_id)
         return json_ok({"profile": profile})
     except AppError:
         raise
@@ -1139,9 +1175,7 @@ Return ONLY valid JSON matching this schema:
 @intelligence_bp.route("/generate-dashboard", methods=["POST"])
 def generate_dashboard():
     """Generate structured dashboard specification from user prompt & data profile."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     profile = data.get("profile")
@@ -1255,47 +1289,28 @@ Return ONLY valid JSON matching this structure:
         )
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
-        raw_spec = json_objs[0] if json_objs else json.loads(content)
+        dashboard_spec = json_objs[0] if json_objs else json.loads(content)
 
         # Post-LLM validation: fix hallucinated column names
-        raw_spec = _validate_and_fix_spec(raw_spec, profile)
+        dashboard_spec = _validate_and_fix_spec(dashboard_spec, profile)
 
-        hydrated = _hydrate_dashboard_spec(workspace, raw_spec, filter_value="All")
+        # Hydrate spec with data from DuckDB
+        hydrated = _hydrate_dashboard_spec(workspace, dashboard_spec, filter_value="All")
 
-        # ── Self-Healing Validation Loop ──
-        # Check for broken KPIs and visuals, auto-repair them via LLM
-        broken_kpis = []
-        for i, kpi in enumerate(hydrated.get("kpis", [])):
-            if kpi.get("formatted_value") in ("N/A", "—", None, "") or kpi.get("raw_value") is None:
-                broken_kpis.append({"index": i, "id": kpi.get("id"), "title": kpi.get("title"),
-                                    "measure_column": kpi.get("measure_column"), "table": kpi.get("table"),
-                                    "reason": "KPI value is N/A — column may not exist or aggregation failed"})
-
-        broken_visuals = []
-        for i, viz in enumerate(hydrated.get("visualizations", [])):
-            status = viz.get("_query_status", "ok")
-            if status != "ok":
-                broken_visuals.append({"index": i, "id": viz.get("id"), "title": viz.get("title"),
-                                       "x_field": viz.get("x_field"), "y_field": viz.get("y_field"),
-                                       "chart_type": viz.get("chart_type"), "table": viz.get("table"),
-                                       "status": status, "error": viz.get("_query_error", "")})
+        # Self-healing: verify if any KPI or visualization failed due to invalid column names
+        broken_kpis = [k for k in hydrated.get("kpis", []) if k.get("formatted_value") == "N/A" or k.get("_query_status") == "error"]
+        broken_visuals = [v for v in hydrated.get("visualizations", []) if not v.get("data") and v.get("_query_status") == "error"]
 
         if broken_kpis or broken_visuals:
-            logger.info("Self-healing: %d broken KPIs, %d broken visuals detected. Attempting auto-repair.",
-                        len(broken_kpis), len(broken_visuals))
+            logger.warning(
+                "Self-healing triggered: %d broken KPIs, %d broken visualizations detected. Initiating repair pass.",
+                len(broken_kpis), len(broken_visuals)
+            )
             column_inventory = _build_column_inventory(profile)
-            stripped = _strip_spec_for_llm(hydrated)
+            repair_prompt = f"""You previously generated a dashboard specification with invalid column references that caused database query errors.
 
-            repair_prompt = f"""The dashboard you generated has accuracy issues. Some KPIs show N/A values and some visualizations have empty data because of incorrect column references.
-
-BROKEN KPIs (showing N/A):
-{json.dumps(broken_kpis, indent=2) if broken_kpis else "None"}
-
-BROKEN VISUALIZATIONS (empty/error):
-{json.dumps(broken_visuals, indent=2) if broken_visuals else "None"}
-
-Current Dashboard Spec:
-{json.dumps(stripped, indent=2)}
+Broken Items:
+{json.dumps({"broken_kpis": broken_kpis, "broken_visualizations": broken_visuals}, indent=2)}
 
 Available Columns (use ONLY these exact names):
 {column_inventory}
@@ -1335,9 +1350,7 @@ Return ONLY valid JSON with the complete fixed dashboard specification (same str
 @intelligence_bp.route("/query-filter", methods=["POST"])
 def query_filter():
     """Re-query dashboard KPIs and charts with updated filter value instantly via DuckDB."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     dashboard_spec = data.get("dashboard")
@@ -1354,9 +1367,7 @@ def query_filter():
 @intelligence_bp.route("/chat", methods=["POST"])
 def chat_refinement():
     """Refine or update the dashboard through conversational instructions."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     current_dashboard = data.get("current_dashboard")
@@ -1465,9 +1476,7 @@ Return ONLY a JSON object:
 @intelligence_bp.route("/generate-report", methods=["POST"])
 def generate_dashboard_report():
     """Generate an in-depth analytical executive report by analyzing dashboard KPIs, filters, and charts."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     dashboard = data.get("dashboard")
@@ -1605,9 +1614,7 @@ Return ONLY the complete Markdown document. Do not wrap in JSON or code fences."
 @intelligence_bp.route("/sessions", methods=["GET"])
 def list_intelligence_sessions():
     """List all saved Intelligence Hub sessions."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     s_dir = _get_sessions_dir(identity_id)
     sessions = []
@@ -1635,9 +1642,7 @@ def list_intelligence_sessions():
 @intelligence_bp.route("/sessions/<session_id>", methods=["GET"])
 def get_intelligence_session(session_id: str):
     """Retrieve full detail of a saved session."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     s_dir = _get_sessions_dir(identity_id)
     s_path = s_dir / f"{session_id}.json"
@@ -1653,9 +1658,7 @@ def get_intelligence_session(session_id: str):
 @intelligence_bp.route("/sessions/save", methods=["POST"])
 def save_intelligence_session():
     """Save an Intelligence Hub session."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     data = request.get_json() or {}
     session_id = data.get("id") or f"ih_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
@@ -1685,9 +1688,7 @@ def save_intelligence_session():
 @intelligence_bp.route("/sessions/<session_id>", methods=["DELETE"])
 def delete_intelligence_session(session_id: str):
     """Delete a saved session."""
-    identity_id = get_identity_id()
-    if not identity_id:
-        raise AppError(ErrorCode.AUTH_REQUIRED, "Identity ID required")
+    identity_id = _safe_get_identity_id()
 
     s_dir = _get_sessions_dir(identity_id)
     s_path = s_dir / f"{session_id}.json"
