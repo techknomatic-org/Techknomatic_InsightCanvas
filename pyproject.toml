@@ -102,13 +102,9 @@ include = ["data_formulator*"]
 data_formulator = "data_formulator:run_app"
 data_formulator_desktop = "data_formulator.desktop:run_desktop"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "build",
     "pytest",
 ]
 
-[[tool.uv.index]]
-name = "microsoft-package-feed"
-url = "https://packagefeedproxy.microsoft.io/pypi/simple"
-default = true

@@ -37,7 +37,10 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build Production Frontend Bundle
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
         run: yarn build
 
       - name: Sync Python Backend Dependencies
         run: uv sync --no-dev
+
