@@ -544,8 +544,8 @@ def _execute_safe_query(con: duckdb.DuckDBPyConnection, sql: str) -> pd.DataFram
     return con.execute(clean_sql).df()
 
 
-def _format_metric_value(val: Any, format_type: str = "number") -> tuple[str, float | int | None]:
-    """Format raw KPI scalar values for presentation."""
+def _format_metric_value(val: Any, format_type: str = "number", measure_name: str = "", title: str = "") -> tuple[str, float | int | None]:
+    """Format raw KPI scalar values for presentation with appropriate domain units (kWh, kW, $, %, hrs, etc.)."""
     if val is None or (isinstance(val, float) and (math.isnan(val) or math.isinf(val))):
         return "N/A", None
 
@@ -554,7 +554,10 @@ def _format_metric_value(val: Any, format_type: str = "number") -> tuple[str, fl
     except (ValueError, TypeError):
         return str(val), None
 
-    if format_type == "currency":
+    combined_text = f"{measure_name} {title}".lower()
+
+    # 1. Currency
+    if format_type == "currency" or any(k in combined_text for k in ("salary", "revenue", "cost", "price", "budget", "profit", "expense", "spend", "wage", "pay", "income")):
         if abs(num) >= 1_000_000_000:
             return f"${num / 1_000_000_000:.2f}B", num
         if abs(num) >= 1_000_000:
@@ -562,20 +565,80 @@ def _format_metric_value(val: Any, format_type: str = "number") -> tuple[str, fl
         if abs(num) >= 1_000:
             return f"${num / 1_000:.1f}K", num
         return f"${num:,.2f}", num
-    elif format_type == "percent":
+
+    # 2. Percentage
+    if format_type == "percent" or any(k in combined_text for k in ("rate", "percent", "pct", "ratio", "share", "margin", "proportion", "efficiency", "utilization")):
         return f"{num:.1f}%", num
-    elif format_type == "integer":
-        return f"{int(round(num)):,}", int(round(num))
-    else:
+
+    # 3. Energy Consumption (kWh, MWh, GWh)
+    if any(k in combined_text for k in ("kwh", "energy_consumption", "total_energy", "consumption_kwh", "power_consumption", "electricity_consumption")) or ("energy" in combined_text and "cost" not in combined_text):
+        if abs(num) >= 1_000_000_000:
+            return f"{num / 1_000_000_000:.2f}B kWh", num
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.2f}M kWh", num
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.1f}K kWh", num
+        if num == int(num):
+            return f"{int(num):,} kWh", int(num)
+        return f"{num:,.1f} kWh", num
+
+    # 4. Power & Peak Demand (kW, MW)
+    if any(k in combined_text for k in ("kw", "peak_demand", "demand", "power_kw", "peak_kw", "load")):
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.2f}M kW", num
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.1f}K kW", num
+        if num == int(num):
+            return f"{int(num):,} kW", int(num)
+        return f"{num:,.1f} kW", num
+
+    # 5. Time Units
+    if any(k in combined_text for k in ("minute", "min", "duration_min", "wait_time", "response_time")):
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.1f}M mins", num
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.1f}K mins", num
+        if num == int(num):
+            return f"{int(num):,} mins", int(num)
+        return f"{num:.1f} mins", num
+
+    if any(k in combined_text for k in ("hour", "hr", "overtime", "hours_worked", "duration_hours")):
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.1f}M hrs", num
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.1f}K hrs", num
+        if num == int(num):
+            return f"{int(num):,} hrs", int(num)
+        return f"{num:.1f} hrs", num
+
+    # 6. Carbon / Emissions
+    if any(k in combined_text for k in ("carbon", "emission", "co2", "ghg")):
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.2f}M tCO₂", num
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.1f}K tCO₂", num
+        return f"{num:,.1f} tCO₂", num
+
+    # 7. Integer counts
+    if format_type == "integer":
         if abs(num) >= 1_000_000_000:
             return f"{num / 1_000_000_000:.2f}B", num
         if abs(num) >= 1_000_000:
             return f"{num / 1_000_000:.2f}M", num
-        if abs(num) >= 1_000:
+        if abs(num) >= 10_000:
             return f"{num / 1_000:.1f}K", num
-        if num == int(num):
-            return f"{int(num):,}", int(num)
-        return f"{num:.2f}", num
+        return f"{int(round(num)):,}", int(round(num))
+
+    # Standard numbers
+    if abs(num) >= 1_000_000_000:
+        return f"{num / 1_000_000_000:.2f}B", num
+    if abs(num) >= 1_000_000:
+        return f"{num / 1_000_000:.2f}M", num
+    if abs(num) >= 1_000:
+        return f"{num / 1_000:.1f}K", num
+    if num == int(num):
+        return f"{int(num):,}", int(num)
+    return f"{num:.2f}", num
 
 
 def _build_vega_lite_spec(
@@ -714,7 +777,24 @@ def _build_vega_lite_spec(
         x_tooltip_type = "temporal" if is_temporal else "nominal"
         tooltip.append({"field": x_field, "type": x_tooltip_type, "title": str(x_field).replace("_", " ").title()})
     if y_field:
-        tooltip.append({"field": y_field, "type": "quantitative", "title": str(y_field).replace("_", " ").title()})
+        y_title = str(y_field).replace("_", " ").title()
+        y_lower = str(y_field).lower()
+        if any(k in y_lower for k in ("rate", "percent", "pct", "ratio", "share", "margin", "efficiency", "utilization")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": ".1%"})
+        elif any(k in y_lower for k in ("kwh", "energy_consumption", "total_energy", "consumption_kwh")) or ("energy" in y_lower and "cost" not in y_lower):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kWh)", "format": ",.0f"})
+        elif any(k in y_lower for k in ("kw", "peak_demand", "demand", "power")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kW)", "format": ",.0f"})
+        elif any(k in y_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend", "sales", "income")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} ($)", "format": "$,.2f"})
+        elif any(k in y_lower for k in ("minute", "min", "duration_min", "wait_time", "response_time")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (mins)", "format": ",.0f"})
+        elif any(k in y_lower for k in ("hour", "hr", "overtime", "hours_worked", "duration_hours")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (hrs)", "format": ",.1f"})
+        elif any(k in y_lower for k in ("carbon", "emission", "co2")):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (tCO₂)", "format": ",.1f"})
+        else:
+            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": "~s"})
     if color_field and color_field not in (x_field, y_field):
         tooltip.append({"field": color_field, "type": "nominal", "title": str(color_field).replace("_", " ").title()})
     if tooltip:
@@ -850,7 +930,7 @@ def _hydrate_dashboard_spec(
                     k_df = _execute_safe_query(con, sql)
                     if not k_df.empty:
                         raw_val = k_df.iloc[0]["kpi_val"]
-                        val_formatted, raw_val = _format_metric_value(raw_val, fmt)
+                        val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or "", title=kpi.get("title") or "")
                 except Exception as e:
                     # Fallback without where clause if filter column caused mismatch
                     try:
@@ -858,7 +938,7 @@ def _hydrate_dashboard_spec(
                         k_df = _execute_safe_query(con, fallback_sql)
                         if not k_df.empty:
                             raw_val = k_df.iloc[0]["kpi_val"]
-                            val_formatted, raw_val = _format_metric_value(raw_val, fmt)
+                            val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or "", title=kpi.get("title") or "")
                     except Exception as fb_err:
                         logger.warning("Error calculating KPI '%s': %s", kpi.get("title"), fb_err)
 
