@@ -865,15 +865,37 @@ def _hydrate_dashboard_spec(
         filter_table = filter_spec.get("table")
 
         filter_options = ["All"]
+        is_filter_date = False
         if filter_field:
             filter_src = _find_query_source([filter_field]) if not filter_table else f'"{filter_table}"'
             try:
-                opt_df = _execute_safe_query(
-                    con,
-                    f"SELECT DISTINCT \"{filter_field}\" AS val FROM {filter_src} WHERE \"{filter_field}\" IS NOT NULL ORDER BY val LIMIT 100",
-                )
+                try:
+                    col_info = con.execute(f"DESCRIBE SELECT \"{filter_field}\" FROM {filter_src} LIMIT 1").df()
+                    dtype_str = str(col_info.iloc[0]["column_type"]).upper()
+                    if any(t in dtype_str for t in ("DATE", "TIMESTAMP", "TIME")):
+                        is_filter_date = True
+                except Exception:
+                    pass
+
+                if is_filter_date:
+                    opt_df = _execute_safe_query(
+                        con,
+                        f"SELECT DISTINCT strftime(\"{filter_field}\"::TIMESTAMP, '%Y-%m-%d') AS val FROM {filter_src} WHERE \"{filter_field}\" IS NOT NULL ORDER BY val LIMIT 100",
+                    )
+                else:
+                    opt_df = _execute_safe_query(
+                        con,
+                        f"SELECT DISTINCT \"{filter_field}\" AS val FROM {filter_src} WHERE \"{filter_field}\" IS NOT NULL ORDER BY val LIMIT 100",
+                    )
                 raw_opts = opt_df["val"].dropna().tolist()
-                filter_options = ["All"] + [str(v) for v in raw_opts]
+                clean_opts = []
+                for v in raw_opts:
+                    s_val = str(v)
+                    if re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}", s_val):
+                        s_val = s_val[:10]
+                    if s_val not in clean_opts:
+                        clean_opts.append(s_val)
+                filter_options = ["All"] + clean_opts
             except Exception as e:
                 logger.warning("Failed to fetch filter options: %s", e)
 
@@ -918,7 +940,10 @@ def _hydrate_dashboard_spec(
                 where_clause = ""
                 if filter_active and filter_field:
                     escaped_val = str(filter_value).replace("'", "''")
-                    where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
+                    if re.match(r"^\d{4}-\d{2}-\d{2}", escaped_val) or is_filter_date:
+                        where_clause = f"WHERE strftime(\"{filter_field}\"::TIMESTAMP, '%Y-%m-%d') = '{escaped_val[:10]}'"
+                    else:
+                        where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
 
                 # Check if measure is ID or distinct count is preferred
                 agg_expr = f"{agg}(\"{measure}\")"
@@ -1027,7 +1052,10 @@ def _hydrate_dashboard_spec(
                 where_clause = ""
                 if filter_active and filter_field:
                     escaped_val = str(filter_value).replace("'", "''")
-                    where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
+                    if re.match(r"^\d{4}-\d{2}-\d{2}", escaped_val) or is_filter_date:
+                        where_clause = f"WHERE strftime(\"{filter_field}\"::TIMESTAMP, '%Y-%m-%d') = '{escaped_val[:10]}'"
+                    else:
+                        where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
 
                 # Proper aggregation expression
                 clean_agg = agg.upper()

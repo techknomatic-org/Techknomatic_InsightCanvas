@@ -64,6 +64,16 @@ function getDomainIcon(title?: string, description?: string, tableName?: string)
     return <BarChartOutlinedIcon sx={{ fontSize: 22 }} />;
 }
 
+const formatFilterOption = (val: string | number) => {
+    const s = String(val);
+    if (s.toLowerCase() === 'all') return 'All';
+    // Strip timestamps like "2026-01-01 00:00:00" or "2026-01-01T00:00:00Z"
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s)) {
+        return s.slice(0, 10);
+    }
+    return s;
+};
+
 export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     filter,
     onFilterChange,
@@ -169,6 +179,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                     <FormControl size="small" sx={{ minWidth: 190 }}>
                         <Select
                             value={selected}
+                            renderValue={(selectedVal) => formatFilterOption(selectedVal)}
                             onChange={(e) => onFilterChange(e.target.value)}
                             disabled={filtering}
                             sx={{
@@ -192,7 +203,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                         >
                             {options.map((opt) => (
                                 <MenuItem key={String(opt)} value={opt} sx={{ fontSize: '13px' }}>
-                                    {String(opt)}
+                                    {formatFilterOption(opt)}
                                 </MenuItem>
                             ))}
                         </Select>
