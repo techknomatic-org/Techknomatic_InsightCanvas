@@ -1279,6 +1279,16 @@ def generate_dashboard():
     system_prompt = f"""You are an expert dashboard and analytics architect for InsightCanvas.
 Given the dataset profile and the user's analytical goal, synthesize a complete, highly meaningful dashboard specification.
 
+DOMAIN RELEVANCE & MISMATCH DETECTION (CRITICAL):
+- Before synthesizing a dashboard, verify that the user's prompt is relevant to the domain and tables present in the provided schema.
+- If the user's request explicitly asks for entities, topics, or domains that DO NOT EXIST in the provided dataset (e.g. asking for "patients / healthcare / medical / hospital" when the tables only contain HR/employees, or asking for "crypto / stock market" when the tables only contain Logistics):
+  - Do NOT hallucinate or silently ignore the user's request.
+  - Do NOT generate an unrelated dashboard from the HR tables.
+  - Instead, return ONLY a JSON object with this exact structure:
+    {{
+      "error": "The selected data contains <brief summary of active table domains, e.g. Human Resources and Employee information>, which does not contain data about '<requested topic, e.g. patients>'. Please select a dataset related to <requested topic> or request insights based on the available tables."
+    }}
+
 LAYOUT REQUIREMENTS (STRICT):
 1. **1 Top-Level Filter**: Select the single most useful categorical or date dimension field across the data (e.g. Region, Department, Category, Year, Status).
 2. **Exactly 4 KPI Cards**: Pick the 4 most critical summary metrics. Choose appropriate aggregations (SUM, AVG, COUNT, MIN, MAX) and formatting ('currency', 'number', 'percent', 'integer').
@@ -1353,6 +1363,10 @@ Return ONLY valid JSON matching this structure:
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
         dashboard_spec = json_objs[0] if json_objs else json.loads(content)
+
+        # Check if the LLM flagged a domain mismatch error
+        if isinstance(dashboard_spec, dict) and "error" in dashboard_spec:
+            raise AppError(ErrorCode.INVALID_REQUEST, dashboard_spec["error"])
 
         # Post-LLM validation: fix hallucinated column names
         dashboard_spec = _validate_and_fix_spec(dashboard_spec, profile)
@@ -1470,6 +1484,9 @@ MODIFICATION RULES (CRITICAL — follow precisely):
    - Answer accurately and keep the dashboard specification unchanged.
 3. Always maintain: exactly 4 KPIs, 1 Filter, 6 Visualizations.
 4. For axis changes: x_field should typically be a dimension/categorical column; y_field should be a numeric/measure column.
+5. If the user asks for entities, metrics, or domains completely absent from the dataset (e.g. asking for patient or hospital data on HR tables):
+   - Keep the updated_dashboard unchanged.
+   - In your reply, explain clearly that the active dataset contains <domain> data and does not have information about <requested topic>, and suggest relevant questions based on the available columns.
 
 Return ONLY a JSON object:
 {{
