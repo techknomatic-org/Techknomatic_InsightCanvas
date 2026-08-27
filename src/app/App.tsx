@@ -1135,11 +1135,12 @@ const AppShell: FC = () => {
     const inSession = isAppPage && !!activeWorkspace;
 
     const handleLogoClick = useCallback(async () => {
+        dispatch(dfActions.setDataSourceSidebarOpen(false));
         if (inSession) {
             await exitSession();
         }
         navigate('/');
-    }, [inSession, exitSession, navigate]);
+    }, [inSession, exitSession, navigate, dispatch]);
 
     return (
         <Box sx={{
@@ -1239,6 +1240,7 @@ const AppShell: FC = () => {
                                 label="Home"
                                 selected={isLandingView}
                                 onClick={async () => {
+                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
                                     if (inSession) {
                                         await exitSession();
                                     }
