@@ -1171,7 +1171,7 @@ const AppShell: FC = () => {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                mr: 1,
+                                mr: 2,
                                 flexShrink: 0,
                                 cursor: 'pointer',
                                 transition: 'opacity 0.15s ease, transform 0.15s ease',
@@ -1188,39 +1188,6 @@ const AppShell: FC = () => {
                                 src={techknomaticSmallWhiteLogo}
                             />
                         </Box>
-
-                        {/* Return to Landing Page Button - Shown on all screens except the landing page */}
-                        {!isLandingView && (
-                            <Tooltip title="Go to Landing Page">
-                                <Button
-                                    onClick={handleLogoClick}
-                                    size="small"
-                                    startIcon={<HomeRoundedIcon sx={{ fontSize: 16 }} />}
-                                    sx={{
-                                        textTransform: 'none',
-                                        fontSize: '12.5px',
-                                        fontWeight: 600,
-                                        color: '#ffffff',
-                                        bgcolor: 'rgba(255, 255, 255, 0.1)',
-                                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        borderRadius: '8px',
-                                        px: 1.3,
-                                        py: 0.35,
-                                        mr: 1.5,
-                                        flexShrink: 0,
-                                        fontFamily: "'Inter', 'Roboto', sans-serif",
-                                        transition: 'all 0.15s ease',
-                                        '&:hover': {
-                                            bgcolor: 'rgba(255, 255, 255, 0.22)',
-                                            borderColor: 'rgba(255, 255, 255, 0.4)',
-                                            transform: 'translateY(-1px)',
-                                        },
-                                    }}
-                                >
-                                    Home
-                                </Button>
-                            </Tooltip>
-                        )}
 
                         {/* Center text: INSIGHT CANVAS - Clickable to Landing */}
                         {!isCompactToolbar && !activeWorkspace && (
@@ -1263,8 +1230,35 @@ const AppShell: FC = () => {
                             )
                         )}
 
-                        {/* Right side: Intelligence Hub, About button, Exit session & Profile Icon */}
+                        {/* Right side: Home (on non-landing pages), Intelligence Hub, About button, Exit session & Profile Icon */}
                         <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {!isLandingView && (
+                                <Button
+                                    onClick={handleLogoClick}
+                                    sx={{
+                                        textDecoration: 'none',
+                                        textTransform: 'none',
+                                        fontSize: '13px',
+                                        fontWeight: 500,
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        px: 1.5,
+                                        py: 0.35,
+                                        minWidth: 'auto',
+                                        cursor: 'pointer',
+                                        color: '#ffffff',
+                                        backgroundColor: 'transparent',
+                                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                            color: '#ffffff',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                                        },
+                                    }}
+                                >
+                                    Home
+                                </Button>
+                            )}
                             <TopNavButton to="/intelligence-hub" label="Intelligence Hub" selected={isIntelligenceHubPage} />
                             <TopNavButton to="/about" label={t('appBar.about')} selected={isAboutPage} />
                             {inSession && <ExitSessionButton />}
