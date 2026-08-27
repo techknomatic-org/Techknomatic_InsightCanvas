@@ -141,7 +141,7 @@ const AppBar = styled(MuiAppBar)(({ theme }) => ({
     }),
 }));
 
-const TopNavButton: FC<{ to: string; label: string; selected: boolean }> = ({ to, label, selected }) => (
+const TopNavButton: FC<{ to: string; label: string; selected: boolean; onClick?: (e: React.MouseEvent) => void }> = ({ to, label, selected, onClick }) => (
     <Button
         component={RouterLink}
         to={to}
@@ -149,6 +149,8 @@ const TopNavButton: FC<{ to: string; label: string; selected: boolean }> = ({ to
         onClick={(event) => {
             if (selected) {
                 event.preventDefault();
+            } else if (onClick) {
+                onClick(event);
             }
         }}
         sx={{
@@ -1230,35 +1232,18 @@ const AppShell: FC = () => {
                             )
                         )}
 
-                        {/* Right side: Home (on non-landing pages), Intelligence Hub, About button, Exit session & Profile Icon */}
+                        {/* Right side: Home, Intelligence Hub, About button, Exit session & Profile Icon */}
                         <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {!isLandingView && (
-                                <Button
-                                    onClick={handleLogoClick}
-                                    sx={{
-                                        textDecoration: 'none',
-                                        textTransform: 'none',
-                                        fontSize: '13px',
-                                        fontWeight: 500,
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        px: 1.5,
-                                        py: 0.35,
-                                        minWidth: 'auto',
-                                        cursor: 'pointer',
-                                        color: '#ffffff',
-                                        backgroundColor: 'transparent',
-                                        fontFamily: "'Inter', 'Roboto', sans-serif",
-                                        transition: 'all 0.15s ease',
-                                        '&:hover': {
-                                            color: '#ffffff',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                                        },
-                                    }}
-                                >
-                                    Home
-                                </Button>
-                            )}
+                            <TopNavButton
+                                to="/"
+                                label="Home"
+                                selected={isLandingView}
+                                onClick={async () => {
+                                    if (inSession) {
+                                        await exitSession();
+                                    }
+                                }}
+                            />
                             <TopNavButton to="/intelligence-hub" label="Intelligence Hub" selected={isIntelligenceHubPage} />
                             <TopNavButton to="/about" label={t('appBar.about')} selected={isAboutPage} />
                             {inSession && <ExitSessionButton />}
