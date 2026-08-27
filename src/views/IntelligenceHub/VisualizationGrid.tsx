@@ -39,9 +39,12 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index }) => {
         const target = containerRef.current;
         target.innerHTML = '';
 
+        // Strip duplicate internal Vega title so only the single styled card header is shown
+        const { title: _internalTitle, ...vegaSpecWithoutTitle } = viz.vega_spec;
+
         // Inject rich responsive config
         const specToRender: any = {
-            ...viz.vega_spec,
+            ...vegaSpecWithoutTitle,
             width: 'container',
             height: 200,
             autosize: { type: 'fit', contains: 'padding' },

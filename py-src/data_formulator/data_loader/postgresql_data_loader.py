@@ -36,7 +36,8 @@ class PostgreSQLDataLoader(ExternalDataLoader):
             {"name": "password", "type": "string", "required": False, "default": "", "sensitive": True, "tier": "auth", "description": "leave blank for no password"}, 
             {"name": "host", "type": "string", "required": True, "default": "localhost", "tier": "connection", "description": "PostgreSQL host"}, 
             {"name": "port", "type": "string", "required": False, "default": "5432", "tier": "connection", "advanced": True, "description": "PostgreSQL port"},
-            {"name": "database", "type": "string", "required": False, "default": "", "tier": "filter", "description": "Database name (leave empty to browse all databases)"}
+            {"name": "database", "type": "string", "required": False, "default": "", "tier": "filter", "description": "Database name (e.g. defaultdb or tksai)"},
+            {"name": "sslmode", "type": "string", "required": False, "default": "prefer", "tier": "connection", "advanced": True, "description": "SSL Mode (require, prefer, disable, verify-ca)"}
         ]
         return params_list
 
@@ -50,14 +51,15 @@ class PostgreSQLDataLoader(ExternalDataLoader):
         self.user = self.params.get("user", "")
         self.database = self.params.get("database", "")
         self.password = self.params.get("password", "")
+        self.sslmode = self.params.get("sslmode", "")
 
         if not self.host:
             raise ValueError("PostgreSQL host is required")
         if not self.user:
             raise ValueError("PostgreSQL user is required")
 
-        # When no database is specified, connect to the default "postgres" DB
-        # for catalog browsing. The user can browse all databases via ls().
+        # When no database is specified, connect to the default "postgres" DB (or "defaultdb")
+        # for catalog browsing.
         connect_db = self.database or "postgres"
 
         try:
@@ -107,7 +109,7 @@ class PostgreSQLDataLoader(ExternalDataLoader):
     def _connection_kwargs(self, dbname: str) -> dict[str, Any]:
         # Use 127.0.0.1 when host is localhost to force IPv4 TCP and avoid IPv6 ::1 connection issues.
         host_for_conn = "127.0.0.1" if (self.host or "").strip().lower() == "localhost" else self.host
-        return {
+        kwargs = {
             "host": host_for_conn,
             "port": int(self.port),
             "user": self.user,
@@ -117,6 +119,9 @@ class PostgreSQLDataLoader(ExternalDataLoader):
             "options": f"-c client_encoding={_PG_CLIENT_ENCODING}",
             "connect_timeout": self._CONNECT_TIMEOUT,
         }
+        if self.sslmode:
+            kwargs["sslmode"] = self.sslmode
+        return kwargs
 
     def _resolve_source_table(self, source_table: str) -> tuple[str | None, str, str]:
         """Parse a source_table string into (database, schema, table).

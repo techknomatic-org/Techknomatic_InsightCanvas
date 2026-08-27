@@ -68,8 +68,11 @@ const ReportEmbeddedChart: React.FC<{ viz: VisualizationSpec; index: number }> =
         const target = containerRef.current;
         target.innerHTML = '';
 
+        // Strip duplicate internal Vega title so only the single report card header is shown
+        const { title: _internalTitle, ...vegaSpecWithoutTitle } = viz.vega_spec;
+
         const specToRender: any = {
-            ...viz.vega_spec,
+            ...vegaSpecWithoutTitle,
             width: 'container',
             height: 180,
             autosize: { type: 'fit', contains: 'padding' },
@@ -182,14 +185,51 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
 }) => {
     const [copied, setCopied] = useState(false);
 
+    const copyTextToClipboard = async (text: string): Promise<boolean> => {
+        // Try modern asynchronous Clipboard API if available
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (clipErr) {
+                console.warn('navigator.clipboard.writeText failed, trying execCommand fallback:', clipErr);
+            }
+        }
+
+        // Fallback: Synchronous document.execCommand('copy') with hidden textarea
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '0';
+            textArea.style.left = '0';
+            textArea.style.width = '2em';
+            textArea.style.height = '2em';
+            textArea.style.padding = '0';
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.boxShadow = 'none';
+            textArea.style.background = 'transparent';
+            textArea.setAttribute('readonly', '');
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, textArea.value.length);
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            console.error('execCommand copy fallback failed:', err);
+            return false;
+        }
+    };
+
     const handleCopy = async () => {
         if (!reportMarkdown) return;
-        try {
-            await navigator.clipboard.writeText(reportMarkdown);
+        const success = await copyTextToClipboard(reportMarkdown);
+        if (success) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
-        } catch (e) {
-            console.error('Failed to copy report:', e);
         }
     };
 
@@ -221,7 +261,25 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
         document.body.appendChild(printFrame);
 
         try {
-            // Collect all application styles and fonts
+            // Collect all application styles, Emotion CSS rules, and external fonts
+            let cssRulesText = '';
+            try {
+                Array.from(document.styleSheets).forEach((sheet) => {
+                    try {
+                        const rules = Array.from(sheet.cssRules || sheet.rules || []);
+                        rules.forEach((rule) => {
+                            cssRulesText += rule.cssText + '\n';
+                        });
+                    } catch (e) {
+                        if (sheet.href) {
+                            cssRulesText += `@import url("${sheet.href}");\n`;
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('Could not read styleSheets directly:', e);
+            }
+
             const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
                 .map((node) => node.outerHTML)
                 .join('\n');
@@ -262,6 +320,9 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
     <meta charset="utf-8" />
     <title>${cleanTitle}</title>
     ${styles}
+    <style>
+        ${cssRulesText}
+    </style>
     <style>
         @page {
             size: portrait;
@@ -360,6 +421,8 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
             min-width: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
@@ -382,6 +445,37 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
             min-width: 0 !important;
             width: 100% !important;
             box-sizing: border-box !important;
+        }
+        /* Strict sizing for small MUI icons */
+        .MuiSvgIcon-root,
+        .MuiChip-icon,
+        .MuiChip-icon svg,
+        svg.MuiSvgIcon-root {
+            width: 13px !important;
+            height: 13px !important;
+            min-width: 13px !important;
+            max-width: 13px !important;
+            font-size: 13px !important;
+            display: inline-block !important;
+            margin: 0 !important;
+            vertical-align: middle !important;
+        }
+        .MuiChip-root {
+            height: 20px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            padding: 0 6px !important;
+            border-radius: 12px !important;
+        }
+        /* Vega Chart SVGs only */
+        .vega-embed,
+        .vega-embed svg,
+        .report-chart-card .vega-embed svg {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 auto !important;
         }
         li, p, tr, blockquote {
             break-inside: avoid !important;
@@ -454,12 +548,6 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
         tr:nth-child(even) {
             background: #fcfdfe !important;
         }
-        svg {
-            max-width: 100% !important;
-            height: auto !important;
-            display: block !important;
-            margin: 0 auto !important;
-        }
     </style>
 </head>
 <body>
@@ -493,12 +581,36 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
 </html>`);
             doc.close();
 
+            win.onafterprint = () => {
+                setTimeout(() => {
+                    try {
+                        if (printFrame.parentNode) {
+                            printFrame.remove();
+                        }
+                    } catch (_) {}
+                }, 1500);
+            };
+
+            // Long fallback cleanup (5 minutes) in case onafterprint is ignored by browser
+            setTimeout(() => {
+                try {
+                    if (printFrame.parentNode) {
+                        printFrame.remove();
+                    }
+                } catch (_) {}
+            }, 300000);
+
             setTimeout(() => {
                 win.focus();
                 win.print();
             }, 800);
-        } finally {
-            setTimeout(() => printFrame.remove(), 4000);
+        } catch (err) {
+            console.error('Error preparing report print:', err);
+            try {
+                if (printFrame.parentNode) {
+                    printFrame.remove();
+                }
+            } catch (_) {}
         }
     };
 

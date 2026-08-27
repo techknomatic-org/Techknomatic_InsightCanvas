@@ -13,6 +13,7 @@ import {
     MenuItem,
     ListItemIcon,
     ListItemText,
+    IconButton,
 } from '@mui/material';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -24,6 +25,7 @@ import ImageIcon from '@mui/icons-material/Image';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import {
     DataProfile,
@@ -59,6 +61,7 @@ interface IntelligenceWorkspaceProps {
     tableNames: string[];
     profile: DataProfile;
     onReset: () => void;
+    onBack?: () => void;
     modelConfig?: any;
 }
 
@@ -68,6 +71,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     tableNames,
     profile,
     onReset,
+    onBack,
     modelConfig,
 }) => {
     // State
@@ -243,7 +247,15 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 });
             }
         } catch (err: any) {
-            setError(err?.message || 'Failed to process chat message');
+            const errMsg = err?.message || 'Model request failed';
+            setError(errMsg);
+            const assistantErrMsg: ChatMessage = {
+                id: String(Date.now() + 1),
+                role: 'assistant',
+                content: `I encountered an issue updating the dashboard: ${errMsg}. Please try phrasing your request with specific chart or metric names (e.g. "change visual 2 to a pie chart").`,
+                timestamp: new Date().toISOString(),
+            };
+            setChatMessages([...updatedChat, assistantErrMsg]);
         } finally {
             setChatLoading(false);
         }
@@ -362,6 +374,23 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         }
     };
 
+    // Handle contextual back navigation:
+    // If viewing a dashboard (from generation or recent sessions), return to the recommendations landing view.
+    // If already on recommendations view, navigate back to table selection.
+    const handleBack = () => {
+        if (dashboard) {
+            setDashboard(null);
+            setActiveSessionId(null);
+            setChatMessages([]);
+        } else {
+            if (onBack) {
+                onBack();
+            } else {
+                onReset();
+            }
+        }
+    };
+
     return (
         <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', bgcolor: '#f8fafc' }}>
             {/* Drawer for Recent Sessions (closed by default) */}
@@ -380,12 +409,12 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    height: '100%',
-                    overflowY: dashboard ? 'auto' : 'hidden',
                     p: { xs: 1.5, md: 2.5 },
+                    overflow: 'hidden',
+                    minHeight: 0,
                 }}
             >
-                {/* Top Navigation Bar: ONLY Intelligence Workspace + proper Icon at top left */}
+                {/* Header Bar */}
                 <Box
                     sx={{
                         display: 'flex',
@@ -397,8 +426,31 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         gap: 1,
                     }}
                 >
-                    {/* Top Left: ONLY Intelligence Workspace with proper icon */}
+                    {/* Top Left: Back Button + Psychology Icon + Title */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <Tooltip title={dashboard ? "Back to Recommendations & Prompts" : "Back to Table Selection"}>
+                            <IconButton
+                                onClick={handleBack}
+                                size="small"
+                                sx={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '8px',
+                                    bgcolor: '#ffffff',
+                                    border: '1px solid #e2e8f0',
+                                    color: '#1e293b',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                                    transition: 'all 0.15s ease',
+                                    '&:hover': {
+                                        bgcolor: '#f1f5f9',
+                                        borderColor: '#cbd5e1',
+                                        color: '#001d52',
+                                    },
+                                }}
+                            >
+                                <ArrowBackIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                        </Tooltip>
                         <Box
                             sx={{
                                 width: 32,
@@ -612,7 +664,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     </Box>
                 </Box>
 
-                {error && (
+                {dashboard && error && (
                     <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>
                         {error}
                     </Alert>
@@ -673,7 +725,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                             />
                         )}
 
-                        {/* Centralized Input Box (Similar to Landing Page with Voice) */}
+                        {/* Centralized Input Box with Friendly Pop-up Error Support */}
                         <Box sx={{ width: '100%', mt: 0.5 }}>
                             <ChatPanel
                                 messages={chatMessages}
@@ -681,6 +733,9 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                 loading={generatingDashboard || chatLoading}
                                 loadingText="Synthesizing 4 KPIs and 6 Visualizations..."
                                 variant="central"
+                                error={error}
+                                onClearError={() => setError(null)}
+                                onChangeTables={onReset}
                             />
                         </Box>
                     </Box>

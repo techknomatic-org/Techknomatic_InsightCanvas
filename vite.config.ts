@@ -20,6 +20,34 @@ export default defineConfig({
     // Keep a single copy of Flint's (optional) peer deps when aliased to local source.
     dedupe: ['vega', 'vega-lite', 'echarts', 'chart.js'],
   },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'react-redux',
+      'redux',
+      '@reduxjs/toolkit',
+      '@mui/material',
+      '@mui/material/styles',
+      '@mui/icons-material',
+      '@mui/lab',
+      '@emotion/react',
+      '@emotion/styled',
+      'vega',
+      'vega-lite',
+      'vega-embed',
+      'react-vega',
+      'd3',
+      'lodash',
+      'dompurify',
+      'validator',
+      'katex',
+      'react-katex',
+      'exceljs',
+      'html2canvas',
+    ],
+  },
   build: {
     outDir: path.join(__dirname, 'py-src', 'data_formulator', "dist"),
     rollupOptions: {
@@ -45,11 +73,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: `http://localhost:${apiPort}`,
+        target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
       },
       '/auth/callback': {
-        target: `http://localhost:${apiPort}`,
+        target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
       }
     }

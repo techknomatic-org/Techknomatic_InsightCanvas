@@ -1,6 +1,3 @@
-// Copyright (c) Techknomatic Services Pvt Ltd.
-// Licensed under the MIT License.
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Box,
@@ -11,6 +8,8 @@ import {
     CircularProgress,
     Avatar,
     Tooltip,
+    Button,
+    Grow,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -21,6 +20,8 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import { ChatMessage } from './intelligenceTypes';
 
 interface ChatPanelProps {
@@ -31,6 +32,9 @@ interface ChatPanelProps {
     variant?: 'central' | 'floating';
     onClose?: () => void;
     placeholder?: string;
+    error?: string | null;
+    onClearError?: () => void;
+    onChangeTables?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -41,11 +45,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     variant = 'central',
     onClose,
     placeholder = 'Ask anything or describe your dashboard (e.g. "Show top 5 departments by spend")...',
+    error,
+    onClearError,
+    onChangeTables,
 }) => {
     const [input, setInput] = useState('');
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (variant === 'floating') {
@@ -99,45 +107,158 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         const hasInput = Boolean(input.trim());
 
         return (
-            <Paper
-                elevation={0}
-                sx={{
-                    width: '100%',
-                    maxWidth: 780,
-                    mx: 'auto',
-                    borderRadius: '16px',
-                    border: '1px solid #e2e8f0',
-                    bgcolor: '#ffffff',
-                    boxShadow: '0 4px 20px rgba(0, 29, 82, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02)',
-                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    '&:hover': {
-                        borderColor: '#cbd5e1',
-                        boxShadow: '0 6px 24px rgba(0, 29, 82, 0.08)',
-                    },
-                    '&:focus-within': {
-                        borderColor: '#93c5fd',
-                        boxShadow: '0 10px 30px rgba(27, 117, 187, 0.14), 0 0 0 3px rgba(56, 189, 248, 0.12)',
-                        '& .top-accent-bar': {
-                            height: '4px',
-                            filter: 'brightness(1.08)',
-                        },
-                    },
-                }}
-            >
-                {/* Sleek Gradient Accent Bar at the top */}
-                <Box
-                    className="top-accent-bar"
+            <Box sx={{ width: '100%', maxWidth: 780, mx: 'auto', position: 'relative' }}>
+                {/* User-Friendly Floating Error / Guidance Popup */}
+                {error && (
+                    <Grow in={Boolean(error)} timeout={280}>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                width: '100%',
+                                mb: 1.8,
+                                p: 2,
+                                px: 2.2,
+                                borderRadius: '14px',
+                                border: '1.5px solid #fca5a5',
+                                background: 'linear-gradient(135deg, #fffafa 0%, #fef2f2 100%)',
+                                boxShadow: '0 12px 32px rgba(239, 68, 68, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04)',
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 1.5,
+                                animation: 'shake 0.4s ease-in-out',
+                                '@keyframes shake': {
+                                    '0%, 100%': { transform: 'translateX(0)' },
+                                    '20%, 60%': { transform: 'translateX(-4px)' },
+                                    '40%, 80%': { transform: 'translateX(4px)' },
+                                },
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    bgcolor: '#fee2e2',
+                                    color: '#ef4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    mt: 0.1,
+                                }}
+                            >
+                                <WarningAmberRoundedIcon sx={{ fontSize: 20 }} />
+                            </Box>
+
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.4 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#991b1b', fontSize: '13.5px' }}>
+                                        Dataset & Topic Mismatch
+                                    </Typography>
+                                    {onClearError && (
+                                        <IconButton size="small" onClick={onClearError} sx={{ color: '#991b1b', p: 0.3 }}>
+                                            <CloseIcon sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                    )}
+                                </Box>
+
+                                <Typography variant="body2" sx={{ color: '#7f1d1d', fontSize: '12px', lineHeight: 1.55, mb: 1.4 }}>
+                                    {error}
+                                </Typography>
+
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    {onChangeTables && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<TableChartOutlinedIcon sx={{ fontSize: 15 }} />}
+                                            onClick={onChangeTables}
+                                            sx={{
+                                                textTransform: 'none',
+                                                fontSize: '11.5px',
+                                                fontWeight: 600,
+                                                color: '#991b1b',
+                                                borderColor: '#fca5a5',
+                                                borderRadius: '7px',
+                                                py: 0.4,
+                                                px: 1.3,
+                                                bgcolor: '#ffffff',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                                '&:hover': {
+                                                    bgcolor: '#fef2f2',
+                                                    borderColor: '#ef4444',
+                                                },
+                                            }}
+                                        >
+                                            Change Selected Tables
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={() => {
+                                            if (onClearError) onClearError();
+                                            inputRef.current?.focus();
+                                        }}
+                                        sx={{
+                                            textTransform: 'none',
+                                            fontSize: '11.5px',
+                                            fontWeight: 600,
+                                            color: '#64748b',
+                                            borderRadius: '7px',
+                                            py: 0.4,
+                                            px: 1,
+                                            '&:hover': { color: '#0f172a', bgcolor: 'rgba(0,0,0,0.04)' },
+                                        }}
+                                    >
+                                        Edit Prompt
+                                    </Button>
+                                </Box>
+                            </Box>
+                        </Paper>
+                    </Grow>
+                )}
+
+                <Paper
+                    elevation={0}
                     sx={{
                         width: '100%',
-                        height: '3.5px',
-                        background: 'linear-gradient(90deg, #1B75BB 0%, #0ea5e9 35%, #6366f1 70%, #8b5cf6 100%)',
-                        transition: 'height 0.2s ease, filter 0.2s ease',
+                        borderRadius: '16px',
+                        border: error ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
+                        bgcolor: '#ffffff',
+                        boxShadow: '0 4px 20px rgba(0, 29, 82, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02)',
+                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        '&:hover': {
+                            borderColor: error ? '#f87171' : '#cbd5e1',
+                            boxShadow: '0 6px 24px rgba(0, 29, 82, 0.08)',
+                        },
+                        '&:focus-within': {
+                            borderColor: '#93c5fd',
+                            boxShadow: '0 10px 30px rgba(27, 117, 187, 0.14), 0 0 0 3px rgba(56, 189, 248, 0.12)',
+                            '& .top-accent-bar': {
+                                height: '4px',
+                                filter: 'brightness(1.08)',
+                            },
+                        },
                     }}
-                />
+                >
+                    {/* Sleek Gradient Accent Bar at the top */}
+                    <Box
+                        className="top-accent-bar"
+                        sx={{
+                            width: '100%',
+                            height: '3.5px',
+                            background: error
+                                ? 'linear-gradient(90deg, #ef4444 0%, #f97316 100%)'
+                                : 'linear-gradient(90deg, #1B75BB 0%, #0ea5e9 35%, #6366f1 70%, #8b5cf6 100%)',
+                            transition: 'height 0.2s ease, filter 0.2s ease',
+                        }}
+                    />
 
                 <Box sx={{ p: 2, pt: 1.8, display: 'flex', flexDirection: 'column', gap: 1.2 }}>
                     {/* Top row: Gradient Sparkle Avatar Badge + Textarea input */}
@@ -270,8 +391,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     </Box>
                 </Box>
             </Paper>
-        );
-    }
+        </Box>
+    );
+}
 
     // 2. Floating Assistant Window (Post-Generation Dashboard Refinement)
     return (

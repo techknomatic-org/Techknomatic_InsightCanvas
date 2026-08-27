@@ -185,11 +185,36 @@ export async function downloadDashboardPdf(
 </html>`);
         doc.close();
 
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        win.onafterprint = () => {
+            setTimeout(() => {
+                try {
+                    if (printFrame.parentNode) {
+                        printFrame.remove();
+                    }
+                } catch (_) {}
+            }, 1500);
+        };
+
+        // Long fallback cleanup (5 minutes)
+        setTimeout(() => {
+            try {
+                if (printFrame.parentNode) {
+                    printFrame.remove();
+                }
+            } catch (_) {}
+        }, 300000);
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         win.focus();
         win.print();
-    } finally {
-        setTimeout(() => printFrame.remove(), 4000);
+    } catch (err) {
+        console.error('Failed to export PDF:', err);
+        try {
+            if (printFrame.parentNode) {
+                printFrame.remove();
+            }
+        } catch (_) {}
+        throw err;
     }
 }

@@ -427,12 +427,19 @@ export const LoadPlanCard: React.FC<LoadPlanCardProps> = ({
             {/* Footer: keep actions available after loading and show the
                 prior-load status immediately to their left. */}
             <Box sx={{
-                mt: 0.75, display: 'flex', alignItems: 'center', gap: 1,
-                flexShrink: 0, pt: 1, borderTop: '1px solid', borderColor: 'divider',
+                mt: 1,
+                pt: 1.25,
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap',
+                gap: 1,
+                flexShrink: 0,
             }}>
-                <Box sx={{ flex: 1 }} />
                 {allLoaded && (
-                    <Typography sx={{ fontSize: textVar.xs, color: 'success.main', fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '11.5px', color: 'success.main', fontWeight: 600, mr: 'auto' }}>
                         {t('dataLoading.loadPlan.loadedCount', {
                             count: loadableCandidates.length,
                             defaultValue: '✓ Loaded',
@@ -448,11 +455,30 @@ export const LoadPlanCard: React.FC<LoadPlanCardProps> = ({
                             variant="outlined"
                             disabled={selectedCount === 0 || loading}
                             onClick={() => handleConfirm(true)}
-                            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : undefined}
+                            startIcon={loading ? <CircularProgress size={13} color="inherit" /> : undefined}
                             sx={{
-                                textTransform: 'none', fontSize: textVar.sm,
-                                py: 0.5, px: 1.5, minHeight: 0,
-                                borderRadius: 1.5,
+                                textTransform: 'none',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                lineHeight: 1.3,
+                                py: 0.7,
+                                px: 1.5,
+                                borderRadius: '8px',
+                                border: '1px solid #cbd5e1',
+                                color: '#334155',
+                                bgcolor: '#ffffff',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease',
+                                '&:hover': {
+                                    bgcolor: '#f8fafc',
+                                    borderColor: '#94a3b8',
+                                    color: '#0f172a',
+                                },
+                                '&.Mui-disabled': {
+                                    bgcolor: '#f8fafc',
+                                    color: '#94a3b8',
+                                    borderColor: '#e2e8f0',
+                                },
                             }}
                         >
                             {t('dataLoading.loadPlan.loadInNewWorkspace', { defaultValue: 'Load in new workspace' })}
@@ -462,11 +488,28 @@ export const LoadPlanCard: React.FC<LoadPlanCardProps> = ({
                             variant="contained"
                             disabled={selectedCount === 0 || loading}
                             onClick={() => handleConfirm(false)}
-                            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : undefined}
+                            startIcon={loading ? <CircularProgress size={13} color="inherit" /> : undefined}
                             sx={{
-                                textTransform: 'none', fontSize: textVar.sm,
-                                py: 0.5, px: 2, minHeight: 0,
-                                borderRadius: 1.5, boxShadow: 'none',
+                                textTransform: 'none',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                lineHeight: 1.3,
+                                py: 0.7,
+                                px: 1.75,
+                                borderRadius: '8px',
+                                bgcolor: '#0284c7',
+                                color: '#ffffff',
+                                boxShadow: 'none',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease',
+                                '&:hover': {
+                                    bgcolor: '#0369a1',
+                                    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                                },
+                                '&.Mui-disabled': {
+                                    bgcolor: '#e2e8f0',
+                                    color: '#94a3b8',
+                                },
                             }}
                         >
                             {`${t('dataLoading.loadPlan.addToCurrent', { defaultValue: 'Add to current workspace' })} (${selectedCount})`}
@@ -478,11 +521,28 @@ export const LoadPlanCard: React.FC<LoadPlanCardProps> = ({
                         variant="contained"
                         disabled={selectedCount === 0 || loading}
                         onClick={() => handleConfirm(false)}
-                        startIcon={loading ? <CircularProgress size={14} color="inherit" /> : undefined}
+                        startIcon={loading ? <CircularProgress size={13} color="inherit" /> : undefined}
                         sx={{
-                            textTransform: 'none', fontSize: textVar.sm,
-                            py: 0.5, px: 2, minHeight: 0,
-                            borderRadius: 1.5, boxShadow: 'none',
+                            textTransform: 'none',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            lineHeight: 1.3,
+                            py: 0.7,
+                            px: 2,
+                            borderRadius: '8px',
+                            bgcolor: '#0284c7',
+                            color: '#ffffff',
+                            boxShadow: 'none',
+                            whiteSpace: 'nowrap',
+                            transition: 'all 0.15s ease',
+                            '&:hover': {
+                                bgcolor: '#0369a1',
+                                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                            },
+                            '&.Mui-disabled': {
+                                bgcolor: '#e2e8f0',
+                                color: '#94a3b8',
+                            },
                         }}
                     >
                         {`${t('dataLoading.loadPlan.loadSelected')} (${selectedCount})`}

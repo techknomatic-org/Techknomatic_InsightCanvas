@@ -62,7 +62,7 @@ export const DatabaseSelector: React.FC<DatabaseSelectorProps> = ({
     }, [databases, searchTerm]);
 
     return (
-        <Box sx={{ maxWidth: 700, mx: 'auto', p: { xs: 2, md: 4 } }}>
+        <Box sx={{ maxWidth: 740, width: '100%', mx: 'auto', p: { xs: 2, sm: 3, md: 4 }, pb: { xs: 6, md: 8 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <IconButton onClick={onBack} sx={{ mr: 1.5, color: '#001d52' }}>
                     <ArrowBackIcon />

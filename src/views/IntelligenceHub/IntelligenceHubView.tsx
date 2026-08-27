@@ -17,6 +17,8 @@ import { TableSelector, CatalogTableItem } from './TableSelector';
 import { IntelligenceWorkspace } from './IntelligenceWorkspace';
 import { profileTables } from './intelligenceService';
 import { DataProfile } from './intelligenceTypes';
+import { DataSourceSidebar } from '../DataSourceSidebar';
+import { UnifiedDataUploadDialog, UploadTabType } from '../UnifiedDataUploadDialog';
 
 type Step = 'sources' | 'databases' | 'tables' | 'workspace';
 
@@ -31,6 +33,11 @@ function generateSessionId(): string {
 export const IntelligenceHubView: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();
     const [step, setStep] = useState<Step>('sources');
+
+    // Upload dialog state (for sidebar + Add Connection button)
+    const [uploadDialogOpen, setUploadDialogOpen] = useState<boolean>(false);
+    const [uploadDialogTab, setUploadDialogTab] = useState<UploadTabType>('menu');
+    const [connectorRefreshKey, setConnectorRefreshKey] = useState<number>(0);
 
     // Data Source State
     const [connectors, setConnectors] = useState<ConnectorInstance[]>([]);
@@ -294,7 +301,17 @@ export const IntelligenceHubView: React.FC = () => {
     };
 
     return (
-        <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc', overflow: 'hidden' }}>
+        <Box
+            sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: '#f8fafc',
+                overflowY: (step === 'workspace' || step === 'sources') ? 'hidden' : 'auto',
+                overflowX: 'hidden',
+            }}
+        >
             {profiling ? (
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                     <CircularProgress size={40} sx={{ color: '#1B75BB' }} />
@@ -323,12 +340,43 @@ export const IntelligenceHubView: React.FC = () => {
             ) : (
                 <>
                     {step === 'sources' && (
-                        <DataSourceSelector
-                            connectors={connectors}
-                            loading={loadingConnectors}
-                            error={connectorsError}
-                            onSelectSource={handleSelectSource}
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', overflow: 'hidden' }}>
+                            <DataSourceSidebar
+                                onOpenUploadDialog={(tab) => {
+                                    setUploadDialogTab((tab || 'menu') as UploadTabType);
+                                    setUploadDialogOpen(true);
+                                }}
+                                onConnectorsChanged={() => {
+                                    setConnectorRefreshKey((k) => k + 1);
+                                    loadConnectors();
+                                }}
+                                connectorRefreshKey={connectorRefreshKey}
+                            />
+                            <Box sx={{ flex: 1, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+                                <DataSourceSelector
+                                    connectors={connectors}
+                                    loading={loadingConnectors}
+                                    error={connectorsError}
+                                    onSelectSource={handleSelectSource}
+                                    onAddConnection={() => {
+                                        setUploadDialogTab('menu');
+                                        setUploadDialogOpen(true);
+                                    }}
+                                />
+                            </Box>
+                            <UnifiedDataUploadDialog
+                                open={uploadDialogOpen}
+                                onClose={() => {
+                                    setUploadDialogOpen(false);
+                                    loadConnectors();
+                                }}
+                                initialTab={uploadDialogTab}
+                                onConnectorsChanged={() => {
+                                    setConnectorRefreshKey((k) => k + 1);
+                                    loadConnectors();
+                                }}
+                            />
+                        </Box>
                     )}
 
                     {step === 'databases' && selectedConnector && (
@@ -365,6 +413,7 @@ export const IntelligenceHubView: React.FC = () => {
                             tableNames={Array.from(selectedTableNames)}
                             profile={profile}
                             onReset={handleReset}
+                            onBack={() => setStep('tables')}
                             modelConfig={activeModel}
                         />
                     )}

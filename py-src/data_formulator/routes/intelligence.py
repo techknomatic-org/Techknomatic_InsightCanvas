@@ -676,10 +676,23 @@ def _build_vega_lite_spec(
                     },
                 }
         if y_field:
+            y_scale: dict[str, Any] = {}
+            if data_records and isinstance(data_records, list):
+                y_nums = [r.get(y_field) for r in data_records if isinstance(r.get(y_field), (int, float))]
+                if len(y_nums) >= 2:
+                    y_min, y_max = min(y_nums), max(y_nums)
+                    if y_min > 0 and y_max > 0:
+                        rel_diff = (y_max - y_min) / y_max
+                        # If values are tightly clustered (less than 25% variation), don't force zero baseline
+                        if rel_diff < 0.25 and rel_diff > 0:
+                            y_scale = {"zero": False}
+
             encoding["y"] = {
                 "field": y_field,
                 "type": "quantitative",
+                "scale": y_scale if y_scale else {"zero": True},
                 "axis": {
+                    "format": "~s",
                     "grid": True,
                     "gridColor": "#f1f5f9",
                     "labelColor": "#64748b",
@@ -746,6 +759,9 @@ def _hydrate_dashboard_spec(
         all_col_types: dict[str, str] = {}
         for _t_cols in table_column_types.values():
             all_col_types.update(_t_cols)
+
+        numeric_types = {"INTEGER", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "HUGEINT", "TINYINT", "SMALLINT", "INT", "INT4", "INT8", "FLOAT4", "FLOAT8", "REAL"}
+        numeric_cols = {col for col, dtype in all_col_types.items() if any(nt in str(dtype).upper() for nt in numeric_types)}
 
         # Helper to resolve table for columns
         def _find_query_source(cols: list[str]) -> str:
@@ -974,21 +990,40 @@ def _hydrate_dashboard_spec(
                     ORDER BY \"{y_col}\" DESC
                     """
                 elif x_is_temporal and c_type in ("line", "area"):
-                    # Temporal line/area: aggregate to month level, sort ascending
-                    group_cols_parts = [f'DATE_TRUNC(\'month\', \"{x_col}\"::TIMESTAMP) AS \"{x_col}\"']
-                    group_by_parts = [f'DATE_TRUNC(\'month\', \"{x_col}\"::TIMESTAMP)']
+                    # Temporal line/area: Try month first. If data spans <= 2 months, drill down to day
+                    where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
+                    group_cols_parts = [f'strftime(DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP), \'%b %Y\') AS "{x_col}"']
+                    group_by_parts = [f'DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP)']
                     if color_col and color_col != x_col:
-                        group_cols_parts.append(f'\"{color_col}\"')
-                        group_by_parts.append(f'\"{color_col}\"')
+                        group_cols_parts.append(f'"{color_col}"')
+                        group_by_parts.append(f'"{color_col}"')
                     select_str = ", ".join(group_cols_parts)
                     group_by_str = ", ".join(group_by_parts)
                     sql = f"""
-                    SELECT {select_str}, {y_agg_expr} AS \"{y_col}\"
+                    SELECT {select_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_clause}
+                    {where_prefix} "{x_col}" IS NOT NULL
                     GROUP BY {group_by_str}
-                    ORDER BY \"{x_col}\" ASC
+                    ORDER BY DATE_TRUNC('month', "{x_col}"::TIMESTAMP) ASC
                     LIMIT 36
+                    """
+                elif c_type in ("line", "area"):
+                    # Non-temporal line/area: sort along natural X-axis sequence rather than Y metric DESC
+                    group_cols = [f'"{x_col}"']
+                    group_by_cols = [f'"{x_col}"']
+                    if color_col and color_col != x_col:
+                        group_cols.append(f'"{color_col}"')
+                        group_by_cols.append(f'"{color_col}"')
+                    group_str = ", ".join(group_cols)
+                    group_by_str = ", ".join(group_by_cols)
+                    where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
+                    sql = f"""
+                    SELECT {group_str}, {y_agg_expr} AS "{y_col}"
+                    FROM {target_src}
+                    {where_prefix} "{x_col}" IS NOT NULL
+                    GROUP BY {group_by_str}
+                    ORDER BY "{x_col}" ASC
+                    LIMIT 30
                     """
                 else:
                     # Bar/scatter/other: standard categorical query, top N
@@ -997,10 +1032,11 @@ def _hydrate_dashboard_spec(
                     if color_col and color_col != x_col:
                         group_cols.append(f'"{color_col}"')
                     group_str = ", ".join(group_cols)
+                    where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
                     sql = f"""
                     SELECT {group_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_clause}
+                    {where_prefix} "{x_col}" IS NOT NULL
                     GROUP BY {group_str}
                     ORDER BY "{y_col}" DESC
                     LIMIT {row_limit}
@@ -1009,6 +1045,28 @@ def _hydrate_dashboard_spec(
                 try:
                     v_df = _execute_safe_query(con, sql)
                     records = df_to_safe_records(v_df)
+
+                    # Adaptive time-series resolution: if monthly grouping gave <= 2 points, drill down to daily points
+                    if x_is_temporal and c_type in ("line", "area") and len(records) <= 2:
+                        where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
+                        day_sql = f"""
+                        SELECT strftime("{x_col}"::TIMESTAMP, '%d %b') AS "{x_col}",
+                               {y_agg_expr} AS "{y_col}"
+                               {f', "{color_col}"' if color_col and color_col != x_col else ''}
+                        FROM {target_src}
+                        {where_prefix} "{x_col}" IS NOT NULL
+                        GROUP BY strftime("{x_col}"::TIMESTAMP, '%d %b'), DATE_TRUNC('day', "{x_col}"::TIMESTAMP){f', "{color_col}"' if color_col and color_col != x_col else ''}
+                        ORDER BY DATE_TRUNC('day', "{x_col}"::TIMESTAMP) ASC
+                        LIMIT 31
+                        """
+                        try:
+                            day_df = _execute_safe_query(con, day_sql)
+                            day_records = df_to_safe_records(day_df)
+                            if len(day_records) > len(records):
+                                records = day_records
+                        except Exception as day_err:
+                            logger.debug("Day drilldown fallback error: %s", day_err)
+
                     if not records:
                         query_status = "no_data"
                 except Exception as e:
@@ -1021,6 +1079,7 @@ def _hydrate_dashboard_spec(
                         fb_sql = f"""
                         SELECT {group_str_fb}, {y_agg_expr} AS "{y_col}"
                         FROM {target_src}
+                        WHERE "{x_col}" IS NOT NULL
                         GROUP BY {group_str_fb}
                         ORDER BY "{y_col}" DESC
                         LIMIT 15
@@ -1035,6 +1094,10 @@ def _hydrate_dashboard_spec(
                         logger.warning("Error querying chart '%s': %s", v_title, fb_err)
             elif query_status == "ok":
                 query_status = "missing_fields"
+
+            # If a line chart still has only 1 data point after query execution, convert to bar chart
+            if c_type in ("line", "area") and len(records) <= 1:
+                c_type = "bar"
 
             vega_spec = _build_vega_lite_spec(v_title, c_type, x_col, y_col, color_col, records, is_temporal=x_is_temporal)
 

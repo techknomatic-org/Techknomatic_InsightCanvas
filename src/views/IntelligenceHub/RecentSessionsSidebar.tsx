@@ -30,6 +30,36 @@ interface RecentSessionsSidebarProps {
     width?: number;
 }
 
+const parseSessionDate = (d?: string | null): Date | null => {
+    if (!d) return null;
+    const hasTimezone = d.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(d) || /[+-]\d{4}$/.test(d);
+    const normalized = hasTimezone ? d : `${d}Z`;
+    const parsed = new Date(normalized);
+    return isNaN(parsed.getTime()) ? new Date(d) : parsed;
+};
+
+const formatSessionTime = (dateObj: Date): string => {
+    const now = new Date();
+    const isToday = now.toDateString() === dateObj.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = yesterday.toDateString() === dateObj.toDateString();
+
+    const timeStr = dateObj.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
+
+    if (isToday) {
+        return `Today, ${timeStr}`;
+    }
+    if (isYesterday) {
+        return `Yesterday, ${timeStr}`;
+    }
+    return `${dateObj.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${timeStr}`;
+};
+
 export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
     sessions,
     activeSessionId,
@@ -78,14 +108,9 @@ export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
                     <List disablePadding>
                         {sessions.map((sess) => {
                             const isSelected = sess.id === activeSessionId;
-                            const dateStr = sess.created_at
-                                ? new Date(sess.created_at).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                  })
-                                : '';
+                            const rawDate = sess.updated_at || sess.created_at;
+                            const parsedDate = rawDate ? parseSessionDate(rawDate) : null;
+                            const dateStr = parsedDate ? formatSessionTime(parsedDate) : '';
 
                             return (
                                 <ListItemButton

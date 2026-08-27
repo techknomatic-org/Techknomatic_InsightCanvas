@@ -113,7 +113,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 >
                     {domainIcon}
                 </Box>
-                <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography
                         variant="subtitle1"
                         sx={{
@@ -121,9 +121,6 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                             color: '#001d52',
                             fontSize: '15px',
                             lineHeight: 1.25,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
                         }}
                     >
                         {dashboardTitle || 'Dashboard'}
@@ -133,14 +130,10 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                             variant="caption"
                             sx={{
                                 color: '#64748b',
-                                fontSize: '11px',
-                                lineHeight: 1.2,
+                                fontSize: '11.5px',
+                                lineHeight: 1.35,
                                 display: 'block',
-                                mt: 0.2,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: 460,
+                                mt: 0.3,
                             }}
                         >
                             {dashboardDescription}

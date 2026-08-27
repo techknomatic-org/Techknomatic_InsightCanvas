@@ -53,7 +53,7 @@ export const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
     }
 
     return (
-        <Box sx={{ maxWidth: 1000, mx: 'auto', p: { xs: 2, md: 4 } }}>
+        <Box sx={{ maxWidth: 1000, width: '100%', mx: 'auto', p: { xs: 2, sm: 3, md: 4 }, pb: { xs: 6, md: 8 } }}>
             <Box sx={{ mb: 4, textAlign: 'center' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#001d52', mb: 1, letterSpacing: '-0.02em' }}>
                     Select a Connected Data Source
