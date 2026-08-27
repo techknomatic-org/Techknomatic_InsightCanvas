@@ -523,6 +523,7 @@ const DataSourceSidebarPanel: React.FC<{
 }> = ({ panelWidth, onOpenUploadDialog, onCollapse, isPinned, onTogglePinned, connectorRefreshKey = 0, onConnectorsChanged, disableConnectors = false, onStartDataLoadingChat }) => {
     const { t } = useTranslation();
     const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
 
     const activeWorkspace = useSelector((state: DataFormulatorState) => state.activeWorkspace);
     const identityKey = useSelector(
@@ -815,6 +816,22 @@ const DataSourceSidebarPanel: React.FC<{
         return parts.length > 0 ? parts.join(' · ') : t('sidebar.clickToOpen');
     }, [t]);
 
+    const handleNewSession = useCallback(() => {
+        const now = new Date();
+        const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        const short = generateUUID().slice(0, 4);
+        const wsId = `session_${date}_${time}_${short}`;
+        dispatch(dfActions.loadState({
+            tables: [],
+            charts: [],
+            draftNodes: [],
+            conceptShelfItems: [],
+            activeWorkspace: { id: wsId, displayName: 'Untitled Session' },
+        }));
+        navigate('/');
+    }, [dispatch, navigate]);
+
     const handleOpenSession = useCallback(async (sessionId: string, metaDisplayName?: string) => {
         dispatch(dfActions.setSessionLoading({ loading: true, label: t('sidebar.openingWorkspace') }));
         try {
@@ -822,6 +839,7 @@ const DataSourceSidebarPanel: React.FC<{
             if (result) {
                 const displayName = metaDisplayName || result.displayName;
                 dispatch(dfActions.loadState({ ...result.state, activeWorkspace: { id: sessionId, displayName, readOnly: result.readOnly } }));
+                navigate('/');
             } else {
                 dispatch(dfActions.addMessages({
                     timestamp: Date.now(), type: 'error', component: 'workspace',
@@ -836,7 +854,7 @@ const DataSourceSidebarPanel: React.FC<{
             }));
         }
         dispatch(dfActions.setSessionLoading({ loading: false }));
-    }, [dispatch]);
+    }, [dispatch, navigate, t]);
 
     const handleDeleteSession = useCallback(async (sessionId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -2367,7 +2385,7 @@ const DataSourceSidebarPanel: React.FC<{
                             <IconButton
                                 size="small"
                                 aria-label={t('sidebar.newSession', { defaultValue: 'New session' })}
-                                onClick={() => dispatch(dfActions.resetState())}
+                                onClick={handleNewSession}
                                 sx={{
                                     width: 28,
                                     height: 28,
