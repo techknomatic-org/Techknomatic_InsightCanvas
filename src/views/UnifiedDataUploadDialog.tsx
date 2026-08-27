@@ -1534,11 +1534,14 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                 await dispatch(loadTable({
                     table: tableWithSource,
                     file: storeOnServer ? filePreviewFiles[filePreviewActiveIndex] || filePreviewFiles[0] : undefined,
-                }));
+                })).unwrap();
+                handleClose();
+            } catch (err: any) {
+                console.error('Failed to load table:', err);
+                setFilePreviewError(err?.message || 'Failed to load table to workspace. Please check your data and try again.');
             } finally {
                 setTableLoading(false);
             }
-            handleClose();
         }
     };
 
@@ -1579,12 +1582,15 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                     table: tableWithSource,
                     file: storeOnServer ? filePreviewFiles[i] || filePreviewFiles[0] : undefined,
                     replaceSource: storeOnServer && isFirstForFile,
-                }));
+                })).unwrap();
             }
+            handleClose();
+        } catch (err: any) {
+            console.error('Failed to load all tables:', err);
+            setFilePreviewError(err?.message || 'Failed to load all tables to workspace.');
         } finally {
             setTableLoading(false);
         }
-        handleClose();
     };
 
     const handleRemoveFilePreviewTable = (index: number): void => {
@@ -1638,11 +1644,13 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
             const tableWithSource = { ...table, source: { type: 'paste' as const } };
             setTableLoading(true);
             try {
-                await dispatch(loadTable({ table: tableWithSource }));
+                await dispatch(loadTable({ table: tableWithSource })).unwrap();
+                handleClose();
+            } catch (err: any) {
+                console.error('Failed to load pasted data:', err);
             } finally {
                 setTableLoading(false);
             }
-            handleClose();
         }
     };
 
@@ -1741,11 +1749,14 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
             const tableWithSource = { ...table, source: sourceConfig };
             setTableLoading(true);
             try {
-                await dispatch(loadTable({ table: tableWithSource }));
+                await dispatch(loadTable({ table: tableWithSource })).unwrap();
+                handleClose();
+            } catch (err: any) {
+                console.error('Failed to load URL table:', err);
+                setUrlPreviewError(err?.message || 'Failed to load URL table');
             } finally {
                 setTableLoading(false);
             }
-            handleClose();
         }
     };
 
@@ -1770,12 +1781,15 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                     sourceConfig = { type: 'url', url: tableURL };
                 }
                 const tableWithSource = { ...table, source: sourceConfig };
-                await dispatch(loadTable({ table: tableWithSource }));
+                await dispatch(loadTable({ table: tableWithSource })).unwrap();
             }
+            handleClose();
+        } catch (err: any) {
+            console.error('Failed to load all URL tables:', err);
+            setUrlPreviewError(err?.message || 'Failed to load URL tables');
         } finally {
             setTableLoading(false);
         }
-        handleClose();
     };
 
     const handleRemoveUrlPreviewTable = (index: number): void => {

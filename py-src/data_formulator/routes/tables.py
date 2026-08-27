@@ -716,9 +716,17 @@ def _read_upload_to_df(
     """
     buf = io.BytesIO(content)
     if file_type == "csv":
-        return pd.read_csv(buf)
+        try:
+            return pd.read_csv(buf)
+        except Exception:
+            buf.seek(0)
+            return pd.read_csv(buf, sep=None, engine='python', on_bad_lines='skip')
     if file_type == "txt":
-        return pd.read_csv(buf, sep="\t")
+        try:
+            return pd.read_csv(buf, sep="\t")
+        except Exception:
+            buf.seek(0)
+            return pd.read_csv(buf, sep=None, engine='python', on_bad_lines='skip')
     if file_type in ("excel",):
         sheet = _resolve_excel_sheet(content, table_name, sheet_hint)
         return pd.read_excel(io.BytesIO(content), sheet_name=sheet)

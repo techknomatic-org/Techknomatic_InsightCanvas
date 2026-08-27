@@ -200,9 +200,26 @@ export const loadTable = createAsyncThunk<
                         body: formData,
                     });
                     const { data: listData } = await apiRequest(getUrls().LIST_TABLES, { method: 'GET' });
-                    const wsTable = listData.tables.find((t: any) => t.name === data.table_name);
+                    const wsTable = listData?.tables?.find((t: any) => 
+                        t.name === data.table_name ||
+                        t.name?.toLowerCase() === data.table_name?.toLowerCase() ||
+                        t.name === table.id ||
+                        t.original_name === table.id
+                    );
                     if (wsTable) {
                         finalTable = buildDictTableFromWorkspace(wsTable, enrichedSource);
+                    } else if (data?.table_name) {
+                        finalTable = {
+                            ...table,
+                            source: enrichedSource || table.source,
+                            id: data.table_name,
+                            displayId: table.displayId || data.table_name,
+                            names: data.columns || table.names,
+                            virtual: {
+                                tableId: data.table_name,
+                                rowCount: data.row_count ?? (table.rows?.length || 0),
+                            },
+                        };
                     }
                 } catch (err) {
                     console.error('Failed to upload file to workspace:', err);
@@ -239,6 +256,7 @@ export const loadTable = createAsyncThunk<
 
         // Dispatch the table into Redux state
         dispatch(dfActions.addTableToStore(finalTable));
+        dispatch(dfActions.setFocused({ type: 'table', tableId: finalTable.id }));
         dispatch(fetchFieldSemanticType(finalTable));
         // Workspace-stored tables get backend-computed column stats
         // (distinct/null counts + low-card value lists) for the grid
