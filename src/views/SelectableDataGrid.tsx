@@ -385,20 +385,7 @@ export const SelectableDataGrid: React.FC<SelectableDataGridProps> = React.memo(
     const [serverRowCount, setServerRowCount] = React.useState<number>(rowCount);
     const fetchIdRef = React.useRef(0);
     
-    React.useEffect(() => {
-        setIsLoading(false);
-    }, []);
 
-    React.useEffect(() => {
-        if (orderBy && !isLoading && !virtual) {
-            setRowsToDisplay(rows.slice().sort(getComparator(order, orderBy)));
-        } else if (!virtual) {
-            setRowsToDisplay(rows);
-        }
-        if (!virtual) {
-            setHasMore(false);
-        }
-    }, [rows, order, orderBy])
 
     // Report virtual-pagination state up to an external toolbar (focused-table
     // canvas) so it can render the loaded/total count and the random-rows dice.
@@ -552,7 +539,11 @@ export const SelectableDataGrid: React.FC<SelectableDataGridProps> = React.memo(
         })
         .then(({ data }) => {
             if (fetchIdRef.current !== currentFetchId) return;
-            const newRows = data.rows || [];
+            const rawRows = data.rows || [];
+            const newRows = rawRows.map((r: any, i: number) => ({
+                ...r,
+                "#rowId": r["#rowId"] ?? (offset + i + 1),
+            }));
             const totalCount = data.total_row_count ?? rowCount;
 
             if (append) {
@@ -577,6 +568,23 @@ export const SelectableDataGrid: React.FC<SelectableDataGridProps> = React.memo(
     React.useEffect(() => {
         fetchVirtualDataRef.current = fetchVirtualData;
     }, [fetchVirtualData]);
+
+    // Initial load and re-fetch when tableId or virtual changes
+    React.useEffect(() => {
+        if (virtual) {
+            if (rows.length > 0) {
+                setRowsToDisplay(rows.map((r: any, i: number) => ({ ...r, "#rowId": r["#rowId"] ?? (i + 1) })));
+                setIsLoading(false);
+            } else {
+                fetchVirtualData(orderBy ? [orderBy] : [], order, 0, false);
+            }
+        } else {
+            setIsLoading(false);
+            const mappedRows = rows.map((r: any, i: number) => ({ ...r, "#rowId": r["#rowId"] ?? (i + 1) }));
+            setRowsToDisplay(orderBy ? mappedRows.slice().sort(getComparator(order, orderBy)) : mappedRows);
+            setHasMore(false);
+        }
+    }, [tableId, virtual, rows, fetchVirtualData]);
 
     // Refetch from offset 0 whenever filters change (virtual tables only).
     // Skip the initial mount; the first load happens via the existing
