@@ -1294,7 +1294,8 @@ LAYOUT REQUIREMENTS (STRICT):
 2. **Exactly 4 KPI Cards**: Pick the 4 most critical summary metrics. Choose appropriate aggregations (SUM, AVG, COUNT, MIN, MAX) and formatting ('currency', 'number', 'percent', 'integer').
 3. **Exactly 6 Visualizations** (3 in Row 1, 3 in Row 2):
    - Choose diverse, complementary chart types from ('bar', 'line', 'area', 'scatter', 'donut', 'pie').
-   - Use 'line' or 'area' for temporal/trend fields.
+   - Use 'line' or 'area' for temporal/trend fields ONLY IF the temporal column has at least 3 distinct values (multiple months/years).
+   - If a date column has only 1 or 2 distinct dates (a single point in time / snapshot, e.g. only '2026-01-01'), do NOT use a line chart — use 'bar' or 'donut' broken down by a category (e.g. Department, Performance Rating, Location).
    - Use 'bar' or 'donut' for categorical breakdowns.
    - ALWAYS assign dimension/categorical columns to x_field and numeric/measure columns to y_field.
    - Ensure high analytical value and zero redundancy.
