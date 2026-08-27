@@ -410,7 +410,8 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     display: 'flex',
                     flexDirection: 'column',
                     p: { xs: 1.5, md: 2.5 },
-                    overflow: 'hidden',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                     minHeight: 0,
                 }}
             >
@@ -424,6 +425,11 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         flexShrink: 0,
                         flexWrap: 'wrap',
                         gap: 1,
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        bgcolor: '#f8fafc',
+                        py: 0.5,
                     }}
                 >
                     {/* Top Left: Back Button + Psychology Icon + Title */}
