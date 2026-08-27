@@ -1028,6 +1028,11 @@ def _hydrate_dashboard_spec(
                    any(k in x_col_lower for k in ("date", "time", "timestamp", "created_at", "updated_at")):
                     x_is_temporal = True
 
+            # Prevent temporal columns from being assigned to pie/donut charts
+            if x_is_temporal and c_type in ("pie", "donut"):
+                c_type = "line"
+                logger.info("Overrode chart_type for temporal field '%s': pie/donut -> line", x_col)
+
             # Pre-flight: check column existence
             missing_cols = []
             for col_name, col_label in [(x_col, "x_field"), (y_col, "y_field")]:
@@ -1074,11 +1079,12 @@ def _hydrate_dashboard_spec(
 
                 # ── BI Best Practice: Smart query construction per chart type ──
                 if c_type in ("pie", "donut"):
-                    # Pie/Donut: limit to top 7 slices, group the rest as "Other"
+                    # Pie/Donut: limit to top 7 slices, group the rest as "Other", drop nulls
+                    where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
                     inner_sql = f"""
                     SELECT \"{x_col}\", {y_agg_expr} AS \"{y_col}\"
                     FROM {target_src}
-                    {where_clause}
+                    {where_prefix} \"{x_col}\" IS NOT NULL AND TRIM(CAST(\"{x_col}\" AS VARCHAR)) NOT IN ('', 'NaN', 'None', 'null', 'NAT') AND \"{y_col}\" IS NOT NULL
                     GROUP BY \"{x_col}\"
                     ORDER BY \"{y_col}\" DESC
                     """
@@ -1097,11 +1103,11 @@ def _hydrate_dashboard_spec(
                     GROUP BY CASE WHEN rn <= 7 THEN \"{x_col}\"::VARCHAR ELSE 'Other' END
                     ORDER BY \"{y_col}\" DESC
                     """
-                elif x_is_temporal and c_type in ("line", "area"):
-                    # Temporal line/area: Try month first. If data spans <= 2 months, drill down to day
+                elif x_is_temporal:
+                    # Temporal line/area/column: Try month first. If data spans <= 2 months, drill down to day
                     where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
                     group_cols_parts = [f'strftime(DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP), \'%b %Y\') AS "{x_col}"']
-                    group_by_parts = [f'DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP)']
+                    group_by_parts = [f'DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP)', f'strftime(DATE_TRUNC(\'month\', "{x_col}"::TIMESTAMP), \'%b %Y\')']
                     if color_col and color_col != x_col:
                         group_cols_parts.append(f'"{color_col}"')
                         group_by_parts.append(f'"{color_col}"')
@@ -1110,7 +1116,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {select_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL
+                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
                     GROUP BY {group_by_str}
                     ORDER BY DATE_TRUNC('month', "{x_col}"::TIMESTAMP) ASC
                     LIMIT 36
@@ -1128,7 +1134,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {group_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL
+                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
                     GROUP BY {group_by_str}
                     ORDER BY "{x_col}" ASC
                     LIMIT 30
@@ -1144,7 +1150,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {group_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL
+                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
                     GROUP BY {group_str}
                     ORDER BY "{y_col}" DESC
                     LIMIT {row_limit}
@@ -1152,23 +1158,31 @@ def _hydrate_dashboard_spec(
 
                 try:
                     v_df = _execute_safe_query(con, sql)
+                    if not v_df.empty:
+                        v_df = v_df.dropna(subset=[x_col, y_col])
+                        if x_col in v_df.columns:
+                            v_df = v_df[~v_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', ''])]
                     records = df_to_safe_records(v_df)
 
                     # Adaptive time-series resolution: if monthly grouping gave <= 2 points, drill down to daily points
-                    if x_is_temporal and c_type in ("line", "area") and len(records) <= 2:
+                    if x_is_temporal and len(records) <= 2:
                         where_prefix = f"{where_clause} AND " if where_clause else "WHERE "
                         day_sql = f"""
                         SELECT strftime("{x_col}"::TIMESTAMP, '%d %b') AS "{x_col}",
                                {y_agg_expr} AS "{y_col}"
                                {f', "{color_col}"' if color_col and color_col != x_col else ''}
                         FROM {target_src}
-                        {where_prefix} "{x_col}" IS NOT NULL
+                        {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
                         GROUP BY strftime("{x_col}"::TIMESTAMP, '%d %b'), DATE_TRUNC('day', "{x_col}"::TIMESTAMP){f', "{color_col}"' if color_col and color_col != x_col else ''}
                         ORDER BY DATE_TRUNC('day', "{x_col}"::TIMESTAMP) ASC
                         LIMIT 31
                         """
                         try:
                             day_df = _execute_safe_query(con, day_sql)
+                            if not day_df.empty:
+                                day_df = day_df.dropna(subset=[x_col, y_col])
+                                if x_col in day_df.columns:
+                                    day_df = day_df[~day_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', ''])]
                             day_records = df_to_safe_records(day_df)
                             if len(day_records) > len(records):
                                 records = day_records
@@ -1402,9 +1416,10 @@ LAYOUT REQUIREMENTS (STRICT):
 2. **Exactly 4 KPI Cards**: Pick the 4 most critical summary metrics. Choose appropriate aggregations (SUM, AVG, COUNT, MIN, MAX) and formatting ('currency', 'number', 'percent', 'integer').
 3. **Exactly 6 Visualizations** (3 in Row 1, 3 in Row 2):
    - Choose diverse, complementary chart types from ('bar', 'line', 'area', 'scatter', 'donut', 'pie').
-   - Use 'line' or 'area' for temporal/trend fields ONLY IF the temporal column has at least 3 distinct values (multiple months/years).
+   - For ANY time-series, trajectory, or trend over time (e.g. 'Trend of Hours Worked', 'Overtime Trend'): ALWAYS use 'line', 'area', or 'column'. NEVER EVER use 'pie' or 'donut' for date/time/temporal fields!
+   - Use 'pie' or 'donut' ONLY for low-cardinality categorical breakdowns (<= 7 categories, e.g. Attendance Status, Department, Work Model).
    - If a date column has only 1 or 2 distinct dates (a single point in time / snapshot, e.g. only '2026-01-01'), do NOT use a line chart — use 'bar' or 'donut' broken down by a category (e.g. Department, Performance Rating, Location).
-   - Use 'bar' or 'donut' for categorical breakdowns.
+   - Use 'bar' or 'column' for categorical rankings and comparisons.
    - ALWAYS assign dimension/categorical columns to x_field and numeric/measure columns to y_field.
    - Ensure high analytical value and zero redundancy.
 
