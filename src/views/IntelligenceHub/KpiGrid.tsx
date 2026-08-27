@@ -20,27 +20,57 @@ const ACCENTS = [
         color: '#1B75BB',
         bg: 'linear-gradient(180deg, rgba(27, 117, 187, 0.05) 0%, #ffffff 100%)',
         badgeBg: 'rgba(27, 117, 187, 0.1)',
-        icon: <MonetizationOnOutlinedIcon sx={{ fontSize: 16 }} />,
     },
     {
         color: '#10B981',
         bg: 'linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, #ffffff 100%)',
         badgeBg: 'rgba(16, 185, 129, 0.1)',
-        icon: <AnalyticsIcon sx={{ fontSize: 16 }} />,
     },
     {
         color: '#8B5CF6',
         bg: 'linear-gradient(180deg, rgba(139, 92, 246, 0.05) 0%, #ffffff 100%)',
         badgeBg: 'rgba(139, 92, 246, 0.1)',
-        icon: <PercentOutlinedIcon sx={{ fontSize: 16 }} />,
     },
     {
         color: '#F59E0B',
         bg: 'linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, #ffffff 100%)',
         badgeBg: 'rgba(245, 158, 11, 0.1)',
-        icon: <TagOutlinedIcon sx={{ fontSize: 16 }} />,
     },
 ];
+
+const getKpiIcon = (kpi: KpiSpec) => {
+    const title = (kpi.title || '').toLowerCase();
+    const format = (kpi.format || '').toLowerCase();
+    const col = (kpi.measure_column || '').toLowerCase();
+    const agg = (kpi.aggregation || '').toUpperCase();
+    const formattedVal = String(kpi.formatted_value || '');
+
+    if (
+        format === 'currency' ||
+        formattedVal.startsWith('$') ||
+        ['salary', 'revenue', 'cost', 'price', 'budget', 'profit', 'expense', 'spend', 'val', 'amt', 'pay', 'income', 'earning', 'sales'].some((k) => title.includes(k) || col.includes(k))
+    ) {
+        return <MonetizationOnOutlinedIcon sx={{ fontSize: 16 }} />;
+    }
+
+    if (
+        format === 'percent' ||
+        formattedVal.includes('%') ||
+        ['rate', 'percent', 'pct', 'ratio', 'share', 'margin', 'proportion', 'efficiency', 'utilization'].some((k) => title.includes(k) || col.includes(k))
+    ) {
+        return <PercentOutlinedIcon sx={{ fontSize: 16 }} />;
+    }
+
+    if (
+        agg === 'COUNT' ||
+        format === 'integer' ||
+        ['count', 'number', 'total', 'quantity', 'units', 'employees', 'departments', 'users', 'customers', 'orders', 'items', 'headcount'].some((k) => title.includes(k) || col.includes(k))
+    ) {
+        return <TagOutlinedIcon sx={{ fontSize: 16 }} />;
+    }
+
+    return <AnalyticsIcon sx={{ fontSize: 16 }} />;
+};
 
 export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
     const items = kpis.slice(0, 4);
@@ -56,6 +86,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
         >
             {items.map((kpi, idx) => {
                 const accent = ACCENTS[idx % ACCENTS.length];
+                const kpiIcon = getKpiIcon(kpi);
 
                 return (
                     <Card
@@ -105,7 +136,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                         flexShrink: 0,
                                     }}
                                 >
-                                    {accent.icon}
+                                    {kpiIcon}
                                 </Box>
                             </Box>
 
