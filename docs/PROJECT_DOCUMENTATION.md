@@ -317,5 +317,43 @@ Each transformation step creates a new immutable node in the DAG:
 
 ---
 
+## 10. Intelligence Hub Architecture & Autonomous Dashboard Engine
+
+```
+[Connected Data Tables (MySQL / Postgres / Parquet)]
+                        │
+                        ▼
+           [Dynamic Schema Profiler]
+           ├── Statistical cardinality, min/max, null ratios
+           ├── Temporal range and distinct date count detection
+           └── Categorical vs. numeric classification
+                        │
+                        ▼
+       [Autonomous Dashboard Planner (LLM)]
+       ├── 4 Summary KPIs with semantic formatting ($, %, #, kWh, hrs)
+       ├── 1 Primary categorical / temporal slicer
+       └── 6 Analytical Visualizations (diverse chart types)
+                        │
+                        ▼
+       [Safe In-Memory DuckDB Execution Engine]
+       ├── Direct analytical SQL generation & execution
+       ├── Adaptive time-series resolution (monthly → daily drilldown)
+       ├── Sparse data fallback (1-dot lines → categorical bars)
+       └── Out-of-domain query relevance detection & error handling
+                        │
+                        ▼
+    [Hydrated Interactive Intelligence Workspace]
+    ├── Sticky executive actions bar (Report, Export, Assistant)
+    ├── Smooth vertical scroll layout
+    └── Vega-Lite responsive grammar with domain-aware tooltips
+```
+
+### 10.1 Key Engine Safeguards & Features
+- **Domain Relevance Verification**: Strict validation prevents cross-domain hallucinations (e.g. asking for "patients" on HR employee data returns a clear explanatory message).
+- **Domain-Aware Unit Abbreviation**: Automatically formats metrics with precise units (e.g. `kWh`, `kW`, `tCO₂`, `mins`, `hrs`, `$`, `%`).
+- **Standardized Navigation & Clean Typography**: Unified top navbar (`Home`, `Intelligence Hub`, `About`) with responsive active indicators and clean regular font weights across sidebar session lists.
+
+---
+
 *InsightCanvas — Built with pride by Techknomatic Services Pvt. Ltd.*  
 *For questions, technical support, or enterprise architecture inquiries: `support@techknomatic.com`*

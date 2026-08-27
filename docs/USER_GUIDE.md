@@ -246,5 +246,25 @@ Generate publication-ready, C-suite strategic intelligence reports with a single
 
 ---
 
+## 11. Navigation, Domain Safeguards & Unit Formats
+
+### 11.1 Top Navigation Bar
+- **Home**: Instantly returns to the main landing view and data load screen from any page.
+- **Intelligence Hub**: Launches autonomous dashboard synthesis and visual exploration.
+- **About**: Opens platform architecture details, documentation, and licensing.
+
+### 11.2 Domain Relevance Safeguards
+If you inadvertently ask for metrics outside your dataset's domain (e.g. asking for "patient admissions" on an HR employee payroll dataset), InsightCanvas will notify you with a clear explanation of what tables were selected rather than fabricating misleading charts.
+
+### 11.3 Automatic Unit Formatting
+Metrics are automatically formatted with their domain units:
+- **Energy & Power**: e.g. `2.88M kWh`, `2.0K kW`.
+- **Financials**: e.g. `$27.47M`, `$1.5K`.
+- **Time**: e.g. `24.5 hrs`, `45 mins`.
+- **Emissions**: e.g. `1.2M tCO₂`.
+- **Ratios & Rates**: e.g. `40.0%`.
+
+---
+
 *InsightCanvas — Built by Techknomatic Services Pvt. Ltd. (support@techknomatic.com)*
 

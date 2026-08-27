@@ -6,6 +6,18 @@ Notable changes to InsightCanvas are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Autonomous Intelligence Hub Engine**: 1-click synthesis of 4 KPI scorecards, global cross-filter slicer, and 6 diverse analytical visualizations.
+- **Executive Strategic Report Generator**: In-depth C-suite Markdown briefings with embedded live charts and scorecards.
+- **Domain Relevance Verification**: Active domain mismatch detection to prevent cross-domain hallucinated dashboards.
+- **Domain-Aware Unit Formatting**: Automatic abbreviation and formatting for energy (`kWh`, `kW`), time (`mins`, `hrs`, `days`), emissions (`tCO₂`), currency, and percentages across KPI cards and chart tooltips.
+- **Standardized Top Navigation Bar**: Unified `Home`, `Intelligence Hub`, and `About` navigation buttons with active page indicator pills.
+- **Adaptive Time-Series & Fallbacks**: Smart resolution drilldown for sparse dates and single-point line-to-bar chart conversion.
+
+### Changed
+- Refactored workspace layout to enable smooth vertical scrolling with a sticky header action bar.
+- Streamlined sidebar session typography to regular font weights for improved readability.
+
 ## [0.8.0b1] - 2026-08-15
 
 ### Added

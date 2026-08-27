@@ -157,5 +157,24 @@
 
 ---
 
+### 2.11 Domain Safeguards, Dynamic Unit Systems & Navigation Ergonomics
+- **Domain Relevance & Mismatch Detection**:
+  - Automatically assesses dataset context against user query intent.
+  - If a user requests metrics for an entity completely absent from the loaded tables (e.g. asking for "patients" on HR data), the system returns an informative explanatory notification rather than force-generating unrelated visuals.
+- **Domain-Aware Unit Abbreviation Engine**:
+  - Automatically recognizes and applies correct unit formatting across KPIs and chart tooltips:
+    - **Energy & Power**: `kWh`, `MWh`, `kW`, `MW` (e.g. `2.88M kWh`, `2.0K kW`).
+    - **Time & Duration**: `mins`, `hrs`, `days`.
+    - **Emissions & Sustainability**: `tCO₂`.
+    - **Financials & Currency**: `$B`, `$M`, `$K`.
+- **Adaptive Time-Series & Sparse Data Handling**:
+  - Automatically drills down from monthly to daily resolution when sparse time intervals are detected.
+  - Converts 1-dot line charts to informative categorical bar/donut charts when datasets represent a single date snapshot.
+- **Modern Unified Navigation Bar**:
+  - Standardized top navbar with **Home**, **Intelligence Hub**, and **About** buttons featuring active indicators and smooth transitions.
+  - Clean, unbolded session titles across sidebars for superior scannability and aesthetics.
+
+---
+
 *Copyright © Techknomatic Services Pvt. Ltd. All rights reserved.*
 
