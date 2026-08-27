@@ -109,6 +109,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import ArticleIcon from '@mui/icons-material/Article';
 import EditIcon from '@mui/icons-material/Edit';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import UploadIcon from '@mui/icons-material/Upload';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -1170,7 +1171,7 @@ const AppShell: FC = () => {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                mr: 2,
+                                mr: 1,
                                 flexShrink: 0,
                                 cursor: 'pointer',
                                 transition: 'opacity 0.15s ease, transform 0.15s ease',
@@ -1187,6 +1188,39 @@ const AppShell: FC = () => {
                                 src={techknomaticSmallWhiteLogo}
                             />
                         </Box>
+
+                        {/* Return to Landing Page Button - Shown on all screens except the landing page */}
+                        {!isLandingView && (
+                            <Tooltip title="Go to Landing Page">
+                                <Button
+                                    onClick={handleLogoClick}
+                                    size="small"
+                                    startIcon={<HomeRoundedIcon sx={{ fontSize: 16 }} />}
+                                    sx={{
+                                        textTransform: 'none',
+                                        fontSize: '12.5px',
+                                        fontWeight: 600,
+                                        color: '#ffffff',
+                                        bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        borderRadius: '8px',
+                                        px: 1.3,
+                                        py: 0.35,
+                                        mr: 1.5,
+                                        flexShrink: 0,
+                                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                            bgcolor: 'rgba(255, 255, 255, 0.22)',
+                                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                                            transform: 'translateY(-1px)',
+                                        },
+                                    }}
+                                >
+                                    Home
+                                </Button>
+                            </Tooltip>
+                        )}
 
                         {/* Center text: INSIGHT CANVAS - Clickable to Landing */}
                         {!isCompactToolbar && !activeWorkspace && (
