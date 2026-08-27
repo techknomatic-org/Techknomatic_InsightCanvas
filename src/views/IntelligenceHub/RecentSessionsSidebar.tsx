@@ -149,9 +149,9 @@ export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
                                             </React.Fragment>
                                         }
                                         primaryTypographyProps={{
-                                            fontWeight: isSelected ? 700 : 600,
+                                            fontWeight: isSelected ? 500 : 400,
                                             fontSize: '12.5px',
-                                            color: isSelected ? '#001d52' : '#1e293b',
+                                            color: isSelected ? '#001d52' : '#334155',
                                             noWrap: true,
                                         }}
                                     />

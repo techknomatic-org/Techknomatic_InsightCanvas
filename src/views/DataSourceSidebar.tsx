@@ -2692,8 +2692,8 @@ const DataSourceSidebarPanel: React.FC<{
                                                         noWrap
                                                         sx={{
                                                             fontSize: '13.5px',
-                                                            fontWeight: isSelected ? 700 : 600,
-                                                            color: isSelected ? '#0f172a' : '#1e293b',
+                                                            fontWeight: isSelected ? 500 : 400,
+                                                            color: isSelected ? '#0f172a' : '#334155',
                                                             fontFamily: "'Inter', 'Roboto', sans-serif",
                                                             flex: 1,
                                                             mr: 1,
