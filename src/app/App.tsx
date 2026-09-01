@@ -986,9 +986,9 @@ const AppShell: FC = () => {
                                     }
                                 }}
                             />
-                            <TopNavButton to="/about" label={t('appBar.about', { defaultValue: 'About' })} selected={isAboutPage} />
-                            <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI hub" selected={isIntelligenceHubPage} />
-                            <TopNavButton id="tour-nav-settings" to="/settings" label={t('app.settings', { defaultValue: 'Settings' })} selected={isSettingsPage} />
+                            <TopNavButton to="/about" label={t('appBar.about', { defaultValue: 'About' })} selected={isAboutPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
+                            <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI hub" selected={isIntelligenceHubPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
+                            <TopNavButton id="tour-nav-settings" to="/settings" label={t('app.settings', { defaultValue: 'Settings' })} selected={isSettingsPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
                             {inSession && <ExitSessionButton />}
                             <AuthButton />
                         </Box>

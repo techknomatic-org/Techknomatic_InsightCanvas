@@ -355,15 +355,27 @@ export const DataSourceSidebar: React.FC<{
                         <IconButton
                             id="tour-rail-sessions"
                             size="small"
-                            onClick={() => { setInitialTab('sessions'); if (!isOpen) toggle(); else if (initialTab !== 'sessions') setInitialTab('sessions'); else toggle(); }}
+                            onClick={() => {
+                                setInitialTab('sessions');
+                                if (location.pathname !== '/') {
+                                    navigate('/');
+                                    if (!isOpen) {
+                                        dispatch(dfActions.setDataSourceSidebarOpen(true));
+                                    }
+                                } else {
+                                    if (!isOpen) toggle();
+                                    else if (initialTab !== 'sessions') setInitialTab('sessions');
+                                    else toggle();
+                                }
+                            }}
                             sx={{
                                 width: 32,
                                 height: 32,
                                 color: '#ffffff',
-                                bgcolor: isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                bgcolor: location.pathname === '/' && isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                                 borderRadius: '8px',
                                 '&:hover': {
-                                    bgcolor: isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    bgcolor: location.pathname === '/' && isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
                                     color: '#ffffff',
                                 },
                             }}
@@ -375,15 +387,27 @@ export const DataSourceSidebar: React.FC<{
                         <IconButton
                             id="tour-rail-sources"
                             size="small"
-                            onClick={() => { setInitialTab('sources'); if (!isOpen) toggle(); else if (initialTab !== 'sources') setInitialTab('sources'); else toggle(); }}
+                            onClick={() => {
+                                setInitialTab('sources');
+                                if (location.pathname !== '/') {
+                                    navigate('/');
+                                    if (!isOpen) {
+                                        dispatch(dfActions.setDataSourceSidebarOpen(true));
+                                    }
+                                } else {
+                                    if (!isOpen) toggle();
+                                    else if (initialTab !== 'sources') setInitialTab('sources');
+                                    else toggle();
+                                }
+                            }}
                             sx={{
                                 width: 32,
                                 height: 32,
                                 color: '#ffffff',
-                                bgcolor: isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                bgcolor: location.pathname === '/' && isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                                 borderRadius: '8px',
                                 '&:hover': {
-                                    bgcolor: isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    bgcolor: location.pathname === '/' && isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
                                     color: '#ffffff',
                                 },
                             }}
@@ -396,7 +420,10 @@ export const DataSourceSidebar: React.FC<{
                         <IconButton
                             id="tour-rail-hub"
                             size="small"
-                            onClick={() => navigate('/intelligence-hub')}
+                            onClick={() => {
+                                dispatch(dfActions.setDataSourceSidebarOpen(false));
+                                navigate('/intelligence-hub');
+                            }}
                             sx={{
                                 width: 32,
                                 height: 32,
@@ -416,7 +443,10 @@ export const DataSourceSidebar: React.FC<{
                     <Tooltip title={t('app.settings', { defaultValue: 'Settings' })} placement="right">
                         <IconButton
                             size="small"
-                            onClick={() => navigate('/settings')}
+                            onClick={() => {
+                                dispatch(dfActions.setDataSourceSidebarOpen(false));
+                                navigate('/settings');
+                            }}
                             sx={{
                                 width: 32,
                                 height: 32,
@@ -2610,7 +2640,16 @@ const DataSourceSidebarPanel: React.FC<{
                                             enterDelay={500}
                                         >
                                             <Box
-                                                onClick={() => { if (!isRenaming && !isSelected) handleOpenSession(s.id, s.display_name); }}
+                                                onClick={() => {
+                                                    if (isRenaming) return;
+                                                    if (isSelected) {
+                                                        if (location.pathname !== '/') {
+                                                            navigate('/');
+                                                        }
+                                                    } else {
+                                                        handleOpenSession(s.id, s.display_name);
+                                                    }
+                                                }}
                                                 sx={{
                                                     position: 'relative',
                                                     display: 'flex',
@@ -2623,7 +2662,7 @@ const DataSourceSidebarPanel: React.FC<{
                                                     py: 1,
                                                     borderRadius: '6px',
                                                     bgcolor: isSelected ? '#f0f6ff' : 'transparent',
-                                                    cursor: isRenaming ? 'default' : (isSelected ? 'default' : 'pointer'),
+                                                    cursor: isRenaming ? 'default' : (isSelected && location.pathname === '/' ? 'default' : 'pointer'),
                                                     transition: 'background-color 0.15s ease',
                                                     '&:hover': {
                                                         bgcolor: isSelected ? '#ebf3ff' : '#f8fafc',

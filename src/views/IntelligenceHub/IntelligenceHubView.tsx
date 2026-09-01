@@ -92,6 +92,10 @@ export const IntelligenceHubView: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        dispatch(dfActions.setDataSourceSidebarOpen(false));
+    }, [dispatch]);
+
+    useEffect(() => {
         loadConnectors();
     }, [loadConnectors]);
 

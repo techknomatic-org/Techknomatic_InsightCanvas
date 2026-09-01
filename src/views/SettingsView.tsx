@@ -76,6 +76,10 @@ export const SettingsView: React.FC = () => {
     );
 
     useEffect(() => {
+        dispatch(dfActions.setDataSourceSidebarOpen(false));
+    }, [dispatch]);
+
+    useEffect(() => {
         if (tabParam && ['models', 'general', 'knowledge', 'logs'].includes(tabParam)) {
             setActiveTab(tabParam);
         }
