@@ -181,7 +181,15 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             const freshSessions = await listSessions();
             setSessions(freshSessions);
         } catch (err: any) {
-            setError(err?.message || 'Failed to generate dashboard');
+            const errMsg = err?.message || 'Failed to generate dashboard';
+            setError(errMsg);
+            const assistantErrMsg: ChatMessage = {
+                id: String(Date.now() + 1),
+                role: 'assistant',
+                content: `I cannot generate this dashboard: ${errMsg}`,
+                timestamp: new Date().toISOString(),
+            };
+            setChatMessages([...updatedChat, assistantErrMsg]);
         } finally {
             setGeneratingDashboard(false);
         }
@@ -472,17 +480,19 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         >
                             <PsychologyIcon sx={{ fontSize: 20, color: '#38bdf8' }} />
                         </Box>
-                        <Typography
-                            variant="h6"
-                            sx={{
-                                fontWeight: 800,
-                                color: '#001d52',
-                                fontSize: '18px',
-                                letterSpacing: '-0.02em',
-                            }}
-                        >
-                            {dashboard ? dashboard.title : 'Intelligence Workspace'}
-                        </Typography>
+                        {!dashboard && (
+                            <Typography
+                                variant="h6"
+                                sx={{
+                                    fontWeight: 800,
+                                    color: '#001d52',
+                                    fontSize: '18px',
+                                    letterSpacing: '-0.02em',
+                                }}
+                            >
+                                BI hub
+                            </Typography>
+                        )}
                     </Box>
 
                     {/* Top Right Controls */}
@@ -664,7 +674,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                     },
                                 }}
                             >
-                                {showAssistant ? 'Hide Assistant' : 'Show Assistant'}
+                                {showAssistant ? 'Hide KPI Assistance' : 'KPI Assistance'}
                             </Button>
                         )}
                     </Box>

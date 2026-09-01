@@ -10,8 +10,8 @@
 import React, { createContext, useContext } from 'react';
 
 export interface ToolbarActionsContextValue {
-    /** Open the settings/config dialog */
-    openSettings?: () => void;
+    /** Open the settings/config dialog with optional tab */
+    openSettings?: (tab?: 'models' | 'general' | 'knowledge' | 'logs') => void;
     /** Open the log viewer dialog */
     openLogs?: () => void;
     /** Whether local mode (shows log viewer) */

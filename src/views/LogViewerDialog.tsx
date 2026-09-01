@@ -80,27 +80,21 @@ function foldLargeJsonValues(view: EditorView): void {
     if (effects.length > 0) view.dispatch({ effects });
 }
 
-export const LogViewerDialog: FC<{
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-    hideTrigger?: boolean;
+export const LogViewerContent: FC<{
     tailLines?: number;
     title?: string;
+    showHeader?: boolean;
+    onClose?: () => void;
+    maxHeight?: string | number;
 }> = ({
-    open: openProp,
-    onOpenChange,
-    hideTrigger = false,
     tailLines = DEFAULT_TAIL_LINES,
     title,
+    showHeader = false,
+    onClose,
+    maxHeight = '60vh',
 }) => {
     const { t } = useTranslation();
     const activeWorkspace = useSelector((state: DataFormulatorState) => state.activeWorkspace);
-    const [openState, setOpenState] = useState(false);
-    const open = openProp ?? openState;
-    const setOpen = useCallback((value: boolean) => {
-        setOpenState(value);
-        onOpenChange?.(value);
-    }, [onOpenChange]);
     const [loading, setLoading] = useState(false);
     const [content, setContent] = useState('');
     const [path, setPath] = useState<string | null>(null);
@@ -148,18 +142,16 @@ export const LogViewerDialog: FC<{
     }, [activeWorkspace?.id, t]);
 
     useEffect(() => {
-        if (open) {
-            if (activeTab === 0) fetchLogs();
-            else fetchSavedState();
-        }
-    }, [activeTab, open, fetchLogs, fetchSavedState]);
+        if (activeTab === 0) fetchLogs();
+        else fetchSavedState();
+    }, [activeTab, fetchLogs, fetchSavedState]);
 
     // Auto-scroll to the newest line once content renders.
     useEffect(() => {
-        if (open && preRef.current) {
+        if (preRef.current) {
             preRef.current.scrollTop = preRef.current.scrollHeight;
         }
-    }, [content, open]);
+    }, [content]);
 
     const handleDownload = () => {
         // Direct navigation triggers the browser download (attachment header).
@@ -169,25 +161,9 @@ export const LogViewerDialog: FC<{
     const handleRefresh = activeTab === 0 ? fetchLogs : fetchSavedState;
 
     return (
-        <>
-            {!hideTrigger && (
-            <Tooltip title={t('logs.viewLogs', { defaultValue: 'View backend log' })}>
-                <IconButton
-                    size="small"
-                    onClick={() => setOpen(true)}
-                    sx={{
-                        p: 0.5,
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary', backgroundColor: 'rgba(0, 0, 0, 0.04)' },
-                    }}
-                    aria-label={t('logs.viewLogs', { defaultValue: 'View backend log' })}
-                >
-                    <TerminalOutlinedIcon fontSize="small" />
-                </IconButton>
-            </Tooltip>
-            )}
-            <Dialog open={open} onClose={() => setOpen(false)} maxWidth="lg" fullWidth>
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 1.25 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden' }}>
+            {showHeader && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography component="span" sx={{ fontSize: textVar.xl, fontWeight: 500, flexGrow: 1 }}>
                         {title || t('logs.title', { defaultValue: 'Backend Log' })}
                     </Typography>
@@ -198,24 +174,83 @@ export const LogViewerDialog: FC<{
                             </IconButton>
                         </span>
                     </Tooltip>
-                    {activeTab === 0 && <Tooltip title={t('logs.download', { defaultValue: 'Download full log' })}>
-                        <span>
-                            <IconButton size="small" onClick={handleDownload} sx={{ color: 'text.secondary' }}>
-                                <DownloadIcon fontSize="small" />
+                    {activeTab === 0 && (
+                        <Tooltip title={t('logs.download', { defaultValue: 'Download full log' })}>
+                            <span>
+                                <IconButton size="small" onClick={handleDownload} sx={{ color: 'text.secondary' }}>
+                                    <DownloadIcon fontSize="small" />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    )}
+                    {onClose && (
+                        <Tooltip title={t('common.close', { defaultValue: 'Close' })}>
+                            <IconButton
+                                size="small"
+                                onClick={onClose}
+                                aria-label={t('common.close', { defaultValue: 'Close' })}
+                                sx={{ color: 'text.secondary' }}
+                            >
+                                <CloseIcon fontSize="small" />
                             </IconButton>
-                        </span>
-                    </Tooltip>}
-                    <Tooltip title={t('common.close', { defaultValue: 'Close' })}>
-                        <IconButton
-                            size="small"
-                            onClick={() => setOpen(false)}
-                            aria-label={t('common.close', { defaultValue: 'Close' })}
-                            sx={{ color: 'text.secondary' }}
-                        >
-                            <CloseIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                </DialogTitle>
+                        </Tooltip>
+                    )}
+                </Box>
+            )}
+
+            {/* Header controls toolbar if showHeader is false */}
+            {!showHeader && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, pt: 1, pb: 0.5 }}>
+                    <Tabs
+                        value={activeTab}
+                        onChange={(_, value: number) => setActiveTab(value)}
+                        aria-label={t('logs.inspectorTabs', { defaultValue: 'Backend diagnostics' })}
+                        sx={{
+                            minHeight: 34,
+                            '& .MuiTabs-indicator': { height: 2, bgcolor: '#2563eb' },
+                            '& .MuiTab-root': {
+                                minWidth: 0,
+                                minHeight: 34,
+                                px: 1.25,
+                                py: 0,
+                                mr: 1,
+                                color: '#64748b',
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                textTransform: 'none',
+                                fontFamily: "'Inter', 'Roboto', sans-serif",
+                            },
+                            '& .MuiTab-root.Mui-selected': {
+                                color: '#2563eb',
+                                fontWeight: 600,
+                            },
+                        }}
+                    >
+                        <Tab label={t('logs.logTab', { defaultValue: 'Backend log' })} />
+                        <Tab label={t('logs.savedStateTab', { defaultValue: 'Saved state' })} />
+                    </Tabs>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Tooltip title={t('logs.refresh', { defaultValue: 'Refresh' })}>
+                            <span>
+                                <IconButton size="small" onClick={handleRefresh} disabled={loading} sx={{ color: '#64748b', '&:hover': { color: '#0f172a' } }}>
+                                    <RefreshIcon fontSize="small" />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                        {activeTab === 0 && (
+                            <Tooltip title={t('logs.download', { defaultValue: 'Download full log' })}>
+                                <span>
+                                    <IconButton size="small" onClick={handleDownload} sx={{ color: '#64748b', '&:hover': { color: '#0f172a' } }}>
+                                        <DownloadIcon fontSize="small" />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+                        )}
+                    </Box>
+                </Box>
+            )}
+
+            {showHeader && (
                 <Tabs
                     value={activeTab}
                     onChange={(_, value: number) => setActiveTab(value)}
@@ -246,78 +281,133 @@ export const LogViewerDialog: FC<{
                     <Tab label={t('logs.logTab', { defaultValue: 'Backend log' })} />
                     <Tab label={t('logs.savedStateTab', { defaultValue: 'Saved state' })} />
                 </Tabs>
-                <DialogContent dividers sx={{ p: 0 }}>
-                    {activeTab === 0 && path && (
-                        <Typography
-                            variant="caption"
+            )}
+
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderTop: showHeader ? undefined : '1px solid #e2e8f0' }}>
+                {activeTab === 0 && path && (
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            display: 'block',
+                            px: 2,
+                            py: 0.75,
+                            color: '#64748b',
+                            fontSize: '12px',
+                            bgcolor: '#f8fafc',
+                            fontFamily: 'var(--df-font-mono)',
+                            borderBottom: '1px solid #e2e8f0',
+                            wordBreak: 'break-all',
+                        }}
+                    >
+                        {path}
+                    </Typography>
+                )}
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                        <CircularProgress size={24} />
+                    </Box>
+                )}
+                {!loading && error && (
+                    <Typography color="error" sx={{ p: 2, fontSize: textVar.md }}>
+                        {error}
+                    </Typography>
+                )}
+                {!loading && !error && (
+                    activeTab === 0 ? (
+                        <Box
+                            component="pre"
+                            ref={preRef}
                             sx={{
-                                display: 'block',
-                                px: 2,
-                                py: 0.5,
-                                color: 'text.secondary',
+                                m: 0,
+                                p: 2,
+                                flex: 1,
+                                maxHeight,
+                                overflow: 'auto',
+                                fontSize: '12px',
+                                lineHeight: 1.6,
                                 fontFamily: 'var(--df-font-mono)',
-                                borderBottom: '1px solid',
-                                borderColor: 'divider',
-                                wordBreak: 'break-all',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                bgcolor: '#0f172a',
+                                color: '#e2e8f0',
+                                borderRadius: showHeader ? 0 : '0 0 8px 8px',
                             }}
                         >
-                            {path}
-                        </Typography>
-                    )}
-                    {loading && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                            <CircularProgress size={24} />
+                            {content || t('logs.empty', { defaultValue: 'Log file is empty.' })}
                         </Box>
-                    )}
-                    {!loading && error && (
-                        <Typography color="error" sx={{ p: 2, fontSize: textVar.md }}>
-                            {error}
-                        </Typography>
-                    )}
-                    {!loading && !error && (
-                        activeTab === 0 ? (
-                            <Box
-                                component="pre"
-                                ref={preRef}
-                                sx={{
-                                    m: 0,
-                                    p: 2,
-                                    maxHeight: '60vh',
-                                    overflow: 'auto',
-                                    fontSize: textVar.xs,
-                                    lineHeight: 1.5,
-                                    fontFamily: 'var(--df-font-mono)',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    bgcolor: '#1e1e1e',
-                                    color: '#d4d4d4',
+                    ) : (
+                        <Box sx={{ flex: 1, height: maxHeight, overflow: 'hidden' }}>
+                            <CodeMirror
+                                value={savedState}
+                                height="100%"
+                                extensions={[json(), EditorView.lineWrapping]}
+                                readOnly
+                                editable={false}
+                                basicSetup={{
+                                    lineNumbers: true,
+                                    foldGutter: true,
+                                    highlightActiveLine: true,
+                                    highlightActiveLineGutter: true,
+                                    highlightSelectionMatches: true,
+                                    searchKeymap: true,
                                 }}
-                            >
-                                {content || t('logs.empty', { defaultValue: 'Log file is empty.' })}
-                            </Box>
-                        ) : (
-                            <Box sx={{ height: '60vh', overflow: 'hidden' }}>
-                                <CodeMirror
-                                    value={savedState}
-                                    height="60vh"
-                                    extensions={[json(), EditorView.lineWrapping]}
-                                    readOnly
-                                    editable={false}
-                                    basicSetup={{
-                                        lineNumbers: true,
-                                        foldGutter: true,
-                                        highlightActiveLine: true,
-                                        highlightActiveLineGutter: true,
-                                        highlightSelectionMatches: true,
-                                        searchKeymap: true,
-                                    }}
-                                    onCreateEditor={foldLargeJsonValues}
-                                    aria-label={t('logs.savedStateTab', { defaultValue: 'Saved State' })}
-                                />
-                            </Box>
-                        )
-                    )}
-                </DialogContent>
+                                onCreateEditor={foldLargeJsonValues}
+                                aria-label={t('logs.savedStateTab', { defaultValue: 'Saved State' })}
+                            />
+                        </Box>
+                    )
+                )}
+            </Box>
+        </Box>
+    );
+};
+
+export const LogViewerDialog: FC<{
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    hideTrigger?: boolean;
+    tailLines?: number;
+    title?: string;
+}> = ({
+    open: openProp,
+    onOpenChange,
+    hideTrigger = false,
+    tailLines = DEFAULT_TAIL_LINES,
+    title,
+}) => {
+    const { t } = useTranslation();
+    const [openState, setOpenState] = useState(false);
+    const open = openProp ?? openState;
+    const setOpen = useCallback((value: boolean) => {
+        setOpenState(value);
+        onOpenChange?.(value);
+    }, [onOpenChange]);
+
+    return (
+        <>
+            {!hideTrigger && (
+                <Tooltip title={t('logs.viewLogs', { defaultValue: 'View backend log' })}>
+                    <IconButton
+                        size="small"
+                        onClick={() => setOpen(true)}
+                        sx={{
+                            p: 0.5,
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary', backgroundColor: 'rgba(0, 0, 0, 0.04)' },
+                        }}
+                        aria-label={t('logs.viewLogs', { defaultValue: 'View backend log' })}
+                    >
+                        <TerminalOutlinedIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            )}
+            <Dialog open={open} onClose={() => setOpen(false)} maxWidth="lg" fullWidth>
+                <LogViewerContent
+                    tailLines={tailLines}
+                    title={title}
+                    showHeader={true}
+                    onClose={() => setOpen(false)}
+                />
             </Dialog>
         </>
     );

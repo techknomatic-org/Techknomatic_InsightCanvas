@@ -443,8 +443,147 @@ def _validate_and_fix_spec(
 
 
 # ---------------------------------------------------------------------------
-# Multi-Table Unified Relational Engine
+# Cross-Domain Mismatch & Guard Engine
 # ---------------------------------------------------------------------------
+
+DOMAIN_SIGNATURES: dict[str, dict[str, Any]] = {
+    "Healthcare / Medical": {
+        "keywords": [
+            "patient", "patients", "doctor", "doctors", "hospital", "hospitals", "clinic", "clinics",
+            "medicine", "medicines", "medication", "medications", "diagnosis", "diagnoses", "healthcare",
+            "clinical", "treatment", "treatments", "prescription", "prescriptions", "symptom", "symptoms",
+            "physician", "physicians", "nurse", "nurses", "icu", "triage", "pathology", "radiology",
+            "oncology", "cardiology", "pediatric", "pediatrics", "vital signs", "blood pressure",
+            "disease", "diseases", "admissions", "admission", "discharge", "discharges", "ehr", "emr",
+        ],
+        "indicators": [
+            "patient", "doctor", "hospital", "clinic", "medic", "health", "diagnos", "treatment",
+            "prescrib", "prescript", "clinic", "admit", "admission", "discharge", "symptom",
+            "nurse", "physician", "disease", "vital", "triage", "ehr", "emr", "drug", "dose",
+        ],
+    },
+    "Real Estate / Property": {
+        "keywords": [
+            "real estate", "realtor", "realtors", "property listing", "property listings", "tenant", "tenants",
+            "lease", "leases", "mortgage", "mortgages", "square footage", "sqft", "bedroom", "bedrooms",
+            "bathroom", "bathrooms", "zoning",
+        ],
+        "indicators": [
+            "property", "tenant", "lease", "mortgage", "sqft", "bedroom", "bathroom", "realtor", "listing", "zoning",
+        ],
+    },
+    "Crypto / Web3": {
+        "keywords": [
+            "crypto", "cryptocurrency", "bitcoin", "btc", "ethereum", "eth", "blockchain", "smart contract",
+            "tokenomics", "nft", "nfts", "altcoin", "mining hash", "wallet address",
+        ],
+        "indicators": [
+            "crypto", "bitcoin", "btc", "ethereum", "eth", "token", "blockchain", "nft", "wallet", "hash",
+        ],
+    },
+    "Aviation / Flights": {
+        "keywords": [
+            "flight", "flights", "airline", "airlines", "airport", "airports", "cockpit", "aircraft",
+            "tail number", "boarding gate", "runway",
+        ],
+        "indicators": [
+            "flight", "airline", "airport", "aircraft", "boarding", "runway", "tail_number",
+        ],
+    },
+    "Automotive / Vehicles": {
+        "keywords": [
+            "vehicle", "vehicles", "vin", "odometer", "mileage", "dealership", "dealerships", "car model",
+            "engine transmission",
+        ],
+        "indicators": [
+            "vehicle", "vin", "odometer", "mileage", "dealership", "car", "automobile",
+        ],
+    },
+    "Education / Academic": {
+        "keywords": [
+            "student", "students", "teacher", "teachers", "professor", "professors", "course enrollment",
+            "grade point average", "gpa", "exam score", "exam scores", "tuition", "syllabus", "semester",
+            "graduation rate",
+        ],
+        "indicators": [
+            "student", "teacher", "professor", "course", "grade", "gpa", "tuition", "exam", "school", "curriculum", "academic", "semester",
+        ],
+    },
+    "Human Resources / HR": {
+        "keywords": [
+            "employee", "employees", "payroll", "salary", "salaries", "attrition", "headcount", "hiring date",
+            "performance review",
+        ],
+        "indicators": [
+            "employee", "payroll", "salary", "attrition", "headcount", "hire", "hr", "staff", "compensation",
+        ],
+    },
+    "Sales / E-Commerce": {
+        "keywords": [
+            "sales", "order", "orders", "e-commerce", "ecommerce", "shopping cart", "discount",
+            "customer churn",
+        ],
+        "indicators": [
+            "sale", "sales", "order", "revenue", "customer", "product", "discount", "profit", "cart",
+        ],
+    },
+}
+
+
+def _detect_domain_mismatch(user_prompt: str, profile: dict[str, Any] | None) -> str | None:
+    """Detect if the user's prompt requests a domain/topic completely absent from the dataset."""
+    if not user_prompt or not profile or not profile.get("tables"):
+        return None
+
+    user_prompt_lower = user_prompt.lower()
+
+    # Collect all table names, column names, semantic types, and sample values into a unified corpus
+    schema_tokens: set[str] = set()
+    table_names: list[str] = []
+    for t in profile.get("tables", []):
+        t_name = t.get("table_name", "").lower()
+        table_names.append(t.get("table_name", ""))
+        for part in re.split(r"[_\-\s]+", t_name):
+            if part:
+                schema_tokens.add(part)
+        for c in t.get("columns", []):
+            c_name = c.get("name", "").lower()
+            for part in re.split(r"[_\-\s]+", c_name):
+                if part:
+                    schema_tokens.add(part)
+            for s in c.get("sample_values", [])[:5]:
+                s_str = str(s).lower()
+                for part in re.split(r"[_\-\s]+", s_str):
+                    if len(part) >= 3:
+                        schema_tokens.add(part)
+
+    schema_text = " ".join(schema_tokens)
+
+    for domain_name, domain_def in DOMAIN_SIGNATURES.items():
+        matched_kw: list[str] = []
+        for kw in domain_def["keywords"]:
+            if re.search(rf"\b{re.escape(kw)}\b", user_prompt_lower):
+                matched_kw.append(kw)
+
+        if not matched_kw:
+            continue
+
+        # Check if the active schema has ANY indicators of this domain
+        has_domain_in_schema = False
+        for ind in domain_def["indicators"]:
+            if ind in schema_text or any(re.search(rf"\b{re.escape(ind)}", tok) for tok in schema_tokens):
+                has_domain_in_schema = True
+                break
+
+        if not has_domain_in_schema:
+            tables_str = ", ".join(table_names) if table_names else "the current"
+            requested_concept = matched_kw[0]
+            return (
+                f"The selected dataset contains '{tables_str}' data, which does not contain data about '{requested_concept}'. "
+                f"Please select or connect a {domain_name.lower()} dataset, or request insights based on the available tables."
+            )
+
+    return None
 
 def _setup_unified_duckdb_views(workspace: Workspace, con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     """Register all workspace tables in DuckDB and synthesize a unified joined model."""
@@ -1398,18 +1537,24 @@ def generate_dashboard():
             "sample_records": t.get("sample_records", [])[:3],
         })
 
+    # 1. Deterministic Domain Guard: Immediately detect requests for unrelated domains (e.g. patients on sales data)
+    mismatch_error = _detect_domain_mismatch(user_prompt, profile)
+    if mismatch_error:
+        logger.info("Deterministic domain mismatch caught: %s", mismatch_error)
+        raise AppError(ErrorCode.INVALID_REQUEST, mismatch_error)
+
     system_prompt = f"""You are an expert dashboard and analytics architect for InsightCanvas.
 Given the dataset profile and the user's analytical goal, synthesize a complete, highly meaningful dashboard specification.
 
 DOMAIN RELEVANCE & MISMATCH DETECTION (CRITICAL):
-- Before synthesizing a dashboard, verify that the user's prompt is relevant to the domain and tables present in the provided schema.
-- If the user's request explicitly asks for entities, topics, or domains that DO NOT EXIST in the provided dataset (e.g. asking for "patients / healthcare / medical / hospital" when the tables only contain HR/employees, or asking for "crypto / stock market" when the tables only contain Logistics):
+- Carefully check if the user's request is relevant to the domain and tables present in the provided schema.
+- If the user's request asks for entities, topics, or domains that DO NOT EXIST in the provided dataset (e.g. asking for "patients / healthcare / medical / hospital" when the tables only contain sales, orders, or configuration, or asking for "crypto / stock market" when tables contain HR):
   - Do NOT hallucinate or silently ignore the user's request.
-  - Do NOT generate an unrelated dashboard from the HR tables.
-  - Instead, return ONLY a JSON object with this exact structure:
-    {{
-      "error": "The selected data contains <brief summary of active table domains, e.g. Human Resources and Employee information>, which does not contain data about '<requested topic, e.g. patients>'. Please select a dataset related to <requested topic> or request insights based on the available tables."
-    }}
+  - Do NOT generate an unrelated dashboard using the existing tables.
+  - Instead, set "is_domain_compatible": false, and write a clear "mismatch_reason":
+    "The selected data contains <brief summary of active table domains>, which does not contain data about '<requested topic>'. Please select a dataset related to <requested topic> or request insights based on the available tables."
+  - Set "title": "", "kpis": [], "visualizations": [].
+- If the user's request is compatible or general analytical intent, set "is_domain_compatible": true, "mismatch_reason": null, and generate the full dashboard.
 
 LAYOUT REQUIREMENTS (STRICT):
 1. **1 Top-Level Filter**: Select the single most useful categorical or date dimension field across the data (e.g. Region, Department, Category, Year, Status).
@@ -1439,6 +1584,8 @@ AGGREGATION ACCURACY RULES:
 
 Return ONLY valid JSON matching this structure:
 {{
+  "is_domain_compatible": true,
+  "mismatch_reason": null,
   "title": "Dashboard Title",
   "description": "Executive summary of the dashboard insights",
   "filter": {{
@@ -1489,8 +1636,23 @@ Return ONLY valid JSON matching this structure:
         dashboard_spec = json_objs[0] if json_objs else json.loads(content)
 
         # Check if the LLM flagged a domain mismatch error
-        if isinstance(dashboard_spec, dict) and "error" in dashboard_spec:
-            raise AppError(ErrorCode.INVALID_REQUEST, dashboard_spec["error"])
+        if isinstance(dashboard_spec, dict):
+            if dashboard_spec.get("is_domain_compatible") is False:
+                reason = (
+                    dashboard_spec.get("mismatch_reason")
+                    or dashboard_spec.get("error")
+                    or f"The requested topic '{user_prompt}' cannot be fulfilled with the active dataset."
+                )
+                raise AppError(ErrorCode.INVALID_REQUEST, reason)
+            if "error" in dashboard_spec:
+                raise AppError(ErrorCode.INVALID_REQUEST, dashboard_spec["error"])
+
+        # Post-LLM validation: ensure generated title/description isn't hallucinating foreign domain entities
+        title_text = f"{dashboard_spec.get('title', '')} {dashboard_spec.get('description', '')}"
+        post_mismatch = _detect_domain_mismatch(title_text, profile)
+        if post_mismatch:
+            logger.warning("LLM synthesized dashboard with foreign domain title/desc: %s", post_mismatch)
+            raise AppError(ErrorCode.INVALID_REQUEST, post_mismatch)
 
         # Post-LLM validation: fix hallucinated column names
         dashboard_spec = _validate_and_fix_spec(dashboard_spec, profile)
@@ -1579,6 +1741,15 @@ def chat_refinement():
 
     if not current_dashboard:
         raise AppError(ErrorCode.INVALID_REQUEST, "Current dashboard state is required")
+
+    # Guard against completely unrelated domain requests in follow-up chat
+    mismatch_error = _detect_domain_mismatch(user_message, profile)
+    if mismatch_error:
+        logger.info("Domain mismatch detected in chat: %s", mismatch_error)
+        return json_ok({
+            "reply": f"I cannot fulfill this request on the current dataset. {mismatch_error}",
+            "dashboard": current_dashboard,
+        })
 
     workspace = _get_or_create_workspace(identity_id)
     client = _get_client_from_request(model_config)

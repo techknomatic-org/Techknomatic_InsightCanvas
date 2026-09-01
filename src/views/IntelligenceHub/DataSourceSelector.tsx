@@ -70,7 +70,7 @@ export const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
                         No Connected Data Sources Found
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: 450, mx: 'auto' }}>
-                        Connect to a database (MySQL, PostgreSQL, etc.) or a local folder to get started with Intelligence Hub.
+                        Connect to a database (MySQL, PostgreSQL, etc.) or a local folder to get started with BI hub.
                     </Typography>
                     {onAddConnection && (
                         <Button variant="contained" onClick={onAddConnection} sx={{ bgcolor: '#1B75BB', textTransform: 'none', borderRadius: '8px' }}>

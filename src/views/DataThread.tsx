@@ -67,7 +67,10 @@ import PieChartOutlineIcon from '@mui/icons-material/PieChartOutline';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import { buildTriggerCard, buildTableCard, buildTableRefChip, buildChartCards, BuildTableCardProps } from './DataThreadCards';
 import { SourceTableShelf, SHELF_VISIBLE_LIMIT } from './SourceTableShelf';
-import { UnifiedDataUploadDialog } from './UnifiedDataUploadDialog';
+import { UnifiedDataUploadDialog, UploadTabType } from './UnifiedDataUploadDialog';
+import StorageIcon from '@mui/icons-material/Storage';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { AgentRulesDialog } from './AgentRulesDialog';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
@@ -2658,6 +2661,8 @@ export const DataThread: FC<{sx?: SxProps, centered?: boolean, denseColumns?: bo
     const [containerHeight, setContainerHeight] = useState(0);
     const [chatboxFocusTick, setChatboxFocusTick] = useState(0);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [emptyUploadOpen, setEmptyUploadOpen] = useState(false);
+    const [emptyUploadTab, setEmptyUploadTab] = useState<UploadTabType>('upload');
 
     // ── Drop handler for catalog table items from DataSourceSidebar ──────
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -3339,21 +3344,121 @@ export const DataThread: FC<{sx?: SxProps, centered?: boolean, denseColumns?: bo
                     </Typography>
                 </Box>
             ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, maxWidth: 560, textAlign: 'left' }}>
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    maxWidth: 580,
+                    p: { xs: 3, sm: 4 },
+                    borderRadius: '16px',
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 24px rgba(15, 23, 42, 0.06)',
+                    textAlign: 'center',
+                }}>
                     <Box
-                        component="img"
-                        src={dfLogo}
-                        alt=""
-                        aria-hidden="true"
-                        sx={{ width: 32, height: 30, opacity: 0.82, flexShrink: 0 }}
-                    />
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography sx={{ fontSize: textVar.sm, lineHeight: 1.4, fontWeight: 600, color: 'text.primary' }}>
-                            {t('dataThread.emptySessionTitle')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.25, fontSize: textVar.xs, lineHeight: 1.5, color: 'text.secondary' }}>
-                            {t('dataThread.emptySession')}
-                        </Typography>
+                        sx={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: '14px',
+                            bgcolor: 'rgba(37, 99, 235, 0.1)',
+                            color: '#2563eb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mb: 2,
+                        }}
+                    >
+                        <StorageIcon sx={{ fontSize: 28 }} />
+                    </Box>
+
+                    <Typography sx={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                        mb: 0.75,
+                    }}>
+                        Load Data into this Session
+                    </Typography>
+
+                    <Typography sx={{
+                        fontSize: '13.5px',
+                        color: '#64748b',
+                        lineHeight: 1.55,
+                        maxWidth: 460,
+                        mb: 3,
+                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                    }}>
+                        Browse tables from your connected databases in the left sidebar, or upload data files below to start exploring and creating visualizations.
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, justifyContent: 'center' }}>
+                        <Button
+                            variant="contained"
+                            startIcon={<StorageIcon />}
+                            onClick={() => {
+                                dispatch(dfActions.setDataSourceSidebarOpen(true));
+                                dispatch(dfActions.setDataSourceSidebarTab('sources'));
+                            }}
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                px: 2.25,
+                                py: 0.9,
+                                bgcolor: '#2563eb',
+                                '&:hover': { bgcolor: '#1d4ed8' },
+                                boxShadow: '0 2px 6px rgba(37,99,235,0.25)',
+                            }}
+                        >
+                            Browse Connected Databases
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<UploadFileIcon />}
+                            onClick={() => {
+                                setEmptyUploadTab('upload');
+                                setEmptyUploadOpen(true);
+                            }}
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                px: 2,
+                                py: 0.9,
+                                borderColor: '#cbd5e1',
+                                color: '#334155',
+                                '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' },
+                            }}
+                        >
+                            Upload Files (CSV / Excel)
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<AddCircleOutlineIcon />}
+                            onClick={() => {
+                                setEmptyUploadTab('add-connection');
+                                setEmptyUploadOpen(true);
+                            }}
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                px: 1.75,
+                                py: 0.9,
+                                borderColor: '#cbd5e1',
+                                color: '#475569',
+                                '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' },
+                            }}
+                        >
+                            Connect New Database
+                        </Button>
                     </Box>
                 </Box>
             )}
@@ -3398,6 +3503,11 @@ export const DataThread: FC<{sx?: SxProps, centered?: boolean, denseColumns?: bo
                 <ScrollFadeEdge visible={moreThreadContentBelow} />
             </Box>
             <SimpleChartRecBox onInputFocus={() => setChatboxFocusTick(t => t + 1)} />
+            <UnifiedDataUploadDialog
+                open={emptyUploadOpen}
+                onClose={() => setEmptyUploadOpen(false)}
+                initialTab={emptyUploadTab}
+            />
         </Box>
     );
 }

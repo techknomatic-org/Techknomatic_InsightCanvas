@@ -92,7 +92,10 @@ interface RememberedModelEndpoint {
     auth_mode: string;
 }
 
-export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appearance = 'toolbar' }) => {
+export const ModelSelectionContent: React.FC<{
+    onClose?: () => void;
+    onModelSelected?: (modelId?: string) => void;
+}> = ({ onClose, onModelSelected }) => {
     const { t } = useTranslation();
 
     const dispatch = useDispatch();
@@ -100,9 +103,7 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
     const models = useSelector((state: DataFormulatorState) => state.models);
     const selectedModelId = useSelector((state: DataFormulatorState) => state.selectedModelId);
     const testedModels = useSelector((state: DataFormulatorState) => state.testedModels);
-    const config = useSelector((state: DataFormulatorState) => state.config);
 
-    const [modelDialogOpen, setModelDialogOpen] = useState<boolean>(false);
     const [detailModelId, setDetailModelId] = useState<string | undefined>(selectedModelId);
     const [isEditingDetails, setIsEditingDetails] = useState(false);
     const [showKeys, setShowKeys] = useState<boolean>(false);
@@ -149,27 +150,7 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
     );
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('configure_model') === 'true' && appearance === 'sidebar') {
-            setModelDialogOpen(true);
-        }
-    }, [appearance]);
-
-    const handleCloseDialog = () => {
-        if (!isAddingModel) {
-            setModelDialogOpen(false);
-            const params = new URLSearchParams(window.location.search);
-            if (params.has('configure_model')) {
-                params.delete('configure_model');
-                const newSearch = params.toString();
-                const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '');
-                window.history.replaceState(null, '', newUrl);
-            }
-        }
-    };
-
-    useEffect(() => {
-        if (!modelDialogOpen || !usesAzureCli) {
+        if (!usesAzureCli) {
             setAzureCliStatus(null);
             return;
         }
@@ -184,14 +165,13 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
             if (!cancelled) setAzureCliStatus(null);
         });
         return () => { cancelled = true; };
-    }, [modelDialogOpen, usesAzureCli]);
+    }, [usesAzureCli]);
 
     useEffect(() => {
-        if (!modelDialogOpen) return;
         apiRequest<RememberedModelEndpoint[]>(getUrls().MODEL_ENDPOINTS)
             .then(({ data }) => setRememberedEndpoints(data))
             .catch(() => setRememberedEndpoints([]));
-    }, [modelDialogOpen]);
+    }, []);
 
     const rememberModelEndpoint = (model: ModelConfig) => {
         const entry = {
@@ -237,8 +217,6 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
         }
     };
 
-    // Build provider→model dropdown options from globalModels (already in Redux).
-    // This runs whenever globalModels updates (phase 1 instant list → phase 2 with statuses).
     useEffect(() => {
         const modelsByProvider: { [key: string]: string[] } = {
             'openai': [],
@@ -262,7 +240,6 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
 
         setProviderModelOptions(modelsByProvider);
     }, [globalModels]);
-
 
     const allModels = [...globalModels, ...models];
     const detailModel = allModels.find(model => model.id === detailModelId);
@@ -393,19 +370,6 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
         setDetailModelId(undefined);
         setNewModelError('');
         setIsEditingDetails(true);
-    };
-
-    const inputSx = {
-        '& .MuiOutlinedInput-root': {
-            fontSize: '0.75rem',
-            borderRadius: 0.5,
-            backgroundColor: 'rgba(0,0,0,0.02)',
-            height: 28,
-            '& fieldset': { borderColor: 'divider' },
-            '&:hover fieldset': { borderColor: 'text.disabled' },
-            '&.Mui-focused fieldset': { borderColor: 'primary.main' },
-        },
-        '& .MuiOutlinedInput-input': { px: 1, py: 0 },
     };
 
     const addModelForm = (
@@ -613,8 +577,9 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
             gridTemplateColumns: { xs: '1fr', md: 'minmax(220px, 0.75fr) minmax(380px, 1.4fr)' },
             gap: 3,
             py: 1,
+            height: '100%',
         }}>
-            <Box sx={{ pr: { md: 2.5 }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' } }}>
+            <Box sx={{ pr: { md: 2.5 }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' }, overflowY: 'auto' }}>
                 <Box sx={{ display: 'grid' }}>
                     {allModels.map(model => (
                         <Box
@@ -682,7 +647,7 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
                     </Button>
                 </Box>
             </Box>
-            <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ minWidth: 0, overflowY: 'auto' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -738,8 +703,6 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
         </Box>
     );
 
-    // A model is "ready" to use when it's been verified ('ok') or when it's a
-    // server-configured model in 'unknown' state (trusted by default).
     const isModelReady = (id: string | undefined): boolean => {
         if (!id) return false;
         const status = getStatus(id);
@@ -749,11 +712,116 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
     };
 
     let modelNotReady = !isModelReady(tempSelectedModelId);
-
     let tempModel = allModels.find(m => m.id == tempSelectedModelId);
     let tempModelName = tempModel ? `${tempModel.endpoint}/${tempModel.model}` : t('model.pleaseSelectModel');
-    let selectedModelName = allModels.find(m => m.id == selectedModelId)?.model || t('model.unselected');
 
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 3, overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, overflowY: 'auto', mb: 2 }}>
+                {modelManagerView}
+            </Box>
+
+            <Box sx={{
+                pt: 2,
+                borderTop: '1px solid #f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 1,
+            }}>
+                {isEditingDetails ? (
+                    <>
+                        {!serverConfig.DISABLE_DISPLAY_KEYS && newEndpoint
+                            && (newEndpoint !== 'azure' || azureAuthMethod === 'api_key') && (
+                                <FormControlLabel
+                                    control={<Switch size="small" checked={showKeys} onChange={() => setShowKeys(!showKeys)} />}
+                                    label={<Typography variant="body2">{t('model.showKeys')}</Typography>}
+                                />
+                            )}
+                        <Button variant="text" disabled={isAddingModel} onClick={() => {
+                            if (detailModel) loadModelDetails(detailModel);
+                            else {
+                                const initialModel = allModels.find(model => model.id === selectedModelId) || allModels[0];
+                                if (initialModel) loadModelDetails(initialModel);
+                            }
+                        }}>{t('model.cancel')}</Button>
+                        <Button
+                            variant="contained"
+                            disabled={!readyToTest || modelExists}
+                            onClick={async () => {
+                                await handleSaveModel();
+                                localStorage.setItem('df_model_configured', 'true');
+                            }}
+                            startIcon={isAddingModel ? <CircularProgress size={iconVar.md} color="inherit" /> : undefined}
+                            sx={{
+                                bgcolor: '#2563eb',
+                                textTransform: 'none',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                borderRadius: '6px',
+                                '&:hover': { bgcolor: '#1d4ed8' },
+                            }}
+                        >
+                            {isAddingModel ? t('model.testing') : t('model.testAndSave')}
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        {onClose && (
+                            <Button variant="text" onClick={onClose} sx={{ color: '#64748b', textTransform: 'none' }}>
+                                {t('model.cancel')}
+                            </Button>
+                        )}
+                        <Button
+                            variant="contained"
+                            disabled={modelNotReady}
+                            onClick={() => {
+                                dispatch(dfActions.selectModel(tempSelectedModelId));
+                                localStorage.setItem('df_model_configured', 'true');
+                                onModelSelected?.(tempSelectedModelId);
+                                onClose?.();
+                            }}
+                            sx={{
+                                bgcolor: '#2563eb',
+                                textTransform: 'none',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                borderRadius: '6px',
+                                '&:hover': { bgcolor: '#1d4ed8' },
+                            }}
+                        >
+                            {t('model.useModel', { modelName: tempModelName })}
+                        </Button>
+                    </>
+                )}
+            </Box>
+        </Box>
+    );
+};
+
+export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appearance = 'toolbar' }) => {
+    const { t } = useTranslation();
+    const globalModels = useSelector((state: DataFormulatorState) => state.globalModels ?? []);
+    const models = useSelector((state: DataFormulatorState) => state.models);
+    const selectedModelId = useSelector((state: DataFormulatorState) => state.selectedModelId);
+    const testedModels = useSelector((state: DataFormulatorState) => state.testedModels);
+
+    const [modelDialogOpen, setModelDialogOpen] = useState<boolean>(false);
+
+    let getStatus = (id: string | undefined) => {
+        return id != undefined ? (testedModels.find(t => (t.id == id))?.status || 'unknown') : 'unknown';
+    }
+
+    const isModelReady = (id: string | undefined): boolean => {
+        if (!id) return false;
+        const status = getStatus(id);
+        if (status === 'ok') return true;
+        const isGlobal = globalModels.some(m => m.id === id);
+        return isGlobal && status === 'unknown';
+    };
+
+    const allModels = [...globalModels, ...models];
+    let selectedModelName = allModels.find(m => m.id == selectedModelId)?.model || t('model.unselected');
     const selectedReady = isModelReady(selectedModelId);
     const isInlineAction = appearance === 'inline';
     const isSidebar = appearance === 'sidebar';
@@ -763,12 +831,7 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
             <IconButton
                 size="small"
                 color={selectedReady ? 'inherit' : 'warning'}
-                onClick={() => {
-                    const initialModel = allModels.find(model => model.id === selectedModelId) || allModels[0];
-                    if (initialModel) loadModelDetails(initialModel);
-                    else startNewModel();
-                    setModelDialogOpen(true);
-                }}
+                onClick={() => setModelDialogOpen(true)}
                 sx={{
                     width: 32,
                     height: 32,
@@ -799,73 +862,29 @@ export const ModelSelectionButton: React.FC<ModelSelectionButtonProps> = ({ appe
                 }}
                 variant="text"
                 color={selectedReady ? 'inherit' : 'warning'}
-                onClick={() => {
-                    const initialModel = allModels.find(model => model.id === selectedModelId) || allModels[0];
-                    if (initialModel) loadModelDetails(initialModel);
-                    else startNewModel();
-                    setModelDialogOpen(true);
-                }}
+                onClick={() => setModelDialogOpen(true)}
             >
                 {selectedReady ? selectedModelName : t('model.selectModels')}
             </Button>
         </Tooltip>
     );
 
-    return <>
-        {triggerButton}
-        <Dialog
-            maxWidth="lg"
-            open={modelDialogOpen}
-            onClose={handleCloseDialog}
-        >
-            <DialogTitle>{t('model.models')}</DialogTitle>
-            <DialogContent sx={{ minWidth: { sm: 720 } }}>{modelManagerView}</DialogContent>
-            <DialogActions>
-                {isEditingDetails ? (
-                    <>
-                        {!serverConfig.DISABLE_DISPLAY_KEYS && newEndpoint
-                            && (newEndpoint !== 'azure' || azureAuthMethod === 'api_key') && (
-                                <FormControlLabel
-                                    control={<Switch size="small" checked={showKeys} onChange={() => setShowKeys(!showKeys)} />}
-                                    label={<Typography variant="body2">{t('model.showKeys')}</Typography>}
-                                />
-                            )}
-                        <Button variant="text" disabled={isAddingModel} onClick={() => {
-                            if (detailModel) loadModelDetails(detailModel);
-                            else {
-                                const initialModel = allModels.find(model => model.id === selectedModelId) || allModels[0];
-                                if (initialModel) loadModelDetails(initialModel);
-                            }
-                        }}>{t('model.cancel')}</Button>
-                        <Button
-                            variant="contained"
-                            disabled={!readyToTest || modelExists}
-                            onClick={async () => {
-                                await handleSaveModel();
-                                localStorage.setItem('df_model_configured', 'true');
-                            }}
-                            startIcon={isAddingModel ? <CircularProgress size={iconVar.md} color="inherit" /> : undefined}
-                        >
-                            {isAddingModel ? t('model.testing') : t('model.testAndSave')}
-                        </Button>
-                    </>
-                ) : (
-                    <>
-                        <Button variant="text" onClick={handleCloseDialog}>{t('model.cancel')}</Button>
-                        <Button
-                            variant="contained"
-                            disabled={modelNotReady}
-                            onClick={() => {
-                                dispatch(dfActions.selectModel(tempSelectedModelId));
-                                localStorage.setItem('df_model_configured', 'true');
-                                handleCloseDialog();
-                            }}
-                        >
-                            {t('model.useModel', { modelName: tempModelName })}
-                        </Button>
-                    </>
-                )}
-            </DialogActions>
-        </Dialog>
-    </>;
-}
+    return (
+        <>
+            {triggerButton}
+            <Dialog
+                maxWidth="lg"
+                open={modelDialogOpen}
+                onClose={() => setModelDialogOpen(false)}
+            >
+                <DialogTitle>{t('model.models')}</DialogTitle>
+                <DialogContent sx={{ minWidth: { sm: 720 }, p: 0 }}>
+                    <ModelSelectionContent
+                        onClose={() => setModelDialogOpen(false)}
+                        onModelSelected={() => setModelDialogOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+};

@@ -86,6 +86,10 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloseIcon from '@mui/icons-material/Close';
+import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
+import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -123,40 +127,6 @@ export const DataFormulatorFC = ({ }) => {
     const { t } = useTranslation();
     const { openSettings, openLogs, isLocalMode } = useToolbarActions();
 
-    // ── Sidebar bottom actions (moved from nav bar) ──────────────
-    const sidebarBottomActions = useMemo(() => (
-        <>
-            <ModelSelectionButton appearance="sidebar" />
-            <Tooltip title={t('app.settings', { defaultValue: 'Settings' })} placement="right">
-                <IconButton
-                    size="small"
-                    onClick={() => openSettings?.()}
-                    sx={{
-                        width: 32, height: 32, borderRadius: '8px',
-                        color: '#64748b',
-                        '&:hover': { bgcolor: '#f1f5f9', color: '#1B75BB' },
-                    }}
-                >
-                    <SettingsOutlinedIcon sx={{ fontSize: 20 }} />
-                </IconButton>
-            </Tooltip>
-            {isLocalMode && (
-                <Tooltip title={t('logs.viewLogs', { defaultValue: 'View backend log' })} placement="right">
-                    <IconButton
-                        size="small"
-                        onClick={() => openLogs?.()}
-                        sx={{
-                            width: 32, height: 32, borderRadius: '8px',
-                            color: '#64748b',
-                            '&:hover': { bgcolor: '#f1f5f9', color: '#1B75BB' },
-                        }}
-                    >
-                        <TerminalOutlinedIcon sx={{ fontSize: 20 }} />
-                    </IconButton>
-                </Tooltip>
-            )}
-        </>
-    ), [t, openSettings, openLogs, isLocalMode]);
 
     // Auto-focus removed: focus is the only thing that opens the canvas, so
     // re-focusing whenever it clears would make closing impossible. Table
@@ -677,7 +647,6 @@ export const DataFormulatorFC = ({ }) => {
                 connectorRefreshKey={connectorRefreshKey}
                 onConnectorsChanged={handleConnectorsChanged}
                 onStartDataLoadingChat={(text) => startDataLoadingChat(text)}
-                bottomActions={sidebarBottomActions}
             />
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
                 <Tabs
@@ -712,7 +681,6 @@ export const DataFormulatorFC = ({ }) => {
                 connectorRefreshKey={connectorRefreshKey}
                 onConnectorsChanged={handleConnectorsChanged}
                 onStartDataLoadingChat={(text) => startDataLoadingChat(text)}
-                bottomActions={sidebarBottomActions}
             />
             <Box ref={containerRef} className="outer-allotment" sx={{
                 margin: '4px 8px 8px 8px', backgroundColor: 'white',
@@ -759,40 +727,61 @@ export const DataFormulatorFC = ({ }) => {
         </Box>
     );
 
-    let footer = <Box sx={{
-        color: 'text.secondary',
-        display: 'flex',
-        flexWrap: 'wrap',
-        backgroundColor: 'transparent',
-        alignItems: 'center',
-        justifyContent: 'center',
-        rowGap: 0.25,
-        columnGap: 0.75,
-        py: 0.75,
-        px: 2,
-        borderTop: 'none',
-        width: '100%',
-        boxSizing: 'border-box',
-        zIndex: 10,
-        position: 'relative',
-        mt: 'auto',
-    }}>
-        <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
-            target="_blank" rel="noopener noreferrer"
-            href="https://techknomatic.com/privacy-policy/">Privacy & Cookies</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
-        <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
-            target="_blank" rel="noopener noreferrer"
-            href="https://techknomatic.com/terms-and-conditions/">Terms of Use</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
-        <Button size="small" color="inherit"
-            sx={{ textTransform: 'none', fontSize: '12px', minWidth: 'auto', px: 0.6, py: 0.2, lineHeight: 1.3 }}
-            target="_blank" rel="noopener noreferrer"
-            href="https://techknomatic.com/contact-us/">Contact Us</Button>
-        <Divider orientation="vertical" variant="middle" flexItem sx={{ mx: 0.25, my: 0.4, display: { xs: 'none', sm: 'block' } }} />
-        <Typography sx={{ display: 'inline', fontSize: '12px', color: 'text.secondary', fontWeight: 500, textAlign: 'center', px: 0.5, lineHeight: 1.3 }}>
+    let footer = <Box
+        component="footer"
+        sx={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            columnGap: { xs: 1, sm: 2 },
+            rowGap: 0.5,
+            py: 1,
+            px: { xs: 2, sm: 4 },
+            width: '100%',
+            boxSizing: 'border-box',
+            zIndex: 10,
+            flexShrink: 0,
+            bgcolor: 'rgba(255, 255, 255, 0.75)',
+            backdropFilter: 'blur(8px)',
+            borderTop: '1px solid rgba(226, 232, 240, 0.85)',
+        }}
+    >
+        <Button
+            size="small"
+            color="inherit"
+            sx={{ textTransform: 'none', fontSize: '11px', color: '#64748b', minWidth: 'auto', p: 0, '&:hover': { color: '#1B75BB', bgcolor: 'transparent' } }}
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://techknomatic.com/privacy-policy/"
+        >
+            Privacy & Cookies
+        </Button>
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ height: 12, my: 'auto', borderColor: '#cbd5e1' }} />
+        <Button
+            size="small"
+            color="inherit"
+            sx={{ textTransform: 'none', fontSize: '11px', color: '#64748b', minWidth: 'auto', p: 0, '&:hover': { color: '#1B75BB', bgcolor: 'transparent' } }}
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://techknomatic.com/terms-and-conditions/"
+        >
+            Terms of Use
+        </Button>
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ height: 12, my: 'auto', borderColor: '#cbd5e1' }} />
+        <Button
+            size="small"
+            color="inherit"
+            sx={{ textTransform: 'none', fontSize: '11px', color: '#64748b', minWidth: 'auto', p: 0, '&:hover': { color: '#1B75BB', bgcolor: 'transparent' } }}
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://techknomatic.com/contact-us/"
+        >
+            Contact Us
+        </Button>
+        <Divider orientation="vertical" variant="middle" flexItem sx={{ height: 12, my: 'auto', borderColor: '#cbd5e1' }} />
+        <Typography sx={{ display: 'inline', fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
             © {new Date().getFullYear()} Techknomatic Services Pvt. Ltd.
         </Typography>
     </Box>;
@@ -800,9 +789,10 @@ export const DataFormulatorFC = ({ }) => {
     let dataUploadRequestBox = <Box sx={{
         margin: 0,
         backgroundColor: '#eef2fa',
-        flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', height: '100%',
+        flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%',
         position: 'relative',
         boxSizing: 'border-box',
+        justifyContent: 'space-between',
     }}>
         {/* ── Full-page decorative background illustration ── */}
         <Box
@@ -819,159 +809,287 @@ export const DataFormulatorFC = ({ }) => {
             }}
         />
 
-        {/* ── Content container ── */}
+        {/* ── Content container (centered vertically in viewport) ── */}
         <Box sx={{
             ml: { xs: 2, sm: 4, md: 6, lg: 8 },
             mr: { xs: 2, sm: 3, md: 4 },
-            pt: { xs: 2, sm: 2.5, md: 3.5 },
-            pb: 4,
+            my: 'auto',
+            py: { xs: 1.5, sm: 2.5 },
             display: 'flex',
             flexDirection: 'column',
-            flex: '1 0 auto',
-            maxWidth: 1060,
+            maxWidth: 740,
             width: '100%',
             boxSizing: 'border-box',
             position: 'relative',
             zIndex: 1,
         }}>
-            {/* ── Hero Section (Logo, Title, Tagline) ── */}
+            {/* ── Title & Tagline ── */}
             <Box sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 textAlign: 'left',
-                mt: { xs: 1, md: 2 },
-                mb: 2.5,
+                mb: 2.75,
             }}>
                 <Box
                     component="img"
                     src={theme.palette.mode === 'dark' ? techknomaticWhiteLogo : techknomaticLogo}
                     alt="Techknomatic"
                     sx={{
-                        height: { xs: 44, sm: 52, md: 58 },
+                        height: { xs: 36, sm: 40, md: 44 },
                         width: 'auto',
                         objectFit: 'contain',
-                        mb: 2,
+                        mb: 1.75,
                         flexShrink: 0,
                     }}
                 />
                 <Typography sx={{
-                    fontSize: { xs: 30, sm: 36, md: 40 },
+                    fontSize: { xs: 30, sm: 34, md: 40 },
                     fontWeight: 800,
                     lineHeight: 1.15,
-                    letterSpacing: '-0.02em',
+                    letterSpacing: '-0.025em',
                     fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif",
-                    display: 'flex',
-                    alignItems: 'baseline',
+                    color: '#0b192c',
                     mb: 1,
                 }}>
-                    <Box component="span" sx={{ color: '#1a1a2e' }}>
-                        Insight
-                    </Box>
-                    <Box component="span" sx={{ color: '#3B5EDB' }}>
-                        Canvas
-                    </Box>
+                    Welcome to <br />
+                    Insight<Box component="span" sx={{ color: '#2563eb' }}>Canvas</Box>
                 </Typography>
+
                 <Typography sx={{
-                    fontSize: { xs: 14, sm: 15, md: 16 },
-                    color: '#5a6577',
-                    lineHeight: 1.6,
-                    fontWeight: 400,
+                    fontSize: { xs: '13px', sm: '14px' },
+                    color: '#475569',
+                    lineHeight: 1.5,
+                    fontWeight: 500,
                     fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif",
-                    maxWidth: 440,
+                    maxWidth: 500,
                 }}>
-                    AI-powered data exploration, visualization, and reporting.
+                    Your intelligent workspace for data exploration, visualization, and reporting – powered by AI.
                 </Typography>
             </Box>
 
-            {/* Hosted-demo notice (if connector disabled) */}
-            {serverConfig.DISABLE_DATA_CONNECTORS && (
-                <Box
-                    sx={{
-                        mb: 2,
-                        mx: 'auto',
-                        maxWidth: 760,
-                        textAlign: 'left',
+            {/* ── Three Feature Rows with Colored Circular Badges ── */}
+            <Box id="tour-features-section" sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.75,
+                maxWidth: 560,
+                mb: 3.25,
+            }}>
+                {/* Feature 1: AI-Driven Formulation */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+                    <Box sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        bgcolor: 'rgba(37, 99, 235, 0.1)',
+                        color: '#2563eb',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 1.25,
-                        px: 0.5,
-                        py: 0.5,
-                    }}
-                >
-                    <Typography
-                        variant="caption"
-                        sx={{ color: 'text.secondary', fontSize: textVar.sm, lineHeight: 1.5, flex: 1 }}
-                    >
-                        {t('landing.demoBannerBody', {
-                            defaultValue:
-                                'This is a demo site! Try the examples below or upload files. To work with large datasets, connect to databases, link local folders, create persisted analysis sessions, use custom models, and manage users, check the ',
-                        })}
-                        <Link
-                            href="https://github.com/microsoft/data-formulator"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            underline="hover"
-                            sx={{
-                                color: 'primary.main',
-                                '&:hover': { color: 'primary.dark' },
-                            }}
-                        >
-                            <GitHubIcon
-                                sx={{
-                                    fontSize: '1em',
-                                    verticalAlign: '-0.15em',
-                                    mr: 0.4,
-                                }}
-                            />
-                            {t('landing.demoBannerCta', { defaultValue: 'installation guide' })}
-                        </Link>
-                        {t('landing.demoBannerSuffix', { defaultValue: '.' })}
-                    </Typography>
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <PsychologyOutlinedIcon sx={{ fontSize: 20 }} />
+                    </Box>
+                    <Box>
+                        <Typography sx={{
+                            fontSize: '13.5px',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.25,
+                            mb: 0.2,
+                        }}>
+                            AI-Driven Formulation
+                        </Typography>
+                        <Typography sx={{
+                            fontSize: '12px',
+                            color: '#64748b',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.4,
+                        }}>
+                            Transform, filter, and derive complex metrics using natural language.
+                        </Typography>
+                    </Box>
                 </Box>
-            )}
 
-            {/* AI Prompt & Data Load Section */}
-            <Box sx={{ mt: 0, mb: 3.5, width: '100%', maxWidth: 720 }}>
-                <DataLoadMenu
-                    onSelectTab={(tab) => openUploadDialog(tab)}
-                    onSelectConnector={(conn) => {
-                        if (conn.connected || conn.sso_auto_connect) {
-                            dispatch(dfActions.focusConnector(conn.id));
-                        } else {
-                            openUploadDialog(`connector:${conn.id}` as UploadTabType);
-                        }
-                    }}
-                    onStartChat={(prompt, images, attachments) => startAnalystChat(prompt, images, attachments)}
-                    hasPriorConversation={dataLoadingChatMessages.length > 0}
-                    onResumeChat={() => openUploadDialog('extract')}
-                    serverConfig={serverConfig}
-                    connectors={pageConnectors}
-                />
+                {/* Feature 2: Interactive Visualizations */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+                    <Box sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        bgcolor: 'rgba(16, 185, 129, 0.12)',
+                        color: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <BarChartRoundedIcon sx={{ fontSize: 20 }} />
+                    </Box>
+                    <Box>
+                        <Typography sx={{
+                            fontSize: '13.5px',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.25,
+                            mb: 0.2,
+                        }}>
+                            Interactive Visualizations
+                        </Typography>
+                        <Typography sx={{
+                            fontSize: '12px',
+                            color: '#64748b',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.4,
+                        }}>
+                            Create interactive charts and customizable dashboards effortlessly.
+                        </Typography>
+                    </Box>
+                </Box>
+
+                {/* Feature 3: Enterprise Connectivity */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+                    <Box sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        bgcolor: 'rgba(245, 158, 11, 0.14)',
+                        color: '#f59e0b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <StorageRoundedIcon sx={{ fontSize: 20 }} />
+                    </Box>
+                    <Box>
+                        <Typography sx={{
+                            fontSize: '13.5px',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.25,
+                            mb: 0.2,
+                        }}>
+                            Enterprise Connectivity
+                        </Typography>
+                        <Typography sx={{
+                            fontSize: '12px',
+                            color: '#64748b',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.4,
+                        }}>
+                            Query directly from local files, SQL databases, and data warehouses.
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
-            {/* Bottom Right Floating Info Icon */}
-            <Box sx={{ position: 'fixed', bottom: 18, right: 20, zIndex: 90 }}>
-                <IconButton
-                    size="small"
-                    onClick={() => window.open('https://github.com/microsoft/data-formulator', '_blank')}
-                    sx={{
-                        width: 28,
-                        height: 28,
+            {/* ── Bottom Connected & Action Card ── */}
+            <Box sx={{
+                bgcolor: '#ffffff',
+                borderRadius: '14px',
+                p: { xs: 1.2, sm: 1.4 },
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+                display: 'inline-flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: { xs: 1.5, sm: 2 },
+                maxWidth: 640,
+                width: 'fit-content',
+            }}>
+                {/* Connected to status */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pl: 0.5, pr: 0.5 }}>
+                    <Box sx={{
+                        width: 8,
+                        height: 8,
                         borderRadius: '50%',
-                        bgcolor: 'rgba(255, 255, 255, 0.9)',
-                        border: '1px solid #e2e8f0',
-                        color: '#94a3b8',
-                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
-                        '&:hover': {
-                            color: '#1B75BB',
+                        bgcolor: '#10b981',
+                        boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.2)',
+                        flexShrink: 0,
+                    }} />
+                    <Box>
+                        <Typography sx={{
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: '#64748b',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.2,
+                        }}>
+                            Connected to:
+                        </Typography>
+                        <Typography sx={{
+                            fontSize: '12.5px',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            lineHeight: 1.25,
+                        }}>
+                            {pageConnectors.find(c => c.connected || c.sso_auto_connect)?.display_name || 'MySQL · localhost'}
+                        </Typography>
+                    </Box>
+                </Box>
+
+                <Divider orientation="vertical" flexItem sx={{ height: 26, my: 'auto', borderColor: '#e2e8f0' }} />
+
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                    <Button
+                        id="tour-btn-upload"
+                        variant="outlined"
+                        startIcon={<FileUploadOutlinedIcon sx={{ fontSize: 17, color: '#2563eb' }} />}
+                        onClick={() => openUploadDialog('upload')}
+                        sx={{
+                            textTransform: 'none',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#2563eb',
                             bgcolor: '#ffffff',
-                            borderColor: '#93c5fd',
-                        },
-                    }}
-                >
-                    <InfoOutlinedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
+                            borderColor: '#cbd5e1',
+                            borderRadius: '9px',
+                            px: 1.75,
+                            py: 0.65,
+                            minWidth: 'auto',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            '&:hover': {
+                                borderColor: '#93c5fd',
+                                bgcolor: '#f8fafc',
+                            },
+                        }}
+                    >
+                        Upload Data
+                    </Button>
+
+                    <Button
+                        id="tour-btn-connect-db"
+                        variant="contained"
+                        startIcon={<StorageRoundedIcon sx={{ fontSize: 17, color: '#ffffff' }} />}
+                        onClick={() => openUploadDialog('add-connection')}
+                        sx={{
+                            textTransform: 'none',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            bgcolor: '#2563eb',
+                            borderRadius: '9px',
+                            px: 2,
+                            py: 0.65,
+                            minWidth: 'auto',
+                            boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                            '&:hover': {
+                                bgcolor: '#1d4ed8',
+                            },
+                        }}
+                    >
+                        Connect Database
+                    </Button>
+                </Box>
             </Box>
         </Box>
         {footer}
@@ -992,7 +1110,6 @@ export const DataFormulatorFC = ({ }) => {
                             connectorRefreshKey={connectorRefreshKey}
                             onConnectorsChanged={handleConnectorsChanged}
                             onStartDataLoadingChat={(text) => startDataLoadingChat(text)}
-                            bottomActions={sidebarBottomActions}
                         />
                         {dataUploadRequestBox}
                     </Box>

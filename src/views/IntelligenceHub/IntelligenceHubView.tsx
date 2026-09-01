@@ -232,7 +232,7 @@ export const IntelligenceHubView: React.FC = () => {
         let currentWs = activeWorkspace;
         if (!currentWs) {
             const newWsId = generateSessionId();
-            currentWs = { id: newWsId, displayName: selectedDatabase?.name || 'Intelligence Hub' };
+            currentWs = { id: newWsId, displayName: selectedDatabase?.name || 'BI hub' };
             dispatch(dfActions.setActiveWorkspace(currentWs));
         }
 
@@ -319,7 +319,7 @@ export const IntelligenceHubView: React.FC = () => {
                         Profiling Selected Data...
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Analyzing schemas, data types, cardinality, and dimensions for Intelligence Hub
+                        Analyzing schemas, data types, cardinality, and dimensions for BI hub
                     </Typography>
                 </Box>
             ) : profileError ? (
@@ -352,7 +352,7 @@ export const IntelligenceHubView: React.FC = () => {
                                 }}
                                 connectorRefreshKey={connectorRefreshKey}
                             />
-                            <Box sx={{ flex: 1, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+                            <Box id="tour-hub-container" sx={{ flex: 1, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
                                 <DataSourceSelector
                                     connectors={connectors}
                                     loading={loadingConnectors}

@@ -44,6 +44,7 @@ import { VirtualizedCatalogTree } from '../components/VirtualizedCatalogTree';
 import { ScrollFadeContainer } from '../components/ScrollFade';
 
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { useNavigate, useLocation } from 'react-router-dom';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddIcon from '@mui/icons-material/Add';
@@ -183,8 +184,7 @@ export const DataSourceSidebar: React.FC<{
     connectorRefreshKey?: number;
     onConnectorsChanged?: () => void;
     onStartDataLoadingChat?: (text: string) => void;
-    bottomActions?: React.ReactNode;
-}> = ({ onOpenUploadDialog, connectorRefreshKey = 0, onConnectorsChanged, onStartDataLoadingChat, bottomActions }) => {
+}> = ({ onOpenUploadDialog, connectorRefreshKey = 0, onConnectorsChanged, onStartDataLoadingChat }) => {
     const { t } = useTranslation();
     const dispatch = useDispatch<AppDispatch>();
 
@@ -353,6 +353,7 @@ export const DataSourceSidebar: React.FC<{
                     </Tooltip>
                     <Tooltip title={t('sidebar.sessions', { defaultValue: 'Saved workspaces' })} placement="right">
                         <IconButton
+                            id="tour-rail-sessions"
                             size="small"
                             onClick={() => { setInitialTab('sessions'); if (!isOpen) toggle(); else if (initialTab !== 'sessions') setInitialTab('sessions'); else toggle(); }}
                             sx={{
@@ -372,6 +373,7 @@ export const DataSourceSidebar: React.FC<{
                     </Tooltip>
                     <Tooltip title={t('sidebar.openDataConnectors', { defaultValue: 'Data connectors' })} placement="right">
                         <IconButton
+                            id="tour-rail-sources"
                             size="small"
                             onClick={() => { setInitialTab('sources'); if (!isOpen) toggle(); else if (initialTab !== 'sources') setInitialTab('sources'); else toggle(); }}
                             sx={{
@@ -389,28 +391,10 @@ export const DataSourceSidebar: React.FC<{
                             <RelationalDBIcon sx={{ fontSize: 20 }} />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title={t('sidebar.knowledge', { defaultValue: 'Agent knowledge' })} placement="right">
-                        <IconButton
-                            size="small"
-                            onClick={() => { setInitialTab('knowledge'); if (!isOpen) toggle(); else if (initialTab !== 'knowledge') setInitialTab('knowledge'); else toggle(); }}
-                            sx={{
-                                width: 32,
-                                height: 32,
-                                color: '#ffffff',
-                                bgcolor: isOpen && initialTab === 'knowledge' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
-                                borderRadius: '8px',
-                                '&:hover': {
-                                    bgcolor: isOpen && initialTab === 'knowledge' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
-                                    color: '#ffffff',
-                                },
-                            }}
-                        >
-                            <LightbulbOutlinedIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                    </Tooltip>
 
-                    <Tooltip title="Intelligence Hub" placement="right">
+                    <Tooltip title="BI hub" placement="right">
                         <IconButton
+                            id="tour-rail-hub"
                             size="small"
                             onClick={() => navigate('/intelligence-hub')}
                             sx={{
@@ -429,13 +413,25 @@ export const DataSourceSidebar: React.FC<{
                         </IconButton>
                     </Tooltip>
 
-                    {/* Divider between data tools and system actions */}
-                    {bottomActions && (
-                        <>
-                            <Divider sx={{ width: 24, my: 0.5, borderColor: 'rgba(255, 255, 255, 0.18)' }} />
-                            {bottomActions}
-                        </>
-                    )}
+                    <Tooltip title={t('app.settings', { defaultValue: 'Settings' })} placement="right">
+                        <IconButton
+                            size="small"
+                            onClick={() => navigate('/settings')}
+                            sx={{
+                                width: 32,
+                                height: 32,
+                                color: '#ffffff',
+                                bgcolor: location.pathname.startsWith('/settings') ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                borderRadius: '8px',
+                                '&:hover': {
+                                    bgcolor: location.pathname.startsWith('/settings') ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    color: '#ffffff',
+                                },
+                            }}
+                        >
+                            <SettingsOutlinedIcon sx={{ fontSize: 20 }} />
+                        </IconButton>
+                    </Tooltip>
 
                     {/* Spacer fills the remaining bottom space */}
                     <Box sx={{ flex: 1 }} />
@@ -829,6 +825,8 @@ const DataSourceSidebarPanel: React.FC<{
             conceptShelfItems: [],
             activeWorkspace: { id: wsId, displayName: 'Untitled Session' },
         }));
+        dispatch(dfActions.setDataSourceSidebarOpen(true));
+        dispatch(dfActions.setDataSourceSidebarTab('sources'));
         navigate('/');
     }, [dispatch, navigate]);
 
@@ -1826,7 +1824,7 @@ const DataSourceSidebarPanel: React.FC<{
     );
 
     return (
-        <Box sx={{
+        <Box id="tour-sidebar" sx={{
             width: panelWidth,
             minWidth: panelWidth,
             flexShrink: 0,

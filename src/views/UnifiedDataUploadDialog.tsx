@@ -26,6 +26,11 @@ import {
 
 import CloseIcon from '@mui/icons-material/Close';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import StorageIcon from '@mui/icons-material/Storage';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { useNavigate } from 'react-router-dom';
 import { StreamIcon, getConnectorIcon, connectorSortOrder } from '../icons';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -565,45 +570,17 @@ export interface DataLoadMenuProps {
 export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
     onSelectTab,
     onSelectConnector,
-    onStartChat,
-    hasPriorConversation = false,
-    onResumeChat,
     serverConfig = { WORKSPACE_BACKEND: 'local' },
     connectors = [],
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
-    const dispatch = useDispatch<AppDispatch>();
-    const activeWorkspace = useSelector((state: DataFormulatorState) => state.activeWorkspace);
-    // Backend requires an active workspace (X-Workspace-Id header) for
-    // scratch uploads and chat. The menu can be opened on the entry
-    // surface before any workspace has been picked, so we lazily mint
-    // one here — the parent's `openUploadDialog` does the same when it
-    // can, but we cover the path where this menu is rendered directly.
-    const ensureActiveWorkspace = (): string => {
-        if (activeWorkspace?.id) return activeWorkspace.id;
-        const now = new Date();
-        const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-        const wsId = `session_${date}_${time}_${generateUUID().slice(0, 4)}`;
-        dispatch(dfActions.setActiveWorkspace({ id: wsId, displayName: 'Untitled Session' }));
-        return wsId;
-    };
-    // One-off file upload is surfaced as an "Upload data" action in the
-    // connected-sources row (see `connectorActionSources`). Paste Data and
-    // Load from URL used to live here too, but they are now subsumed by the
-    // Data Loading Agent chat box at the top of the menu (paste text into the
-    // prompt; the agent's fetch_url loads any URL). Sample datasets are
-    // exposed as the built-in `sample_datasets` connector below.
 
     // Data connections — persistent configured sources (databases, services, etc.)
-    const connectionSources: Array<{ value: UploadTabType; title: string; description: string; icon: React.ReactNode; disabled: boolean; variant?: 'data' | 'action'; tooltip?: React.ReactNode }> = [
-        // Per-connector cards — all instances
+    const connectionSources = useMemo(() => [
         ...connectors.map((conn) => {
             const isLocalFolder = conn.source_type === 'LocalFolderDataLoader' || conn.id.startsWith('local_folder');
             const folderPath = isLocalFolder ? (conn.pinned_params?.root_dir || '') : '';
-            // Show only the tail of the path on the card (privacy-friendly
-            // for screenshots), with the home-collapsed full path on hover.
             const folderDisplay = displayPath(folderPath, 2);
             const folderTooltip = displayPath(folderPath);
             const isConnected = !!conn.connected || !!conn.sso_auto_connect;
@@ -617,8 +594,6 @@ export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
                 value: `connector:${conn.id}` as UploadTabType,
                 title: conn.display_name,
                 description: detail,
-                // The label already names the source, so the glyph carries the
-                // one thing it can't: whether we can reach it.
                 icon: (
                     <Box sx={{
                         width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
@@ -629,44 +604,28 @@ export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
                 tooltip: `${statusLabel}${detail ? ` · ${detail}` : ''}${isLocalFolder && folderTooltip ? ` · ${folderTooltip}` : ''}`,
             };
         }),
-    ];
+    ], [connectors, t]);
 
-    // "Add data" actions shown to the right of the connected sources (after a
-    // divider): one-off file upload, link a local folder, add a database.
+    // Compact action buttons: Upload data and Connect databases
     const connectorActionSources: Array<{ value: UploadTabType; title: string; description: string; icon: React.ReactNode; disabled: boolean; variant?: 'data' | 'action' }> = [
-        // One-off file upload — fast, deterministic path that skips the agent.
         {
             value: 'upload' as UploadTabType,
-            title: t('upload.uploadData', { defaultValue: 'Upload data' }),
-            description: t('upload.uploadFileDesc'),
-            icon: <UploadFileIcon />,
+            title: t('upload.uploadData', { defaultValue: 'Upload Data' }),
+            description: t('upload.uploadFileDesc', { defaultValue: 'Import CSV, Excel, JSON, or Parquet datasets' }),
+            icon: <UploadFileIcon sx={{ fontSize: 16 }} />,
             disabled: false,
             variant: 'action' as const,
         },
-        // "Local Folder" card (action variant, local mode only)
-        ...(serverConfig?.IS_LOCAL_MODE ? [{
-            value: 'local-folder' as UploadTabType,
-            title: t('upload.localFolder', { defaultValue: 'Link local folder' }),
-            description: t('upload.localFolderDesc', { defaultValue: 'Connect to a local folder for fast imports' }),
-            icon: <CreateNewFolderIcon />,
-            disabled: false,
-            variant: 'action' as const,
-        }] : []),
-        // "Add Connection" card (action variant)
         {
             value: 'add-connection' as UploadTabType,
             title: t('upload.addConnection', { defaultValue: 'Connect databases' }),
             description: t('upload.addConnectionDesc', { defaultValue: 'Create a persistent database connection' }),
-            icon: <AddIcon />,
+            icon: <AddIcon sx={{ fontSize: 16 }} />,
             disabled: false,
             variant: 'action' as const,
         },
     ];
 
-    // Route connector-card clicks to onSelectConnector when provided so the
-    // dialog/page can hand off to the data-source sidebar instead of opening
-    // an in-dialog catalog tab. Non-connector cards always go through
-    // onSelectTab.
     const handleConnectionClick = (sourceValue: UploadTabType) => {
         if (typeof sourceValue === 'string' && sourceValue.startsWith('connector:') && onSelectConnector) {
             const connId = sourceValue.slice('connector:'.length);
@@ -679,166 +638,18 @@ export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
         onSelectTab(sourceValue);
     };
 
-    // ------------------------------------------------------------------
-    // Data Loading Agent quick-chat box. Surfaced at the top of the menu
-    // so users can start a conversation with the agent directly. Pressing
-    // Enter (or the send button) hands the prompt/images off to the chat
-    // surface via `onStartChat`, which opens the agent and auto-sends.
-    // Falls back to `onSelectTab('extract')` if no handler is provided.
-    // ------------------------------------------------------------------
-    const [agentInput, setAgentInput] = useState('');
-    const [agentImages, setAgentImages] = useState<string[]>([]);
-    const [agentAttachments, setAgentAttachments] = useState<string[]>([]);
-    const submitAgentChat = () => {
-        const text = agentInput.trim();
-        if (text.length === 0 && agentImages.length === 0 && agentAttachments.length === 0) {
-            // Empty submission — just surface the chat.
-            if (onStartChat) onStartChat('', [], []);
-            else onSelectTab('extract');
-            return;
-        }
-        // Pass payload pieces unchanged — the chat surface builds the
-        // backend mentions itself. We deliberately do NOT pre-inject
-        // `[Uploaded: name]` into `text` here, so the visible message
-        // bubble stays clean and the file chips render uniformly.
-        if (onStartChat) {
-            onStartChat(text, agentImages, agentAttachments);
-        } else {
-            onSelectTab('extract');
-        }
-        setAgentInput('');
-        setAgentImages([]);
-        setAgentAttachments([]);
-    };
-
-    // Suggestions surfaced as a focus-time dropdown — sourced from a shared
-    // factory so the in-session `DataLoadingChat` panel renders the exact
-    // same list. See `dataLoadingSuggestions.ts`. Auto-run is routed
-    // through `onStartChat` so the parent dialog can dispatch its
-    // `clearChatMessages` + `setDataLoadingChatPending` sequence
-    // atomically — same path as a manual submit.
-    const agentChatSuggestions = useMemo(() => buildDataLoadingSuggestions({
-        t,
-        setInput: setAgentInput,
-        setImages: setAgentImages,
-        setAttachments: setAgentAttachments,
-        ensureActiveWorkspace,
-        requestAutoSend: onStartChat
-            ? (payload) => {
-                onStartChat(payload.text, payload.images, payload.attachments);
-                setAgentInput('');
-                setAgentImages([]);
-                setAgentAttachments([]);
-            }
-            : undefined,
-
-    }), [t, onStartChat]);
-    const quickActions = useMemo(() => buildDataLoadingQuickActions({
-        t,
-        setInput: setAgentInput,
-        setImages: setAgentImages,
-        setAttachments: setAgentAttachments,
-        requestAutoSend: onStartChat
-            ? (payload) => {
-                onStartChat(payload.text, payload.images, payload.attachments);
-                setAgentInput('');
-                setAgentImages([]);
-                setAgentAttachments([]);
-            }
-            : undefined,
-
-    }), [t, onStartChat]);
-    const agentChatBox = (
-        <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 720 }}>
-            <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-                {quickActions.map((qa) => (
-                    <Chip
-                        key={qa.kind}
-                        icon={<BoltOutlinedIcon sx={{ fontSize: '16px !important', color: '#3B5EDB !important' }} />}
-                        label={qa.label}
-                        onClick={qa.onClick}
-                        disabled={activeWorkspace?.readOnly === true}
-                        variant="outlined"
-                        size="small"
-                        sx={{
-                            fontSize: '12.5px',
-                            fontWeight: 500,
-                            fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif",
-                            height: 32,
-                            borderRadius: '20px',
-                            color: '#1e293b',
-                            borderColor: '#e2e8f0',
-                            backgroundColor: '#ffffff',
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
-                            transition: 'all 0.15s ease',
-                            '& .MuiChip-icon': { ml: 0.8 },
-                            '&:hover': {
-                                bgcolor: '#f0f7ff',
-                                borderColor: '#93c5fd',
-                                color: '#1B75BB',
-                            },
-                        }}
-                    />
-                ))}
-            </Box>
-            <AgentChatInput
-                value={agentInput}
-                onChange={setAgentInput}
-                images={agentImages}
-                onImagesChange={setAgentImages}
-                onSend={submitAgentChat}
-                disabled={activeWorkspace?.readOnly === true}
-                layout="stacked"
-                leadingSlot={hasPriorConversation && onResumeChat ? (
-                    <Tooltip title={t('upload.resumePreviousConversation', { defaultValue: 'Previous conversation' })}>
-                        <IconButton size="small" onClick={onResumeChat} sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
-                            <HistoryIcon sx={{ fontSize: iconVar.lg }} />
-                        </IconButton>
-                    </Tooltip>
-                ) : undefined}
-                onNonImageFile={(file) => {
-                    ensureActiveWorkspace();
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    apiRequest(getUrls().SCRATCH_UPLOAD_URL, {
-                        method: 'POST', body: formData,
-                    }).then(({ data }) => {
-                        const scratchName = (data?.path || `scratch/${file.name}`).replace(/^scratch\//, '');
-                        setAgentAttachments(prev => [...prev, scratchName]);
-                    }).catch(err => console.error('Upload failed:', err));
-                }}
-                attachments={agentAttachments}
-                onAttachmentsChange={setAgentAttachments}
-                minRows={2}
-                tabSuggestion={t('upload.agentChatTabSuggestion', {
-                    defaultValue: 'What dataset do we have here?',
-                })}
-                focusSuggestionsLabel={t('upload.agentChatSuggestionsLabel', { defaultValue: 'Try asking' })}
-                focusSuggestions={agentChatSuggestions}
-                placeholder={t('upload.agentChatPlaceholder', {
-                    defaultValue: 'Ask the agent to find datasets, or extract data from an image or text…',
-                })}
-                sendTooltip={t('upload.agentChatSendTooltip', { defaultValue: 'Start chatting with the agent' })}
-            />
-        </Box>
-    );
-
     return (
         <Box sx={{
             width: '100%',
             maxWidth: 720,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2.5,
+            gap: 1.5,
             mx: 0,
             textAlign: 'left',
         }}>
-            {/* Data Loading Agent quick-chat — the hero of this surface */}
-            {agentChatBox}
-
-            {/* Sources — same width as the chat box so they read as part of it */}
-            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                {/* Row 1 — connected data sources */}
+            {/* Row 1 — connected data sources */}
+            {connectionSources.length > 0 && (
                 <Box sx={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -848,7 +659,7 @@ export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
                 }}>
                     <Typography
                         variant="body2"
-                        sx={{ fontSize: '13px', fontWeight: 700, color: '#1a1a2e', mr: 0.5, flexShrink: 0, fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif" }}
+                        sx={{ fontSize: '13px', fontWeight: 700, color: '#1a1a2e', mr: 0.5, flexShrink: 0, fontFamily: "'Inter', 'Roboto', sans-serif" }}
                     >
                         {t('upload.dataSourcesLabel', { defaultValue: 'Connected to:' })}
                     </Typography>
@@ -864,60 +675,63 @@ export const DataLoadMenu: React.FC<DataLoadMenuProps> = ({
                         />
                     ))}
                 </Box>
+            )}
 
-                {/* Row 2 — add-a-source actions */}
-                <Box sx={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    columnGap: 1,
-                    rowGap: 0.75,
-                }}>
-                    <Typography
-                        variant="body2"
-                        sx={{ fontSize: '13px', fontWeight: 700, color: '#1a1a2e', mr: 0.5, flexShrink: 0, fontFamily: "'Inter', 'Roboto', 'Arial', sans-serif" }}
+            {/* Row 2 — add data directly (compact buttons) */}
+            <Box sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                columnGap: 1.25,
+                rowGap: 0.75,
+            }}>
+                <Typography
+                    variant="body2"
+                    sx={{ fontSize: '13px', fontWeight: 700, color: '#1a1a2e', mr: 0.5, flexShrink: 0, fontFamily: "'Inter', 'Roboto', sans-serif" }}
+                >
+                    {t('upload.addSourceLabel', { defaultValue: 'Or add data directly:' })}
+                </Typography>
+                {connectorActionSources.map((source) => (
+                    <Box
+                        key={source.value}
+                        id={source.value === 'upload' ? 'tour-btn-upload' : 'tour-btn-connect-db'}
+                        component="button"
+                        type="button"
+                        onClick={source.disabled ? undefined : () => handleConnectionClick(source.value)}
+                        disabled={source.disabled}
+                        title={source.description}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.75,
+                            px: 1.4,
+                            py: 0.5,
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '8px',
+                            font: 'inherit',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            cursor: source.disabled ? 'not-allowed' : 'pointer',
+                            opacity: source.disabled ? 0.5 : 1,
+                            color: '#1B75BB',
+                            bgcolor: '#ffffff',
+                            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                            transition: 'all 0.15s ease',
+                            '&:hover': source.disabled ? {} : {
+                                bgcolor: '#f0f7ff',
+                                borderColor: '#93c5fd',
+                                color: '#145a90',
+                                boxShadow: '0 2px 5px rgba(27, 117, 187, 0.12)',
+                            },
+                        }}
                     >
-                        {t('upload.addSourceLabel', { defaultValue: 'Or add data directly:' })}
-                    </Typography>
-                    {connectorActionSources.map((source) => (
-                        <Box
-                            key={source.value}
-                            component="button"
-                            type="button"
-                            onClick={source.disabled ? undefined : () => handleConnectionClick(source.value)}
-                            disabled={source.disabled}
-                            title={source.description}
-                            sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.75,
-                                px: 1.4,
-                                py: 0.5,
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                font: 'inherit',
-                                fontSize: '12.5px',
-                                fontWeight: 500,
-                                whiteSpace: 'nowrap',
-                                cursor: source.disabled ? 'not-allowed' : 'pointer',
-                                opacity: source.disabled ? 0.5 : 1,
-                                color: '#1B75BB',
-                                bgcolor: '#ffffff',
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
-                                transition: 'all 0.15s ease',
-                                '&:hover': source.disabled ? {} : {
-                                    bgcolor: '#f0f7ff',
-                                    borderColor: '#93c5fd',
-                                },
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', '& .MuiSvgIcon-root': { fontSize: 16, color: '#1B75BB' } }}>
-                                {source.icon}
-                            </Box>
-                            {source.title}
+                        <Box sx={{ display: 'flex', alignItems: 'center', '& .MuiSvgIcon-root': { fontSize: 16, color: '#1B75BB' } }}>
+                            {source.icon}
                         </Box>
-                    ))}
-                </Box>
+                        {source.title}
+                    </Box>
+                ))}
             </Box>
         </Box>
     );
