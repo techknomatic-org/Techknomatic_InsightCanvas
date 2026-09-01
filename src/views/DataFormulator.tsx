@@ -183,10 +183,9 @@ export const DataFormulatorFC = ({ }) => {
 
     useEffect(() => {
         if (!activeWorkspace) {
-            dispatch(dfActions.setDataSourceSidebarOpen(false));
             fetchWorkspaces();
         }
-    }, [activeWorkspace, fetchWorkspaces, dispatch]);
+    }, [activeWorkspace, fetchWorkspaces]);
 
     useEffect(() => {
         return onWorkspaceListChanged(fetchWorkspaces);

@@ -356,26 +356,23 @@ export const DataSourceSidebar: React.FC<{
                             id="tour-rail-sessions"
                             size="small"
                             onClick={() => {
-                                setInitialTab('sessions');
-                                if (location.pathname !== '/') {
-                                    navigate('/');
-                                    if (!isOpen) {
-                                        dispatch(dfActions.setDataSourceSidebarOpen(true));
-                                    }
+                                if (!isOpen) {
+                                    setInitialTab('sessions');
+                                    dispatch(dfActions.setDataSourceSidebarOpen(true));
+                                } else if (initialTab !== 'sessions') {
+                                    setInitialTab('sessions');
                                 } else {
-                                    if (!isOpen) toggle();
-                                    else if (initialTab !== 'sessions') setInitialTab('sessions');
-                                    else toggle();
+                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
                                 }
                             }}
                             sx={{
                                 width: 32,
                                 height: 32,
                                 color: '#ffffff',
-                                bgcolor: location.pathname === '/' && isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                bgcolor: isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                                 borderRadius: '8px',
                                 '&:hover': {
-                                    bgcolor: location.pathname === '/' && isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    bgcolor: isOpen && initialTab === 'sessions' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
                                     color: '#ffffff',
                                 },
                             }}
@@ -388,26 +385,23 @@ export const DataSourceSidebar: React.FC<{
                             id="tour-rail-sources"
                             size="small"
                             onClick={() => {
-                                setInitialTab('sources');
-                                if (location.pathname !== '/') {
-                                    navigate('/');
-                                    if (!isOpen) {
-                                        dispatch(dfActions.setDataSourceSidebarOpen(true));
-                                    }
+                                if (!isOpen) {
+                                    setInitialTab('sources');
+                                    dispatch(dfActions.setDataSourceSidebarOpen(true));
+                                } else if (initialTab !== 'sources') {
+                                    setInitialTab('sources');
                                 } else {
-                                    if (!isOpen) toggle();
-                                    else if (initialTab !== 'sources') setInitialTab('sources');
-                                    else toggle();
+                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
                                 }
                             }}
                             sx={{
                                 width: 32,
                                 height: 32,
                                 color: '#ffffff',
-                                bgcolor: location.pathname === '/' && isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                                bgcolor: isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                                 borderRadius: '8px',
                                 '&:hover': {
-                                    bgcolor: location.pathname === '/' && isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                                    bgcolor: isOpen && initialTab === 'sources' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.12)',
                                     color: '#ffffff',
                                 },
                             }}
