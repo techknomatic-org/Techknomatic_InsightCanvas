@@ -60,7 +60,6 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import LinkOffOutlinedIcon from '@mui/icons-material/LinkOffOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import PushPinIcon from '@mui/icons-material/PushPin';
