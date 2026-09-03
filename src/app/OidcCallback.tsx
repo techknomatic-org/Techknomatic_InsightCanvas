@@ -54,8 +54,7 @@ export function OidcCallback() {
 
                 await mgr.signinRedirectCallback();
                 sessionStorage.setItem('df_logged_in', 'true');
-                const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
-                window.location.href = isModelConfigured ? "/app" : "/app?configure_model=true";
+                window.location.href = "/app";
             } catch (err: any) {
                 setError(err?.message || "Unknown error");
             }

@@ -789,17 +789,17 @@ const AddConnectionPanel: React.FC<{
         if (disableConnectors) return;
         apiRequest<any>(CONNECTOR_URLS.DATA_LOADERS, { method: 'GET' })
             .then(({ data }) => {
-                setLoaderTypes(data.loaders || []);
+                const loaders: LoaderType[] = (data.loaders || []).filter(
+                    (l: LoaderType) => l.type !== 'local_folder' && l.type !== 'LocalFolderDataLoader'
+                );
+                setLoaderTypes(loaders);
                 setDisabledLoaders(data.disabled || {});
                 setPluginsInfo(data.plugins || null);
-                if (data.loaders?.length > 0) {
-                    // Honor a requested pre-selection (e.g. the "Link local
-                    // folder" entry point) when that loader is available;
-                    // otherwise fall back to the first loader.
-                    const preferred = initialType
-                        ? data.loaders.find((l: LoaderType) => l.type === initialType)
+                if (loaders.length > 0) {
+                    const preferred = initialType && initialType !== 'local_folder' && initialType !== 'LocalFolderDataLoader'
+                        ? loaders.find((l: LoaderType) => l.type === initialType)
                         : undefined;
-                    const chosen = preferred || data.loaders[0];
+                    const chosen = preferred || loaders[0];
                     setSelectedType(chosen.type);
                 }
             })
@@ -1808,33 +1808,9 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                         </IconButton>
                     </Tooltip>
                 )}
-                {activeTab !== 'menu' && (
-                    <Tooltip title={
-                        isEphemeral
-                            ? t('upload.storedTemporarily', 'Data is stored temporarily on this server')
-                            : serverConfig.WORKSPACE_BACKEND === 'azure_blob'
-                                ? t('upload.storedInAzure', 'Data is stored in Azure Blob Storage')
-                                : t('upload.storedOnDisk', `Data is stored on disk (${serverConfig.DATA_FORMULATOR_HOME || '~/.data_formulator'})`)
-                    } placement="bottom">
-                        <Box sx={{ ml: 'auto', mr: 0, display: 'flex', alignItems: 'center', gap: 0.5, px: 1 }}>
-                            {isEphemeral
-                                ? <FolderOpenIcon sx={{ fontSize: iconVar.sm, color: 'text.secondary' }} />
-                                : serverConfig.WORKSPACE_BACKEND === 'azure_blob'
-                                    ? <CloudIcon sx={{ fontSize: iconVar.sm, color: 'text.secondary' }} />
-                                    : <FolderOpenIcon sx={{ fontSize: iconVar.sm, color: 'text.secondary' }} />}
-                            <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                                {isEphemeral
-                                    ? t('upload.temporaryServerLabel', 'Temporary server')
-                                    : serverConfig.WORKSPACE_BACKEND === 'azure_blob'
-                                        ? t('upload.azureLabel', 'Azure')
-                                        : t('upload.diskLabel', 'Disk')}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                )}
                 <IconButton
                     sx={{
-                        marginLeft: activeTab === 'menu' ? 'auto' : undefined,
+                        marginLeft: 'auto',
                         width: 30,
                         height: 30,
                         borderRadius: '8px',

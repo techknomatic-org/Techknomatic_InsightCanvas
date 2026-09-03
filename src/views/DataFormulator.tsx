@@ -59,7 +59,6 @@ import techknomaticLogo from '../assets/techknomatic-official-logo.svg';
 import techknomaticWhiteLogo from '../assets/techknomatic-white.svg';
 import heroBg from '../assets/hero-bg-web.png';
 import exampleImageTable from "../assets/example-image-table.png";
-import { ModelSelectionButton } from './ModelSelectionDialog';
 import { UnifiedDataUploadDialog, UploadTabType, DataLoadMenu, ConnectorInstance } from './UnifiedDataUploadDialog';
 import { ReportView } from './ReportView';
 import { DataSourceSidebar } from './DataSourceSidebar';
@@ -460,93 +459,20 @@ export const DataFormulatorFC = ({ }) => {
     const [phonePane, setPhonePane] = useState<'thread' | 'canvas'>('thread');
     const { width: splitWidth } = useContainerSize(containerRef);
 
-    // The user's chosen column *count*, not a pixel width — so a window resize
-    // preserves their intent instead of carrying a stale pixel value around.
-    // Cleared when the width class changes, handing control back to the default.
-    const [userColumns, setUserColumns] = useState<number | null>(null);
-    // Read by the drag handler, which runs before `columnCap` is in scope.
-    const columnCapRef = useRef(MAX_THREAD_COLUMNS);
-    // Pane widths must come from the same tokens DataThread renders columns
-    // with, or the snap points stop lining up with the rendered columns.
-    const paneWidth = useCallback(
-        (n: number) => threadPaneWidthFor(n, tokens),
-        [tokens],
-    );
+    const isSidebarOpen = useSelector((state: DataFormulatorState) => state.dataSourceSidebarOpen);
+    const [userSplitRatio, setUserSplitRatio] = useState<number | null>(null);
 
-    const nearestColumnCount = useCallback((width: number) => {
-        let best = 1;
-        let bestDist = Infinity;
-        for (let n = 1; n <= columnCapRef.current; n++) {
-            const dist = Math.abs(width - paneWidth(n));
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = n;
+    // When the sidebar is closed or toggled, default to 50/50 split if not custom dragged
+    const prevSidebarOpenRef = useRef(isSidebarOpen);
+    useEffect(() => {
+        if (prevSidebarOpenRef.current !== isSidebarOpen) {
+            prevSidebarOpenRef.current = isSidebarOpen;
+            if (!isSidebarOpen) {
+                setUserSplitRatio(0.5);
             }
         }
-        return best;
-    }, [paneWidth]);
+    }, [isSidebarOpen]);
 
-    const snapToColumns = useCallback((sizes: number[]) => {
-        if (sizes.length < 2) return;
-        const columns = nearestColumnCount(sizes[0]);
-        const target = paneWidth(columns);
-        setUserColumns(columns);
-
-        // A same-column drag does not change React state, so the pinning effect
-        // below will not rerun. Snap the panes explicitly after Allotment has
-        // finished its own drag bookkeeping.
-        requestAnimationFrame(() => {
-            try {
-                allotmentRef.current?.resize([target, splitWidth - target]);
-            } catch {
-                // The pane structure may have changed while the drag ended.
-            }
-        });
-    }, [nearestColumnCount, paneWidth, splitWidth]);
-
-    // The thread pane only ever rests on a whole-column width. Dragging the
-    // window edge changes how many columns *fit*; it never leaves the pane at
-    // an arbitrary size, so the canvas absorbs the whole delta.
-
-    // How many columns the thread could actually fill: one per leaf chain, plus
-    // a slot for the source shelf. Chain-splitting can add more, so treat this
-    // as a floor — it exists only to stop a wide screen reserving empty columns.
-    const threadColumnDemand = useMemo(() => {
-        const hasChild = new Set<string>();
-        derivedTables.forEach(t => { if (t.derive) hasChild.add(t.derive.trigger.tableId); });
-        const leaves = derivedTables.filter(t => !hasChild.has(t.id)).length;
-        return Math.max(1, leaves + (hasInputTables ? 1 : 0));
-    }, [derivedTables, hasInputTables]);
-
-    const columnCap = maxThreadColumnsForWidth(
-        splitWidth,
-        tokens,
-        maxThreadColumnsForWidthClass(widthClass),
-    );
-    columnCapRef.current = columnCap;
-    const preferredColumns = Math.min(
-        userColumns ?? defaultThreadColumns(widthClass, threadColumnDemand, splitWidth, tokens),
-        columnCap,
-    );
-
-    // A new width class re-asserts the default; within a class the drag sticks.
-    const prevWidthClassRef = useRef(widthClass);
-    useEffect(() => {
-        if (prevWidthClassRef.current === widthClass) return;
-        prevWidthClassRef.current = widthClass;
-        setUserColumns(null);
-    }, [widthClass]);
-
-    // Hold the thread pane at exactly `threadPaneWidth(preferredColumns)`.
-    //
-    // Runs on every split-container resize, not just on discrete events:
-    //   - `preferredSize` only applies when a pane first mounts, and this pane
-    //     unmounts whenever the session is empty;
-    //   - Allotment otherwise redistributes a container resize across both
-    //     panes, leaving the thread at an arbitrary width where the column
-    //     count flips at unpredictable points.
-    // Pinning it here means the canvas absorbs the entire delta and the thread
-    // only ever changes in whole columns.
     // The canvas shows the focused item, and nothing else opens or closes it.
     // Resolved, not raw: a text turn with no chart or table behind it (an
     // explanation on a rootless thread) has nothing to draw, so stay closed.
@@ -590,21 +516,22 @@ export const DataFormulatorFC = ({ }) => {
         if (!canvasOpen) return;
         if (!allotmentRef.current || splitWidth <= 0) return;
 
-        const target = paneWidth(preferredColumns);
-        // Defer both the measurement and correction until Allotment has
-        // processed the new container size. Checking before this frame can
-        // see the old snapped width and skip just before Allotment moves it.
+        const ratio = userSplitRatio ?? (!isSidebarOpen ? 0.5 : 0.5);
+        const minThread = 300;
+        const minCanvas = tokens.canvas?.min || 300;
+        const threadTarget = Math.max(minThread, Math.min(splitWidth - minCanvas, Math.round(splitWidth * ratio)));
+        const canvasTarget = splitWidth - threadTarget;
+
         const rafId = requestAnimationFrame(() => {
             try {
-                if (splitWidth - target < tokens.canvas.min) return;
-                if (Math.abs((paneSizesRef.current[0] ?? -1) - target) <= 1) return;
-                allotmentRef.current?.resize([target, splitWidth - target]);
+                if (Math.abs((paneSizesRef.current[0] ?? -1) - threadTarget) <= 2) return;
+                allotmentRef.current?.resize([threadTarget, canvasTarget]);
             } catch {
                 // Allotment pane structure may not yet match; ignore.
             }
         });
         return () => cancelAnimationFrame(rafId);
-    }, [canvasOpen, preferredColumns, splitWidth, tokens.canvas.min]);
+    }, [canvasOpen, splitWidth, isSidebarOpen, userSplitRatio, tokens.canvas?.min]);
 
     const threadPanel = (
         <DataThread centered={!canvasOpen} denseColumns={isPhone} sx={{
@@ -622,19 +549,6 @@ export const DataFormulatorFC = ({ }) => {
             height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column',
             boxSizing: 'border-box', position: 'relative',
         }}>
-            <Tooltip title={t('canvas.close', { defaultValue: 'Close canvas' })}>
-                <IconButton
-                    size="small"
-                    onClick={closeCanvas}
-                    sx={{
-                        position: 'absolute', top: 8, right: 8, zIndex: 20,
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary', backgroundColor: 'action.hover' },
-                    }}
-                >
-                    <CloseIcon sx={{ fontSize: iconVar.md }} />
-                </IconButton>
-            </Tooltip>
             {viewMode === 'editor' ? visPane : <ReportView />}
         </Box>
     );
@@ -686,13 +600,14 @@ export const DataFormulatorFC = ({ }) => {
                 display: 'flex', height: 'calc(100% - 12px)', flex: 1, minWidth: 0, flexDirection: 'column',
                 overflow: 'hidden',
                 position: 'relative',
-                // Allotment waits 300ms before adding its hover class.
-                // Native hover responds immediately with the app's fast token.
+                // Allotment sash hover styling
                 '& [class*="sash_"][class*="vertical"]::before': {
                     transition: `${transition.fast} !important`,
+                    width: '3px !important',
                 },
                 '& [class*="sash_"][class*="vertical"]:hover::before': {
-                    background: 'var(--focus-border)',
+                    background: '#2563eb !important',
+                    width: '4px !important',
                 },
                 // Allotment lays out with `left` + `width`, so both must ease
                 // or the panes resize while their positions jump. Suspended
@@ -707,18 +622,26 @@ export const DataFormulatorFC = ({ }) => {
                     ref={allotmentRef}
                     onChange={(sizes) => { paneSizesRef.current = sizes; }}
                     onDragStart={() => setSashDragging(true)}
-                    onDragEnd={(sizes) => { setSashDragging(false); snapToColumns(sizes); }}
-                    proportionalLayout={false}
+                    onDragEnd={(sizes) => {
+                        setSashDragging(false);
+                        if (sizes && sizes.length >= 2 && (sizes[0] + sizes[1]) > 0) {
+                            setUserSplitRatio(sizes[0] / (sizes[0] + sizes[1]));
+                        }
+                    }}
+                    proportionalLayout={true}
                 >
-                    <Allotment.Pane minSize={paneWidth(1)}
-                        preferredSize={paneWidth(preferredColumns)}
-                        // Uncapped with the canvas away, so the thread can take
-                        // the whole surface. Must be an explicit Infinity:
-                        // Allotment skips `undefined` and keeps the old cap.
-                        maxSize={canvasOpen ? paneWidth(columnCap) : Number.POSITIVE_INFINITY} snap={false}>
+                    <Allotment.Pane
+                        minSize={300}
+                        preferredSize={splitWidth > 0 ? (userSplitRatio != null ? splitWidth * userSplitRatio : splitWidth * 0.5) : '50%'}
+                        snap={false}
+                    >
                         {threadPanel}
                     </Allotment.Pane>
-                    <Allotment.Pane minSize={tokens.canvas.min} visible={canvasOpen}>
+                    <Allotment.Pane
+                        minSize={tokens.canvas?.min || 300}
+                        preferredSize={splitWidth > 0 ? (userSplitRatio != null ? splitWidth * (1 - userSplitRatio) : splitWidth * 0.5) : '50%'}
+                        visible={canvasOpen}
+                    >
                         {canvasPanel}
                     </Allotment.Pane>
                 </Allotment>
@@ -1159,48 +1082,6 @@ export const DataFormulatorFC = ({ }) => {
                         sx={{ width: '100%' }}
                     />
                 </Backdrop>
-                {selectedModelId == undefined && (
-                    <Box sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: alpha(theme.palette.background.default, 0.85),
-                        backdropFilter: 'blur(4px)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        zIndex: 1000,
-                    }}>
-                        <Box sx={{ margin: 'auto', pb: '5%', display: "flex", flexDirection: "column", textAlign: "center", alignItems: "center" }}>
-                            <Box
-                                component="img"
-                                sx={{
-                                    height: { xs: 64, sm: 90 },
-                                    maxWidth: 380,
-                                    width: 'auto',
-                                    margin: "auto",
-                                    mb: 2.5,
-                                    objectFit: 'contain'
-                                }}
-                                alt="InsightCanvas"
-                                src={theme.palette.mode === 'dark' ? techknomaticWhiteLogo : techknomaticLogo}
-                                fetchPriority="high"
-                            />
-                            <Typography variant="h3" sx={{ fontSize: { xs: 28, sm: 40 }, fontWeight: 800, letterSpacing: '-0.02em', color: 'text.primary' }}>
-                                Welcome to <Box component="span" sx={{ color: '#2b50ec' }}>InsightCanvas</Box>
-                            </Typography>
-                            <Typography variant="body1" sx={{ mt: 1.5, color: 'text.secondary', fontWeight: 500, fontSize: { xs: 15, sm: 17 } }}>
-                                Turn your data into actionable business insights with AI.
-                            </Typography>
-                            <Typography variant="h4" sx={{ mt: 3, fontSize: 24, letterSpacing: '0.02em' }}>
-                                {t('landing.firstSelectModelPrefix')} <ModelSelectionButton appearance="inline" />
-                            </Typography>
-                            <Typography color="text.secondary" variant="body1" sx={{ mt: 2, width: 600 }}>{t('landing.modelTip')}</Typography>
-                        </Box>
-                        {footer}
-                    </Box>
-                )}
             </DndProvider>
         </Box>);
 }

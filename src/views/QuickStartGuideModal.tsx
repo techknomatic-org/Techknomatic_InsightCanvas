@@ -158,8 +158,8 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({ open
         },
         {
             targetId: 'tour-rail-hub',
-            badge: 'Step 6 of 6 · BI hub',
-            title: 'Navigation Rail — BI hub',
+            badge: 'Step 6 of 6 · BI HUB',
+            title: 'Navigation Rail — BI HUB',
             subtitle: 'Inspect schema metadata, table lineage & autonomous dashboards',
             icon: <PsychologyOutlinedIcon sx={{ fontSize: 28, color: '#0284c7' }} />,
             iconBg: 'rgba(2, 132, 199, 0.12)',
@@ -171,7 +171,7 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({ open
                     </Typography>
                     <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: '#f0f9ff', border: '1px solid #bae6fd' }}>
                         <Typography sx={{ fontSize: '12px', color: '#0369a1', fontWeight: 500 }}>
-                            🧠 Click the <strong>BI hub</strong> icon in the Navigation Rail (or top bar) to generate autonomous dashboards, view foreign key relationships, and inspect table schemas.
+                            🧠 Click the <strong>BI HUB</strong> icon in the Navigation Rail (or top bar) to generate autonomous dashboards, view foreign key relationships, and inspect table schemas.
                         </Typography>
                     </Box>
                 </Box>

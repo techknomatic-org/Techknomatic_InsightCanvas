@@ -16,6 +16,8 @@ export interface ToolbarActionsContextValue {
     openLogs?: () => void;
     /** Whether local mode (shows log viewer) */
     isLocalMode?: boolean;
+    /** Open the guided tour */
+    openGuide?: () => void;
 }
 
 export const ToolbarActionsContext = createContext<ToolbarActionsContextValue>({});

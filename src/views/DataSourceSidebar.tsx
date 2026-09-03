@@ -409,7 +409,7 @@ export const DataSourceSidebar: React.FC<{
                         </IconButton>
                     </Tooltip>
 
-                    <Tooltip title="BI hub" placement="right">
+                    <Tooltip title="BI HUB" placement="right">
                         <IconButton
                             id="tour-rail-hub"
                             size="small"
@@ -1883,7 +1883,7 @@ const DataSourceSidebarPanel: React.FC<{
                         <Tooltip title={t('sidebar.addConnector', { defaultValue: 'Add data connector' })}>
                             <IconButton
                                 size="small"
-                                onClick={(e) => setAddConnectorAnchor(e.currentTarget)}
+                                onClick={() => onOpenUploadDialog?.('add-connection')}
                                 sx={{
                                     width: 28,
                                     height: 28,
@@ -1897,27 +1897,6 @@ const DataSourceSidebarPanel: React.FC<{
                                 <AddIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
-                        <Menu
-                            anchorEl={addConnectorAnchor}
-                            open={Boolean(addConnectorAnchor)}
-                            onClose={() => setAddConnectorAnchor(null)}
-                            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                            slotProps={{ paper: { sx: { minWidth: 180, borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' } } }}
-                        >
-                            <MenuItem onClick={() => { setAddConnectorAnchor(null); onOpenUploadDialog?.('add-connection'); }} sx={{ fontSize: '13px', py: 0.75, fontFamily: "'Inter', 'Roboto', sans-serif" }}>
-                                <ListItemIcon><StorageIcon sx={{ fontSize: 16 }} /></ListItemIcon>
-                                <ListItemText slotProps={{ primary: { sx: { fontSize: '13px', fontFamily: "'Inter', 'Roboto', sans-serif" } } }}>
-                                    {t('sidebar.addConnector', { defaultValue: 'Add data connector' })}
-                                </ListItemText>
-                            </MenuItem>
-                            <MenuItem onClick={() => { setAddConnectorAnchor(null); onOpenUploadDialog?.('local-folder'); }} sx={{ fontSize: '13px', py: 0.75, fontFamily: "'Inter', 'Roboto', sans-serif" }}>
-                                <ListItemIcon><FolderOpenIcon sx={{ fontSize: 16 }} /></ListItemIcon>
-                                <ListItemText slotProps={{ primary: { sx: { fontSize: '13px', fontFamily: "'Inter', 'Roboto', sans-serif" } } }}>
-                                    {t('sidebar.linkLocalFolder', { defaultValue: 'Link local folder' })}
-                                </ListItemText>
-                            </MenuItem>
-                        </Menu>
                         <Tooltip title={isPinned ? t('sidebar.unpin', { defaultValue: 'Unpin' }) : t('sidebar.pin', { defaultValue: 'Pin' })} placement="bottom">
                             <IconButton
                                 size="small"

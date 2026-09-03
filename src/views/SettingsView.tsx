@@ -113,6 +113,29 @@ export const SettingsView: React.FC = () => {
         setPaletteKey((config.paletteKey && palettes[config.paletteKey]) ? config.paletteKey : defaultPaletteKey);
     }, [config]);
 
+    const navItems: { key: SettingsTabType; label: string; icon: React.ReactNode }[] = [
+        {
+            key: 'models',
+            label: t('model.selectModel', { defaultValue: 'Select a model' }),
+            icon: <SmartToyOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: 'general',
+            label: t('config.generalSettings', { defaultValue: 'General' }),
+            icon: <SettingsOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: 'knowledge',
+            label: t('knowledge.title', { defaultValue: 'Agent Knowledge' }),
+            icon: <LightbulbOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: 'logs',
+            label: t('logs.title', { defaultValue: 'Backend Log' }),
+            icon: <TerminalOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+    ];
+
     const hasChanges = formulateTimeoutSeconds !== config.formulateTimeoutSeconds ||
         defaultChartWidth !== config.defaultChartWidth ||
         defaultChartHeight !== config.defaultChartHeight ||
@@ -159,10 +182,10 @@ export const SettingsView: React.FC = () => {
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    maxWidth: 1400,
+                    maxWidth: 1020,
                     width: '100%',
                     mx: 'auto',
-                    px: { xs: 2, sm: 3, md: 4 },
+                    px: { xs: 2, sm: 3 },
                     py: { xs: 2, sm: 2.5 },
                     minHeight: 0,
                     overflow: 'hidden',
@@ -190,7 +213,7 @@ export const SettingsView: React.FC = () => {
                                     fontFamily: "'Inter', 'Roboto', sans-serif",
                                     lineHeight: 1.2,
                                 }}>
-                                    {t('app.settings', { defaultValue: 'Settings & Configuration' })}
+                                    {t('app.settings', { defaultValue: 'Settings' })}
                                 </Typography>
                                 <Typography sx={{
                                     fontSize: '13px',
@@ -205,97 +228,93 @@ export const SettingsView: React.FC = () => {
                         </Box>
                     </Box>
 
-                    {/* ── Main Container Card with Sub-Navigation Tabs ── */}
-                    <Card
-                        id="tour-settings-container"
-                        variant="outlined"
-                        sx={{
-                            flex: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            borderRadius: '16px',
-                            borderColor: '#e2e8f0',
-                            bgcolor: '#ffffff',
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
-                            overflow: 'hidden',
-                            minHeight: 0,
-                        }}
-                    >
-                        {/* Sub-Navigation Tabs: Sequence is Select a Model, General, Agent Knowledge, Backend Logs */}
-                        <Box sx={{ px: 3, borderBottom: '1px solid #e2e8f0', bgcolor: '#f8fafc', flexShrink: 0 }}>
-                            <Tabs
-                                value={activeTab}
-                                onChange={handleTabChange}
-                                aria-label={t('app.settings', { defaultValue: 'Settings' })}
-                                sx={{
-                                    minHeight: 48,
-                                    '& .MuiTabs-indicator': { height: 3, bgcolor: '#2563eb', borderRadius: '3px 3px 0 0' },
-                                    '& .MuiTab-root': {
-                                        minWidth: 0,
-                                        minHeight: 48,
-                                        px: 2.5,
-                                        py: 0,
-                                        mr: 1.5,
-                                        color: '#64748b',
-                                        fontSize: '13.5px',
-                                        fontWeight: 500,
-                                        textTransform: 'none',
-                                        fontFamily: "'Inter', 'Roboto', sans-serif",
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 1,
-                                        '&:hover': { color: '#0f172a' },
-                                    },
-                                    '& .MuiTab-root.Mui-selected': {
-                                        color: '#2563eb',
-                                        fontWeight: 700,
-                                    },
-                                }}
-                            >
-                                {/* 1. Select a Model */}
-                                <Tab
-                                    value="models"
-                                    icon={<SmartToyOutlinedIcon sx={{ fontSize: 19 }} />}
-                                    iconPosition="start"
-                                    label={t('model.selectModel', { defaultValue: 'Select a Model' })}
-                                />
+                    {/* ── Two-Card Layout: Left Sidebar Card & Right Detail Content Card ── */}
+                    <Box sx={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: { xs: 'column', md: 'row' },
+                        gap: 2,
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        alignItems: 'stretch',
+                    }}>
+                        {/* 1. Left Navigation Sidebar Card */}
+                        <Card
+                            variant="outlined"
+                            sx={{
+                                width: { xs: '100%', md: 215 },
+                                flexShrink: 0,
+                                borderRadius: '16px',
+                                borderColor: '#e2e8f0',
+                                bgcolor: '#ffffff',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                                p: 1.25,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 0.75,
+                                height: { md: '100%' },
+                                boxSizing: 'border-box',
+                            }}
+                        >
+                            {navItems.map((item) => {
+                                const isSelected = activeTab === item.key;
+                                return (
+                                    <Box
+                                        key={item.key}
+                                        onClick={() => {
+                                            setActiveTab(item.key);
+                                            setSearchParams({ tab: item.key }, { replace: true });
+                                        }}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1.25,
+                                            px: 1.5,
+                                            py: 1.15,
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease',
+                                            bgcolor: isSelected ? '#eff6ff' : 'transparent',
+                                            color: isSelected ? '#1d4ed8' : '#64748b',
+                                            fontWeight: isSelected ? 600 : 500,
+                                            fontSize: '13.5px',
+                                            fontFamily: "'Inter', 'Roboto', sans-serif",
+                                            '&:hover': {
+                                                bgcolor: isSelected ? '#eff6ff' : '#f8fafc',
+                                                color: isSelected ? '#1d4ed8' : '#0f172a',
+                                            },
+                                        }}
+                                    >
+                                        <Box sx={{ color: isSelected ? '#2563eb' : '#64748b', display: 'flex', alignItems: 'center' }}>
+                                            {item.icon}
+                                        </Box>
+                                        <Typography sx={{ fontSize: '13.5px', fontWeight: 'inherit', color: 'inherit' }}>
+                                            {item.label}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Card>
 
-                                {/* 2. General */}
-                                <Tab
-                                    value="general"
-                                    icon={<SettingsOutlinedIcon sx={{ fontSize: 19 }} />}
-                                    iconPosition="start"
-                                    label={t('config.generalSettings', { defaultValue: 'General' })}
-                                />
-
-                                {/* 3. Agent Knowledge */}
-                                <Tab
-                                    value="knowledge"
-                                    icon={<LightbulbOutlinedIcon sx={{ fontSize: 19 }} />}
-                                    iconPosition="start"
-                                    label={t('knowledge.title', { defaultValue: 'Agent Knowledge' })}
-                                />
-
-                                {/* 4. Backend Logs */}
-                                <Tab
-                                    value="logs"
-                                    icon={<TerminalOutlinedIcon sx={{ fontSize: 19 }} />}
-                                    iconPosition="start"
-                                    label={t('logs.title', { defaultValue: 'Backend Logs' })}
-                                />
-                            </Tabs>
-                        </Box>
-
-                        {/* Content Body */}
-                        <Box sx={{
-                            flex: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            overflow: 'hidden',
-                            minHeight: 0,
-                            bgcolor: '#ffffff',
-                        }}>
+                        {/* 2. Right Detail Content Card */}
+                        <Card
+                            id="tour-settings-container"
+                            variant="outlined"
+                            sx={{
+                                flex: 1,
+                                minWidth: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                borderRadius: '16px',
+                                borderColor: '#e2e8f0',
+                                bgcolor: '#ffffff',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                                overflow: 'hidden',
+                                minHeight: 0,
+                                height: { md: '100%' },
+                                boxSizing: 'border-box',
+                            }}
+                        >
                             {/* ── Tab 1: Select a Model ── */}
                             {activeTab === 'models' && (
                                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
@@ -306,7 +325,9 @@ export const SettingsView: React.FC = () => {
                             {/* ── Tab 2: General Settings ── */}
                             {activeTab === 'general' && (
                                 <Box sx={{
-                                    p: { xs: 3, md: 4 },
+                                    px: { xs: 2.5, md: 3.5 },
+                                    pt: { xs: 2.5, md: 3 },
+                                    pb: { xs: 2.5, md: 3 },
                                     flex: 1,
                                     overflowY: 'auto',
                                     display: 'flex',
@@ -455,10 +476,9 @@ export const SettingsView: React.FC = () => {
                                                             inputProps: { min: 1, max: 5, step: 0.1 }
                                                         }
                                                     }}
-                                                    error={isNaN(maxStretchFactor) || maxStretchFactor < 1 || maxStretchFactor > 5}
-                                                    helperText={isNaN(maxStretchFactor) || maxStretchFactor < 1 || maxStretchFactor > 5 ?
-                                                        t('config.maxStretchFactorRangeError', { defaultValue: 'Must be between 1.0 and 5.0' }) :
-                                                        t('config.maxStretchFactorHint', { defaultValue: 'Chart card zoom scale limit' })}
+                                                    error={maxStretchFactor < 1 || maxStretchFactor > 5}
+                                                    helperText={maxStretchFactor < 1 || maxStretchFactor > 5 ?
+                                                        t('config.stretchFactorRangeError', { defaultValue: 'Must be between 1 and 5' }) : ""}
                                                 />
                                             </Box>
                                         </Box>
@@ -466,7 +486,7 @@ export const SettingsView: React.FC = () => {
 
                                     <Divider sx={{ my: 0.5 }} />
 
-                                    {/* Backend Preferences Section */}
+                                    {/* Backend & Execution Section */}
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                                         <Typography sx={{
                                             fontSize: '12.5px',
@@ -476,37 +496,37 @@ export const SettingsView: React.FC = () => {
                                             letterSpacing: '0.06em',
                                             fontFamily: "'Inter', 'Roboto', sans-serif",
                                         }}>
-                                            {t('config.backend', { defaultValue: 'Backend & Engine' })}
+                                            {t('config.backend', { defaultValue: 'Backend & Execution' })}
                                         </Typography>
 
-                                        <TextField
-                                            label={t('config.formulateTimeout', { defaultValue: 'Formulate Timeout (seconds)' })}
-                                            type="number"
-                                            size="small"
-                                            variant="outlined"
-                                            value={formulateTimeoutSeconds}
-                                            onChange={(e) => {
-                                                const value = parseInt(e.target.value);
-                                                setFormulateTimeoutSeconds(value);
-                                            }}
-                                            inputProps={{ min: 0, max: 3600 }}
-                                            error={formulateTimeoutSeconds <= 0 || formulateTimeoutSeconds > 3600}
-                                            helperText={formulateTimeoutSeconds <= 0 || formulateTimeoutSeconds > 3600 ?
-                                                t('config.formulateTimeoutRangeError', { defaultValue: 'Timeout must be between 1 and 3600 seconds' }) :
-                                                t('config.formulateTimeoutHint', { defaultValue: 'Maximum execution time for AI transformation queries' })}
-                                            fullWidth
-                                        />
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                                            <Box sx={{ flex: 1 }}>
+                                                <TextField
+                                                    label={t('config.executionTimeout', { defaultValue: 'Agent Code Execution Timeout (seconds)' })}
+                                                    type="number"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    value={formulateTimeoutSeconds}
+                                                    onChange={(e) => {
+                                                        const value = parseInt(e.target.value);
+                                                        setFormulateTimeoutSeconds(value);
+                                                    }}
+                                                    fullWidth
+                                                    slotProps={{
+                                                        input: {
+                                                            inputProps: { min: 10, max: 3600 }
+                                                        }
+                                                    }}
+                                                    error={formulateTimeoutSeconds <= 0 || formulateTimeoutSeconds > 3600}
+                                                    helperText={formulateTimeoutSeconds <= 0 || formulateTimeoutSeconds > 3600 ?
+                                                        t('config.timeoutRangeError', { defaultValue: 'Must be between 10 and 3600 seconds' }) : ""}
+                                                />
+                                            </Box>
+                                        </Box>
                                     </Box>
 
-                                    {/* Save Actions Bar */}
-                                    <Box sx={{
-                                        mt: 'auto',
-                                        pt: 3,
-                                        borderTop: '1px solid #f1f5f9',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 1.5,
-                                    }}>
+                                    {/* Action Buttons */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 'auto', pt: 3, borderTop: '1px solid #f1f5f9' }}>
                                         <Button
                                             size="medium"
                                             variant="text"
@@ -567,19 +587,19 @@ export const SettingsView: React.FC = () => {
 
                             {/* ── Tab 3: Agent Knowledge ── */}
                             {activeTab === 'knowledge' && (
-                                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+                                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', pt: 2.5, px: 1, pb: 1 }}>
                                     <KnowledgePanel />
                                 </Box>
                             )}
 
                             {/* ── Tab 4: Backend Logs ── */}
                             {activeTab === 'logs' && (
-                                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+                                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', pt: 2.5, px: 1, pb: 1 }}>
                                     <LogViewerContent maxHeight="calc(100vh - 280px)" />
                                 </Box>
                             )}
-                        </Box>
-                    </Card>
+                        </Card>
+                    </Box>
                 </Box>
             </Box>
 

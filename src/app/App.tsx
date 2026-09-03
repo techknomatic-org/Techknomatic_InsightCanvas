@@ -869,7 +869,21 @@ const AppShell: FC = () => {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [settingsTab, setSettingsTab] = useState<SettingsTabType>('models');
     const [logsOpen, setLogsOpen] = useState(false);
-    const [guideOpen, setGuideOpen] = useState<boolean>(true);
+    const [guideOpen, setGuideOpen] = useState<boolean>(() => {
+        // Only open the guide for brand new users; already visited users do not require the tour
+        const search = window.location.search;
+        if (search.includes('guide=true') || search.includes('tour=true')) return true;
+        const alreadyVisited = localStorage.getItem('df_guided_tour_seen') === 'true';
+        return !alreadyVisited;
+    });
+
+    useEffect(() => {
+        if (window.location.search.includes('guide=true')) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('guide');
+            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+        }
+    }, []);
     const navigate = useNavigate();
     const exitSession = useExitSession();
     const inSession = isAppPage && !!activeWorkspace;
@@ -987,7 +1001,7 @@ const AppShell: FC = () => {
                                 }}
                             />
                             <TopNavButton to="/about" label={t('appBar.about', { defaultValue: 'About' })} selected={isAboutPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
-                            <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI hub" selected={isIntelligenceHubPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
+                            <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI HUB" selected={isIntelligenceHubPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
                             <TopNavButton id="tour-nav-settings" to="/settings" label={t('app.settings', { defaultValue: 'Settings' })} selected={isSettingsPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
                             {inSession && <ExitSessionButton />}
                             <AuthButton />
@@ -1003,6 +1017,7 @@ const AppShell: FC = () => {
                             navigate('/settings?tab=logs');
                         },
                         isLocalMode: serverConfig.IS_LOCAL_MODE,
+                        openGuide: () => setGuideOpen(true),
                     }}>
                         <Outlet />
                     </ToolbarActionsContext.Provider>
@@ -1012,7 +1027,13 @@ const AppShell: FC = () => {
                 {serverConfig.IS_LOCAL_MODE && (
                     <LogViewerDialog open={logsOpen} onOpenChange={setLogsOpen} hideTrigger />
                 )}
-                <QuickStartGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+                <QuickStartGuideModal
+                    open={guideOpen}
+                    onClose={() => {
+                        setGuideOpen(false);
+                        localStorage.setItem('df_guided_tour_seen', 'true');
+                    }}
+                />
                 <MessageSnackbar />
                 <ChartRenderService />
             </Box>
@@ -1333,8 +1354,7 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
     };
 
     const RootRedirect: React.FC = () => {
-        const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
-        return <Navigate to={isModelConfigured ? "/app" : "/app?configure_model=true"} replace />;
+        return <Navigate to="/app" replace />;
     };
 
     const router = useMemo(() => createBrowserRouter([

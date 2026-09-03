@@ -490,7 +490,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                     letterSpacing: '-0.02em',
                                 }}
                             >
-                                BI hub
+                                BI HUB
                             </Typography>
                         )}
                     </Box>

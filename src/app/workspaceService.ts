@@ -240,18 +240,35 @@ export async function saveWorkspaceState(state: Record<string, unknown>): Promis
 
 /** Export a workspace as a downloadable zip Blob. */
 export async function exportWorkspace(id: string): Promise<Blob> {
-    const { data } = await apiRequest<{ state: any }>(getUrls().SESSION_LOAD, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-    });
-    if (!data.state) {
-        throw new Error('Failed to load workspace for export');
+    const { store } = await import('./store');
+    const { getSerializableState } = await import('./useAutoSave');
+    const fullState = store.getState();
+    const activeWs = fullState.activeWorkspace;
+    let stateToExport: any;
+
+    if (activeWs && activeWs.id === id) {
+        stateToExport = getSerializableState(fullState);
+        try {
+            await saveWorkspaceState(stateToExport);
+        } catch {
+            // best-effort
+        }
+    } else {
+        const { data } = await apiRequest<{ state: any }>(getUrls().SESSION_LOAD, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        });
+        if (!data.state) {
+            throw new Error('Failed to load workspace for export');
+        }
+        stateToExport = data.state;
     }
+
     const exportRes = await fetchWithIdentity(getUrls().SESSION_EXPORT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: data.state, workspace_id: id }),
+        body: JSON.stringify({ state: stateToExport, workspace_id: id }),
     });
     await assertDownloadResponseOk(exportRes, 'Export failed');
     return exportRes.blob();
@@ -270,7 +287,15 @@ export async function importWorkspace(
         method: 'POST',
         body: formData,
     });
-    return migrateState(data.state);
+    const state = migrateState(data.state);
+    const previews = await prepareInputTablePreviews(state, workspaceId);
+    replaceInputTablePreviews(previews);
+    const ephemeral = await isEphemeralBackend();
+    if (ephemeral) {
+        await workspaceDB.save(workspaceId, displayName, createRecoveryState(state), createTableIndex(state));
+    }
+    _notifyListChanged();
+    return state;
 }
 
 // ── Table operations ────────────────────────────────────────────────────

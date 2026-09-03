@@ -40,7 +40,7 @@ import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import AddIcon from '@mui/icons-material/Add';
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import BoltIcon from '@mui/icons-material/Bolt';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import StopIcon from '@mui/icons-material/Stop';
 
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
@@ -2089,30 +2089,33 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
         <Card ref={inputCardRef} variant="outlined" sx={{
             display: 'flex', flexDirection: 'column',
             mx: 1, mb: 1, mt: 0.5,
-            px: 1.25, pt: 1, pb: 0.5,
-            borderRadius: '12px',
-            // Standard single-tone input style (matches AgentChatInput): a
-            // solid divider border that turns the accent color on focus.
-            border: `1px solid ${borderColor.divider}`,
+            px: 2, pt: 2, pb: 1.25,
+            borderRadius: '16px',
+            border: '1px solid #e2e8f0',
             outline: 'none',
             position: 'relative',
-            overflow: isChatFormulating ? 'hidden' : 'visible',
+            overflow: 'hidden',
             flexShrink: 0,
-            transition: transition.fast,
-            borderColor: chatInputFocused ? theme.palette.primary.main : borderColor.divider,
-            backgroundColor: theme.palette.background.paper,
-            // Neutral elevation shadow recipe shared with AgentChatInput;
-            // hover lifts the card a touch without shifting any colors.
-            boxShadow: chatInputFocused
-                ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.15)}, 0 2px 10px rgba(32, 33, 36, 0.14)`
-                : '0 1px 6px rgba(32, 33, 36, 0.10), 0 1px 2px rgba(32, 33, 36, 0.06)',
+            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            backgroundColor: '#ffffff',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
             '&:hover': {
-                boxShadow: chatInputFocused
-                    ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.15)}, 0 2px 10px rgba(32, 33, 36, 0.14)`
-                    : '0 2px 10px rgba(32, 33, 36, 0.14), 0 1px 3px rgba(32, 33, 36, 0.08)',
+                boxShadow: '0 4px 18px rgba(0, 0, 0, 0.06)',
             },
         }}
         >
+            {/* Top Gradient Accent Bar */}
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '4px',
+                    background: 'linear-gradient(90deg, #0070f3 0%, #00a2ff 40%, #00e5ff 100%)',
+                    zIndex: 1,
+                }}
+            />
             {clarificationQuestions?.kind === 'clarification' && clarificationQuestions.questions && pendingClarification && !isChatFormulating && (
                 <ClarificationPanel
                     questions={clarificationQuestions.questions}
@@ -2195,7 +2198,7 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                 Skip the table-chip row entirely when there's only one root table —
                 there's nothing else the user could @-mention, so the chip is noise. */}
             {((primaryTableIds.length > 0 && inputTables.length > 1) || attachedImages.length > 0 || attachedFiles.length > 0) && !isChatFormulating && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3px', px: 0.5, pb: '2px' }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', px: 0, pb: '4px' }}>
                     {inputTables.length > 1 && primaryTableIds.map(id => {
                         const tbl = tables.find(t => t.id === id);
                         const isDefault = defaultPrimaryTableIds.includes(id);
@@ -2206,14 +2209,15 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                                 label={`@${tbl?.displayId || id}`}
                                 onDelete={isDefault ? undefined : () => setMentionedTableIds(prev => prev.filter(mid => mid !== id))}
                                 sx={{
-                                    height: 20,
-                                    fontSize: textVar.xxs,
-                                    color: theme.palette.text.secondary,
-                                    backgroundColor: 'rgba(0,0,0,0.04)',
+                                    height: 24,
+                                    fontSize: '12px',
+                                    color: '#1d4ed8',
+                                    backgroundColor: '#eff6ff',
                                     border: 'none',
-                                    borderRadius: '4px',
-                                    '& .MuiChip-label': { px: '6px' },
-                                    '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: theme.palette.text.disabled, mr: '2px' },
+                                    borderRadius: '6px',
+                                    fontWeight: 500,
+                                    '& .MuiChip-label': { px: '8px' },
+                                    '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: '#60a5fa', mr: '2px', '&:hover': { color: '#1e40af' } },
                                 }}
                             />
                         );
@@ -2226,15 +2230,16 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                             label={`image${attachedImages.length > 1 ? idx + 1 : ''}`}
                             onDelete={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
                             sx={{
-                                height: 20,
-                                fontSize: textVar.xxs,
-                                color: theme.palette.text.secondary,
-                                backgroundColor: 'rgba(0,0,0,0.04)',
+                                height: 24,
+                                fontSize: '12px',
+                                color: '#1d4ed8',
+                                backgroundColor: '#eff6ff',
                                 border: 'none',
-                                borderRadius: '4px',
-                                '& .MuiChip-label': { px: '4px' },
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                '& .MuiChip-label': { px: '6px' },
                                 '& .MuiChip-icon': { ml: '4px', mr: '-2px' },
-                                '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: theme.palette.text.disabled, mr: '2px' },
+                                '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: '#60a5fa', mr: '2px', '&:hover': { color: '#1e40af' } },
                             }}
                         />
                     ))}
@@ -2246,16 +2251,17 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                             label={file.name}
                             onDelete={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
                             sx={{
-                                height: 20,
-                                fontSize: textVar.xxs,
+                                height: 24,
+                                fontSize: '12px',
                                 maxWidth: 160,
-                                color: theme.palette.text.secondary,
-                                backgroundColor: 'rgba(0,0,0,0.04)',
+                                color: '#1d4ed8',
+                                backgroundColor: '#eff6ff',
                                 border: 'none',
-                                borderRadius: '4px',
-                                '& .MuiChip-label': { px: '4px', overflow: 'hidden', textOverflow: 'ellipsis' },
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                '& .MuiChip-label': { px: '6px', overflow: 'hidden', textOverflow: 'ellipsis' },
                                 '& .MuiChip-icon': { ml: '4px', mr: '-2px' },
-                                '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: theme.palette.text.disabled, mr: '2px' },
+                                '& .MuiChip-deleteIcon': { fontSize: iconVar.xs, color: '#60a5fa', mr: '2px', '&:hover': { color: '#1e40af' } },
                             }}
                         />
                     ))}
@@ -2282,13 +2288,25 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                 variant="standard"
                 sx={{
                     flex: 1,
-                    "& .MuiInput-input": { fontSize: textVar.sm, lineHeight: 1.5 },
+                    mt: 0.75,
+                    mb: 0.5,
+                    "& .MuiInput-input": {
+                        fontSize: '13.5px',
+                        lineHeight: 1.5,
+                        color: '#334155',
+                        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        py: 0.25,
+                        '&::placeholder': {
+                            color: '#94a3b8',
+                            opacity: 1,
+                        }
+                    },
                     "& .MuiInput-underline:before": { borderBottom: 'none !important' },
                     "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: 'none !important' },
                     "& .MuiInput-underline:after": { borderBottom: 'none !important' },
                     "& .MuiInputBase-root": { borderBottom: 'none !important' },
                     ...(isChatFormulating ? {
-                        "& .MuiInput-input": { fontSize: textVar.sm, lineHeight: 1.5, color: 'text.disabled' },
+                        "& .MuiInput-input": { fontSize: '13.5px', lineHeight: 1.5, color: 'text.disabled' },
                     } : {}),
                 }}
                 onChange={(event: any) => {
@@ -2383,12 +2401,12 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                 }
                 fullWidth
                 multiline
-                minRows={2}
+                minRows={1}
                 maxRows={6}
             />
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
-                {/* Action buttons */}
-                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 0.5, overflow: 'hidden', flex: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+                {/* Left side minimal attach button */}
+                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -2401,31 +2419,50 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                             size="small"
                             onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                             sx={{
-                                p: 0.5,
-                                color: theme.palette.text.secondary,
-                                borderRadius: '4px',
-                                '&:hover': { color: theme.palette.primary.main, backgroundColor: alpha(theme.palette.primary.main, 0.06) },
+                                p: 0.25,
+                                color: '#64748b',
+                                transition: 'all 0.15s ease',
+                                '&:hover': {
+                                    color: '#1e293b',
+                                    bgcolor: 'transparent',
+                                    transform: 'scale(1.08)',
+                                },
                             }}
                         >
-                            <AddIcon sx={{ fontSize: iconVar.lg }} />
+                            <AddIcon sx={{ fontSize: 22 }} />
                         </IconButton>
                     </Tooltip>
                 </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                {/* Right side clean standalone action icons */}
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 1.5,
+                }}>
                 {isChatFormulating ? (
-                    <CircularProgress size={18} sx={{ m: 0.5 }} />
+                    <CircularProgress size={18} sx={{ m: 0.5, color: '#1B75BB' }} />
                 ) : (
                     <>
                         <Tooltip title={t('chartRec.generateReport')}>
                             <span>
                                 <IconButton
                                     size="small"
-                                    sx={{ p: 0.5, color: theme.palette.text.secondary }}
+                                    sx={{
+                                        p: 0.25,
+                                        color: '#64748b',
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                            color: '#1e293b',
+                                            bgcolor: 'transparent',
+                                            transform: 'scale(1.08)',
+                                        },
+                                    }}
                                     aria-label={t('chartRec.generateReport')}
                                     disabled={!focusedTableId || isChatFormulating || !!pendingClarification}
                                     onClick={() => submitChat(t('chartRec.reportPrompt'), undefined, t('chartRec.askedForReport'))}
                                 >
-                                    <EditOutlinedIcon sx={{ fontSize: iconVar.lg }} />
+                                    <AssessmentOutlinedIcon sx={{ fontSize: 22 }} />
                                 </IconButton>
                             </span>
                         </Tooltip>
@@ -2433,12 +2470,21 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                             <span>
                                 <IconButton
                                     size="small"
-                                    sx={{ p: 0.5, color: theme.palette.primary.main }}
+                                    sx={{
+                                        p: 0.25,
+                                        color: '#2563eb',
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                            color: '#1d4ed8',
+                                            bgcolor: 'transparent',
+                                            transform: 'scale(1.08)',
+                                        },
+                                    }}
                                     aria-label={t('chartRec.getIdeaSuggestions')}
                                     disabled={!focusedTableId || isChatFormulating || !!pendingClarification}
                                     onClick={() => submitChat(t('chartRec.exploreIdeasPrompt'), undefined, t('chartRec.askedForRecommendations'))}
                                 >
-                                    <TipsAndUpdatesIcon sx={{ fontSize: iconVar.lg }} />
+                                    <TipsAndUpdatesIcon sx={{ fontSize: 22 }} />
                                 </IconButton>
                             </span>
                         </Tooltip>
@@ -2455,26 +2501,21 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                                             submitChat(chatPrompt);
                                         }
                                     }}
-                                    // When the user has typed text, promote
-                                    // the arrow to a contained primary
-                                    // affordance so it reads as the active
-                                    // submit action. Otherwise stay as a
-                                    // quiet outlined icon button.
                                     sx={{
-                                        p: 0,
-                                        width: 28, height: 28,
-                                        bgcolor: canSend ? 'primary.main' : 'transparent',
-                                        color: canSend ? 'common.white' : 'primary.main',
+                                        p: 0.25,
+                                        color: canSend ? '#2563eb' : '#cbd5e1',
+                                        transition: 'all 0.15s ease',
                                         '&:hover': {
-                                            bgcolor: canSend ? 'primary.dark' : 'transparent',
+                                            color: canSend ? '#1d4ed8' : '#cbd5e1',
+                                            bgcolor: 'transparent',
+                                            transform: canSend ? 'scale(1.08)' : 'none',
                                         },
                                         '&.Mui-disabled': {
-                                            bgcolor: 'transparent',
-                                            color: 'text.disabled',
+                                            color: '#cbd5e1',
                                         },
                                     }}
                                 >
-                                    <ArrowUpwardRoundedIcon sx={{ fontSize: iconVar.lg }} />
+                                    <ArrowUpwardRoundedIcon sx={{ fontSize: 22 }} />
                                 </IconButton>
                             </span>
                         </Tooltip>

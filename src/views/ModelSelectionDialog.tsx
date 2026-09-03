@@ -373,7 +373,7 @@ export const ModelSelectionContent: React.FC<{
     };
 
     const addModelForm = (
-        <Box sx={{ display: 'grid', gap: 2 }}>
+        <Box sx={{ display: 'grid', gap: 2, maxWidth: 540 }}>
             {isEditingDetails && rememberedEndpoints.length > 0 && (
                 <Autocomplete
                     size="small"
@@ -574,7 +574,7 @@ export const ModelSelectionContent: React.FC<{
     const modelManagerView = (
         <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'minmax(220px, 0.75fr) minmax(380px, 1.4fr)' },
+            gridTemplateColumns: { xs: '1fr', md: '240px 1fr' },
             gap: 3,
             py: 1,
             height: '100%',
@@ -716,7 +716,7 @@ export const ModelSelectionContent: React.FC<{
     let tempModelName = tempModel ? `${tempModel.endpoint}/${tempModel.model}` : t('model.pleaseSelectModel');
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 3, overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 2.5 }, pt: { xs: 2.5, sm: 3 }, overflow: 'hidden' }}>
             <Box sx={{ flex: 1, overflowY: 'auto', mb: 2 }}>
                 {modelManagerView}
             </Box>

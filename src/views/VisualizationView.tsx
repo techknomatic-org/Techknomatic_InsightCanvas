@@ -65,10 +65,15 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import CasinoIcon from '@mui/icons-material/Casino';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
+import DownloadIcon from '@mui/icons-material/Download';
+import ImageIcon from '@mui/icons-material/Image';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloseIcon from '@mui/icons-material/Close';
 import AddchartIcon from '@mui/icons-material/Addchart';
 import * as d3dsv from 'd3-dsv';
+import html2canvas from 'html2canvas';
+import { getCachedChart } from '../app/chartCache';
 import { AgentToyIcon, AnimatedAgentToyIcon } from './AgentToyIcon';
 
 import { CHART_TEMPLATES, getChartTemplate } from '../components/ChartTemplates';
@@ -927,6 +932,75 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
     const [encodingOpen, setEncodingOpen] = useState<boolean>(false);
     const editButtonRef = useRef<HTMLButtonElement | null>(null);
 
+    // Download/export menu for visual (PNG / JPG)
+    const [downloadAnchorEl, setDownloadAnchorEl] = useState<null | HTMLElement>(null);
+    // 3-dot menu for Log & Code options
+    const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
+
+    const handleDownloadVisual = useCallback(async (format: 'png' | 'jpg') => {
+        setDownloadAnchorEl(null);
+        if (!focusedChart) return;
+
+        try {
+            const chartElId = `focused-chart-element-${focusedChart.id}`;
+            const chartContainer = document.getElementById(chartElId) || document.querySelector('.vega-focused');
+            
+            const rawTitle = focusedChart.title || (typeof focusedChart?.tableRef === 'string' ? tables.find(t => t.id === focusedChart.tableRef)?.names?.[0] : undefined) || 'Chart';
+            const safeName = rawTitle.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Chart';
+            const fileName = `${safeName}.${format === 'jpg' ? 'jpg' : 'png'}`;
+            const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
+            const quality = format === 'jpg' ? 0.95 : 1.0;
+
+            let dataUrl: string | null = null;
+
+            // 1. Try direct canvas from Vega container first (highest fidelity)
+            const vegaCanvas = chartContainer?.querySelector('canvas') as HTMLCanvasElement | null;
+            if (vegaCanvas && vegaCanvas.width > 0 && vegaCanvas.height > 0) {
+                const offscreen = document.createElement('canvas');
+                offscreen.width = vegaCanvas.width;
+                offscreen.height = vegaCanvas.height;
+                const ctx = offscreen.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+                    ctx.drawImage(vegaCanvas, 0, 0);
+                    dataUrl = offscreen.toDataURL(mimeType, quality);
+                }
+            }
+
+            // 2. If no direct canvas, use html2canvas on chartContainer
+            if (!dataUrl && chartContainer) {
+                const capturedCanvas = await html2canvas(chartContainer as HTMLElement, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                });
+                dataUrl = capturedCanvas.toDataURL(mimeType, quality);
+            }
+
+            // 3. Fallback to cached chart images if available
+            if (!dataUrl) {
+                const cached = getCachedChart(focusedChart.id);
+                if (cached?.fullPngDataUrl || cached?.thumbnailDataUrl) {
+                    dataUrl = cached.fullPngDataUrl || cached.thumbnailDataUrl;
+                }
+            }
+
+            if (dataUrl) {
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            }
+        } catch (error) {
+            console.error('Failed to download visual:', error);
+        }
+    }, [focusedChart, tables]);
+
     // State for the compact action dock that sits below the chart-mode data
     // table (mirrors the table-focus dock; replaces the grid's inline footer).
     const [chartTableGridReport, setChartTableGridReport] = useState<{ loadedCount: number; rowCount: number; virtual: boolean; canRandomize: boolean; isRandom: boolean } | null>(null);
@@ -1416,7 +1490,12 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
             <ClickAwayListener
                 mouseEvent="onMouseUp"
                 touchEvent="onTouchStart"
-                onClickAway={() => setEncodingOpen(false)}
+                onClickAway={(event) => {
+                    if (editButtonRef.current && editButtonRef.current.contains(event.target as Node)) {
+                        return;
+                    }
+                    setEncodingOpen(false);
+                }}
             >
                 <Paper
                     elevation={8}
@@ -1529,30 +1608,53 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
                 edit this chart" controls grouped together (agent log + code +
                 encoding shelf). Chart deletion lives in the chart property-config
                 bar below the chart. */}
-            {/* `mr` leaves room for the pane's close-canvas button, which floats
-                above this bar at the same corner. */}
-            <Box sx={{ ml: 'auto', mr: '40px', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {hasDerived && (
-                    <Tooltip title={t('chart.log')} placement="bottom">
-                        <IconButton
-                            size="small"
-                            onClick={() => setChatDialogOpen(true)}
-                            sx={floatingPillSx}>
-                            <QuestionAnswerIcon sx={{ fontSize: iconVar.lg }} />
-                        </IconButton>
-                    </Tooltip>
-                )}
-                {/* Code inspector button — opens the derivation code + formula
-                    metadata in a dialog. Only shown for derived tables. */}
-                {hasDerived && (
-                    <Tooltip title={t('chart.code')} placement="bottom">
-                        <IconButton
-                            size="small"
-                            onClick={() => setCodeDialogOpen(true)}
-                            sx={floatingPillSx}>
-                            <TerminalIcon sx={{ fontSize: iconVar.lg }} />
-                        </IconButton>
-                    </Tooltip>
+            <Box sx={{ ml: 'auto', mr: '8px', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {/* Download visual button (PNG / JPG) */}
+                {focusedChart && focusedChart.chartType !== 'Table' && focusedChart.chartType !== 'Auto' && (
+                    <>
+                        <Tooltip title={t('chart.downloadImage', { defaultValue: 'Download Visual (JPG/PNG)' })} placement="bottom">
+                            <IconButton
+                                size="small"
+                                onClick={(e) => setDownloadAnchorEl(e.currentTarget)}
+                                sx={downloadAnchorEl ? {
+                                    ...floatingPillSx,
+                                    backgroundColor: 'primary.main',
+                                    color: 'primary.contrastText',
+                                    '&:hover': { backgroundColor: 'primary.dark', color: 'primary.contrastText' },
+                                } : floatingPillSx}
+                            >
+                                <DownloadIcon sx={{ fontSize: iconVar.lg }} />
+                            </IconButton>
+                        </Tooltip>
+                        <Menu
+                            anchorEl={downloadAnchorEl}
+                            open={Boolean(downloadAnchorEl)}
+                            onClose={() => setDownloadAnchorEl(null)}
+                            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: '10px',
+                                    minWidth: 170,
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                    mt: 0.5,
+                                }
+                            }}
+                        >
+                            <MenuItem onClick={() => handleDownloadVisual('png')} sx={{ fontSize: '13px', py: 1, gap: 1 }}>
+                                <ListItemIcon sx={{ minWidth: 24, color: '#2563eb' }}>
+                                    <ImageIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Download as PNG" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => handleDownloadVisual('jpg')} sx={{ fontSize: '13px', py: 1, gap: 1 }}>
+                                <ListItemIcon sx={{ minWidth: 24, color: '#f59e0b' }}>
+                                    <ImageIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Download as JPG" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                            </MenuItem>
+                        </Menu>
+                    </>
                 )}
                 {/* Edit-chart (encoding shelf) button — opens the encoding shelf
                     popover; stays available even when the chart can't render yet,
@@ -1574,6 +1676,67 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
                             <TuneIcon sx={{ fontSize: iconVar.lg }} />
                         </IconButton>
                     </Tooltip>
+                )}
+                {/* 3-dot More Options menu (Log & Code) */}
+                {(hasDerived || (focusedChart && focusedChart.chartType !== 'Table')) && (
+                    <>
+                        <Tooltip title={t('chart.moreOptions', { defaultValue: 'More options' })} placement="bottom">
+                            <IconButton
+                                size="small"
+                                onClick={(e) => setMoreMenuAnchorEl(e.currentTarget)}
+                                sx={moreMenuAnchorEl ? {
+                                    ...floatingPillSx,
+                                    backgroundColor: 'primary.main',
+                                    color: 'primary.contrastText',
+                                    '&:hover': { backgroundColor: 'primary.dark', color: 'primary.contrastText' },
+                                } : floatingPillSx}
+                            >
+                                <MoreVertIcon sx={{ fontSize: iconVar.lg }} />
+                            </IconButton>
+                        </Tooltip>
+                        <Menu
+                            anchorEl={moreMenuAnchorEl}
+                            open={Boolean(moreMenuAnchorEl)}
+                            onClose={() => setMoreMenuAnchorEl(null)}
+                            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: '10px',
+                                    minWidth: 150,
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                    mt: 0.5,
+                                }
+                            }}
+                        >
+                            <MenuItem
+                                disabled={!hasDerived}
+                                onClick={() => {
+                                    setMoreMenuAnchorEl(null);
+                                    setChatDialogOpen(true);
+                                }}
+                                sx={{ fontSize: '13px', py: 1, gap: 1 }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 24, color: 'text.secondary' }}>
+                                    <QuestionAnswerIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Log" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem
+                                disabled={!hasDerived}
+                                onClick={() => {
+                                    setMoreMenuAnchorEl(null);
+                                    setCodeDialogOpen(true);
+                                }}
+                                sx={{ fontSize: '13px', py: 1, gap: 1 }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 24, color: 'text.secondary' }}>
+                                    <TerminalIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Code" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
+                            </MenuItem>
+                        </Menu>
+                    </>
                 )}
             </Box>
         </Box>

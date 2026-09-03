@@ -236,7 +236,7 @@ export const IntelligenceHubView: React.FC = () => {
         let currentWs = activeWorkspace;
         if (!currentWs) {
             const newWsId = generateSessionId();
-            currentWs = { id: newWsId, displayName: selectedDatabase?.name || 'BI hub' };
+            currentWs = { id: newWsId, displayName: selectedDatabase?.name || 'BI HUB' };
             dispatch(dfActions.setActiveWorkspace(currentWs));
         }
 
@@ -323,7 +323,7 @@ export const IntelligenceHubView: React.FC = () => {
                         Profiling Selected Data...
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Analyzing schemas, data types, cardinality, and dimensions for BI hub
+                        Analyzing schemas, data types, cardinality, and dimensions for BI HUB
                     </Typography>
                 </Box>
             ) : profileError ? (

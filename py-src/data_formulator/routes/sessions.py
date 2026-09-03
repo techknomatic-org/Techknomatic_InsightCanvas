@@ -295,6 +295,12 @@ def import_session():
             ws = get_workspace(identity_id)
 
         state = ws.import_session_zip(io.BytesIO(file.read()))
+        target_ws_id = workspace_id or (getattr(ws, "workspace_id", None) or getattr(ws, "id", None))
+        if target_ws_id and isinstance(state, dict):
+            aw = state.get("activeWorkspace")
+            if isinstance(aw, dict):
+                aw["id"] = target_ws_id
+            mgr.save_session_state(target_ws_id, state)
         return json_ok({"state": state})
     except ValueError:
         raise AppError(ErrorCode.INVALID_REQUEST, "Invalid session file")

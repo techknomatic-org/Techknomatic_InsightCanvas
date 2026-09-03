@@ -215,8 +215,7 @@ export const LoginPage: FC = () => {
             } else {
                 // If SSO is not enabled on local/standalone server, establish session
                 sessionStorage.setItem('df_logged_in', 'true');
-                const isModelConfigured = !!localStorage.getItem('df_model_configured') || !!localStorage.getItem('df_selected_model');
-                window.location.href = isModelConfigured ? "/app" : "/app?configure_model=true";
+                window.location.href = "/app";
             }
         } catch (err: any) {
             console.error("[LoginPage] Sign-in failed:", err);
