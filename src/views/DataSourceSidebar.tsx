@@ -72,6 +72,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { KnowledgePanel } from './KnowledgePanel';
 
+import { AuthButton } from '../app/AuthButton';
 import { DataFormulatorState, dfActions, dfSelectors } from '../app/dfSlice';
 import { AppDispatch } from '../app/store';
 import { CONNECTOR_URLS, CONNECTOR_ACTION_URLS, SourceTableRef, translateBackend } from '../app/utils';
@@ -323,6 +324,8 @@ export const DataSourceSidebar: React.FC<{
                     flexDirection: 'column',
                     alignItems: 'center',
                     pt: 1.5,
+                    pb: 2.5,
+                    boxSizing: 'border-box',
                     gap: 1.2,
                     borderRight: '1px solid rgba(255, 255, 255, 0.08)',
                     background: 'linear-gradient(180deg, #051b49 0%, #001d52 50%, #012569 100%)',
@@ -458,6 +461,15 @@ export const DataSourceSidebar: React.FC<{
 
                     {/* Spacer fills the remaining bottom space */}
                     <Box sx={{ flex: 1 }} />
+
+                    {/* Profile / Account button at bottom of sidebar rail */}
+                    <AuthButton
+                        id="tour-rail-account"
+                        tooltipPlacement="right"
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                        buttonSx={{ ml: 0, mb: 1 }}
+                    />
                 </Box>
 
                 {/* The expanded panel overlays the workspace instead of changing
@@ -2371,24 +2383,24 @@ const DataSourceSidebarPanel: React.FC<{
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            px: 2,
-                            pt: 2,
-                            pb: 1.5,
-                            gap: 0.75,
+                            px: 1.5,
+                            pt: 1.75,
+                            pb: 1.25,
+                            gap: 0.5,
                         }}
                     >
-                        <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', fontFamily: "'Inter', 'Roboto', sans-serif" }}>
+                        <Typography noWrap sx={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', fontFamily: "'Inter', 'Roboto', sans-serif", mr: 'auto', minWidth: 0 }}>
                             {t('sidebar.sessions', { defaultValue: 'Sessions' })}
                         </Typography>
-                        <Box sx={{ flex: 1 }} />
                         <Tooltip title={t('sidebar.newSession', { defaultValue: 'New session' })} placement="bottom">
                             <IconButton
                                 size="small"
                                 aria-label={t('sidebar.newSession', { defaultValue: 'New session' })}
                                 onClick={handleNewSession}
                                 sx={{
-                                    width: 28,
-                                    height: 28,
+                                    width: 26,
+                                    height: 26,
+                                    flexShrink: 0,
                                     borderRadius: '6px',
                                     border: '1px solid #e2e8f0',
                                     color: '#64748b',
@@ -2396,7 +2408,7 @@ const DataSourceSidebarPanel: React.FC<{
                                     '&:hover': { bgcolor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' },
                                 }}
                             >
-                                <AddIcon sx={{ fontSize: 17 }} />
+                                <AddIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
                         <Tooltip title={t('workspace.importZip')} placement="bottom">
@@ -2405,14 +2417,15 @@ const DataSourceSidebarPanel: React.FC<{
                                 aria-label={t('workspace.importZip')}
                                 onClick={() => importRef.current?.click()}
                                 sx={{
-                                    width: 28,
-                                    height: 28,
+                                    width: 26,
+                                    height: 26,
+                                    flexShrink: 0,
                                     borderRadius: '6px',
                                     color: '#64748b',
                                     '&:hover': { bgcolor: '#f1f5f9', color: '#0f172a' },
                                 }}
                             >
-                                <UploadFileIcon sx={{ fontSize: 18 }} />
+                                <UploadFileIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
                         <input type="file" hidden accept=".zip" ref={importRef} onChange={handleImportWorkspace} />
@@ -2429,14 +2442,15 @@ const DataSourceSidebarPanel: React.FC<{
                                 aria-expanded={sessionSortAnchor ? 'true' : undefined}
                                 onClick={(event) => setSessionSortAnchor(event.currentTarget)}
                                 sx={{
-                                    width: 28,
-                                    height: 28,
+                                    width: 26,
+                                    height: 26,
+                                    flexShrink: 0,
                                     borderRadius: '6px',
                                     color: '#64748b',
                                     '&:hover': { bgcolor: '#f1f5f9', color: '#0f172a' },
                                 }}
                             >
-                                <FilterListIcon sx={{ fontSize: 18 }} />
+                                <FilterListIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
                         <Menu
@@ -2473,14 +2487,15 @@ const DataSourceSidebarPanel: React.FC<{
                                 size="small"
                                 onClick={onTogglePinned}
                                 sx={{
-                                    width: 28,
-                                    height: 28,
+                                    width: 26,
+                                    height: 26,
+                                    flexShrink: 0,
                                     borderRadius: '6px',
                                     color: isPinned ? '#2563eb' : '#64748b',
                                     '&:hover': { bgcolor: '#f1f5f9' },
                                 }}
                             >
-                                <PushPinIcon sx={{ fontSize: 17 }} />
+                                <PushPinIcon sx={{ fontSize: 15 }} />
                             </IconButton>
                         </Tooltip>
                         <Tooltip title={t('sidebar.collapse', { defaultValue: 'Collapse' })} placement="bottom">
@@ -2488,14 +2503,16 @@ const DataSourceSidebarPanel: React.FC<{
                                 size="small"
                                 onClick={onCollapse}
                                 sx={{
-                                    width: 28,
-                                    height: 28,
+                                    width: 26,
+                                    height: 26,
+                                    flexShrink: 0,
                                     borderRadius: '6px',
                                     color: '#64748b',
+                                    bgcolor: 'rgba(0, 0, 0, 0.03)',
                                     '&:hover': { bgcolor: '#f1f5f9', color: '#0f172a' },
                                 }}
                             >
-                                <ChevronLeftIcon sx={{ fontSize: 20 }} />
+                                <ChevronLeftIcon sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
                     </Box>

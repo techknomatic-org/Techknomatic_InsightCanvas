@@ -417,6 +417,7 @@ export const IntelligenceHubView: React.FC = () => {
                             tableNames={Array.from(selectedTableNames)}
                             profile={profile}
                             onReset={handleReset}
+                            onChangeTables={() => setStep('tables')}
                             onBack={() => setStep('tables')}
                             modelConfig={activeModel}
                         />

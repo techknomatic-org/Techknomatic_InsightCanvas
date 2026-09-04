@@ -17,15 +17,17 @@ import {
     Paper,
     Chip,
     Divider,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DownloadIcon from '@mui/icons-material/Download';
-import PrintIcon from '@mui/icons-material/Print';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import CheckIcon from '@mui/icons-material/Check';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -61,8 +63,10 @@ const ACCENTS = [
 const ReportEmbeddedChart: React.FC<{ viz: VisualizationSpec; index: number }> = ({ viz, index }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const hasData = Array.isArray(viz.data) && viz.data.length > 0;
+
     useEffect(() => {
-        if (!containerRef.current || !viz.vega_spec) return;
+        if (!containerRef.current || !viz.vega_spec || !hasData) return;
 
         let isMounted = true;
         const target = containerRef.current;
@@ -102,7 +106,7 @@ const ReportEmbeddedChart: React.FC<{ viz: VisualizationSpec; index: number }> =
         return () => {
             isMounted = false;
         };
-    }, [viz.vega_spec, viz.data]);
+    }, [viz.vega_spec, viz.data, hasData]);
 
     const getIcon = (type?: string) => {
         switch ((type || '').toLowerCase()) {
@@ -158,17 +162,38 @@ const ReportEmbeddedChart: React.FC<{ viz: VisualizationSpec; index: number }> =
                     {viz.description}
                 </Typography>
             )}
-            <Box
-                ref={containerRef}
-                sx={{
-                    width: '100%',
-                    minHeight: 180,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    '& svg': { maxWidth: '100% !important', height: 'auto' },
-                }}
-            />
+            {hasData ? (
+                <Box
+                    ref={containerRef}
+                    sx={{
+                        width: '100%',
+                        minHeight: 180,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        '& svg': { maxWidth: '100% !important', height: 'auto' },
+                    }}
+                />
+            ) : (
+                <Box
+                    sx={{
+                        width: '100%',
+                        minHeight: 120,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        p: 2,
+                        bgcolor: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px dashed #e2e8f0',
+                    }}
+                >
+                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                        No records matching current filter selection
+                    </Typography>
+                </Box>
+            )}
         </Paper>
     );
 };
@@ -183,434 +208,43 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
     onRegenerate,
     dashboard,
 }) => {
-    const [copied, setCopied] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
+    const [downloadingDocx, setDownloadingDocx] = useState(false);
+    const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
+    const isDownloadMenuOpen = Boolean(downloadMenuAnchor);
 
-    const copyTextToClipboard = async (text: string): Promise<boolean> => {
-        // Try modern asynchronous Clipboard API if available
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            try {
-                await navigator.clipboard.writeText(text);
-                return true;
-            } catch (clipErr) {
-                console.warn('navigator.clipboard.writeText failed, trying execCommand fallback:', clipErr);
-            }
-        }
-
-        // Fallback: Synchronous document.execCommand('copy') with hidden textarea
-        try {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.top = '0';
-            textArea.style.left = '0';
-            textArea.style.width = '2em';
-            textArea.style.height = '2em';
-            textArea.style.padding = '0';
-            textArea.style.border = 'none';
-            textArea.style.outline = 'none';
-            textArea.style.boxShadow = 'none';
-            textArea.style.background = 'transparent';
-            textArea.setAttribute('readonly', '');
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            textArea.setSelectionRange(0, textArea.value.length);
-            const successful = document.execCommand('copy');
-            document.body.removeChild(textArea);
-            return successful;
-        } catch (err) {
-            console.error('execCommand copy fallback failed:', err);
-            return false;
-        }
+    const handleOpenDownloadMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setDownloadMenuAnchor(event.currentTarget);
     };
 
-    const handleCopy = async () => {
-        if (!reportMarkdown) return;
-        const success = await copyTextToClipboard(reportMarkdown);
-        if (success) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2500);
-        }
+    const handleCloseDownloadMenu = () => {
+        setDownloadMenuAnchor(null);
     };
 
-    const handleDownloadMarkdown = () => {
-        if (!reportMarkdown) return;
-        const blob = new Blob([reportMarkdown], { type: 'text/markdown;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const dateStr = new Date().toISOString().slice(0, 10);
-        a.download = `${sanitizeFileName(reportTitle)}-${dateStr}.md`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-
-    const handlePrintOrPdf = () => {
+    const handleDownloadPdf = async () => {
         const reportRoot = document.getElementById('intelligence-full-report-container');
         if (!reportRoot) return;
-
-        const printFrame = document.createElement('iframe');
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        document.body.appendChild(printFrame);
-
         try {
-            // Collect all application styles, Emotion CSS rules, and external fonts
-            let cssRulesText = '';
-            try {
-                Array.from(document.styleSheets).forEach((sheet) => {
-                    try {
-                        const rules = Array.from(sheet.cssRules || sheet.rules || []);
-                        rules.forEach((rule) => {
-                            cssRulesText += rule.cssText + '\n';
-                        });
-                    } catch (e) {
-                        if (sheet.href) {
-                            cssRulesText += `@import url("${sheet.href}");\n`;
-                        }
-                    }
-                });
-            } catch (e) {
-                console.warn('Could not read styleSheets directly:', e);
-            }
-
-            const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-                .map((node) => node.outerHTML)
-                .join('\n');
-
-            const doc = printFrame.contentDocument;
-            const win = printFrame.contentWindow;
-            if (!doc || !win) return;
-
-            const cleanTitle = sanitizeFileName(reportTitle);
-            const dateStr = new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            });
-
-            // Clone report element and reset any overflow / height restrictions
-            const clone = reportRoot.cloneNode(true) as HTMLElement;
-            clone.querySelectorAll('*').forEach((el: any) => {
-                if (el.style) {
-                    if (el.style.overflow || el.style.overflowY || el.style.overflowX) {
-                        el.style.overflow = 'visible';
-                        el.style.overflowY = 'visible';
-                        el.style.overflowX = 'visible';
-                    }
-                    if (el.style.maxHeight) {
-                        el.style.maxHeight = 'none';
-                    }
-                    if (el.style.height === '100%') {
-                        el.style.height = 'auto';
-                    }
-                }
-            });
-
-            doc.open();
-            doc.write(`<!doctype html>
-<html>
-<head>
-    <meta charset="utf-8" />
-    <title>${cleanTitle}</title>
-    ${styles}
-    <style>
-        ${cssRulesText}
-    </style>
-    <style>
-        @page {
-            size: portrait;
-            margin: 0mm;
-        }
-        *, *::before, *::after {
-            box-sizing: border-box !important;
-            overflow: visible !important;
-            max-height: none !important;
-        }
-        html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            min-height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            position: static !important;
-            background: #ffffff !important;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #1e293b;
-            font-size: 13px;
-            line-height: 1.6;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-        @media print {
-            html, body {
-                width: 100% !important;
-                height: auto !important;
-                min-height: auto !important;
-                overflow: visible !important;
-                background: #ffffff !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-        }
-        .report-page-table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-        }
-        .page-margin-top-spacer {
-            height: 12mm !important;
-            border: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: transparent !important;
-        }
-        .page-margin-bottom-spacer {
-            height: 12mm !important;
-            border: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: transparent !important;
-        }
-        .page-content-cell {
-            padding: 0 15mm !important;
-            border: none !important;
-            vertical-align: top !important;
-            background: #ffffff !important;
-        }
-        .report-header-print {
-            border-bottom: 2.5px solid #1B75BB;
-            padding-bottom: 10px;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        .report-header-title {
-            font-size: 19px;
-            font-weight: 800;
-            color: #001d52;
-        }
-        .report-header-meta {
-            font-size: 11px;
-            color: #64748b;
-        }
-        .report-kpi-grid-container {
-            display: grid !important;
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-            gap: 10px !important;
-            margin-bottom: 20px !important;
-            width: 100% !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        .report-kpi-card {
-            min-width: 0 !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-            border-radius: 8px !important;
-            padding: 12px !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        .report-visuals-grid-container {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 14px !important;
-            margin-top: 14px !important;
-            width: 100% !important;
-        }
-        .report-chart-card {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 8px !important;
-            padding: 12px !important;
-            background: #ffffff !important;
-            margin-bottom: 12px !important;
-            height: auto !important;
-            min-width: 0 !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-        }
-        /* Strict sizing for small MUI icons */
-        .MuiSvgIcon-root,
-        .MuiChip-icon,
-        .MuiChip-icon svg,
-        svg.MuiSvgIcon-root {
-            width: 13px !important;
-            height: 13px !important;
-            min-width: 13px !important;
-            max-width: 13px !important;
-            font-size: 13px !important;
-            display: inline-block !important;
-            margin: 0 !important;
-            vertical-align: middle !important;
-        }
-        .MuiChip-root {
-            height: 20px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            padding: 0 6px !important;
-            border-radius: 12px !important;
-        }
-        /* Vega Chart SVGs only */
-        .vega-embed,
-        .vega-embed svg,
-        .report-chart-card .vega-embed svg {
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            display: block !important;
-            margin: 0 auto !important;
-        }
-        li, p, tr, blockquote {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            -webkit-column-break-inside: avoid !important;
-        }
-        h1, h2, h3, h4 {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-        }
-        h1 {
-            font-size: 18px !important;
-            color: #001d52 !important;
-            border-bottom: 1.5px solid #e2e8f0 !important;
-            padding-bottom: 6px !important;
-            margin-top: 18px !important;
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-        }
-        h2 {
-            font-size: 15px !important;
-            color: #1e293b !important;
-            margin-top: 16px !important;
-            border-left: 3.5px solid #1B75BB !important;
-            padding-left: 8px !important;
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-        }
-        h3 {
-            font-size: 13.5px !important;
-            color: #334155 !important;
-            margin-top: 12px !important;
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-        }
-        p, li {
-            color: #334155 !important;
-            font-size: 12.5px !important;
-            line-height: 1.6 !important;
-        }
-        blockquote {
-            background: #f0f9ff !important;
-            border-left: 3px solid #0ea5e9 !important;
-            margin: 12px 0 !important;
-            padding: 8px 14px !important;
-            color: #0369a1 !important;
-            font-size: 12px !important;
-            border-radius: 4px !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            margin: 14px 0 !important;
-            font-size: 12px !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        th, td {
-            border: 1px solid #e2e8f0 !important;
-            padding: 6px 9px !important;
-            text-align: left !important;
-        }
-        th {
-            background: #f8fafc !important;
-            color: #1e293b !important;
-            font-weight: 600 !important;
-        }
-        tr:nth-child(even) {
-            background: #fcfdfe !important;
-        }
-    </style>
-</head>
-<body>
-    <table class="report-page-table">
-        <thead>
-            <tr><td class="page-margin-top-spacer"></td></tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td class="page-content-cell">
-                    <div class="report-header-print">
-                        <div>
-                            <div class="report-header-title">${reportTitle}</div>
-                            <div class="report-header-meta">InsightCanvas Intelligence Hub | Executive Strategy Briefing</div>
-                        </div>
-                        <div class="report-header-meta">
-                            ${dateStr}
-                        </div>
-                    </div>
-                    <div>
-                        ${clone.innerHTML}
-                    </div>
-                </td>
-            </tr>
-        </tbody>
-        <tfoot>
-            <tr><td class="page-margin-bottom-spacer"></td></tr>
-        </tfoot>
-    </table>
-</body>
-</html>`);
-            doc.close();
-
-            win.onafterprint = () => {
-                setTimeout(() => {
-                    try {
-                        if (printFrame.parentNode) {
-                            printFrame.remove();
-                        }
-                    } catch (_) {}
-                }, 1500);
-            };
-
-            // Long fallback cleanup (5 minutes) in case onafterprint is ignored by browser
-            setTimeout(() => {
-                try {
-                    if (printFrame.parentNode) {
-                        printFrame.remove();
-                    }
-                } catch (_) {}
-            }, 300000);
-
-            setTimeout(() => {
-                win.focus();
-                win.print();
-            }, 800);
+            setDownloadingPdf(true);
+            const { downloadElementAsDirectPdf } = await import('./pdfDirectExport');
+            await downloadElementAsDirectPdf(reportRoot, reportTitle);
         } catch (err) {
-            console.error('Error preparing report print:', err);
-            try {
-                if (printFrame.parentNode) {
-                    printFrame.remove();
-                }
-            } catch (_) {}
+            console.error('Failed to download PDF:', err);
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
+
+    const handleDownloadWord = async () => {
+        if (!reportMarkdown) return;
+        try {
+            setDownloadingDocx(true);
+            const { downloadReportAsWordDocx } = await import('./wordDirectExport');
+            downloadReportAsWordDocx(reportMarkdown, reportTitle, dashboard || undefined);
+        } catch (err) {
+            console.error('Failed to download Word docx:', err);
+        } finally {
+            setDownloadingDocx(false);
         }
     };
 
@@ -674,39 +308,111 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
                     </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                     {!loading && reportMarkdown && (
                         <>
-                            <Tooltip title="Download as PDF or Print">
-                                <Button
-                                    size="small"
-                                    variant="contained"
-                                    startIcon={<PictureAsPdfIcon sx={{ fontSize: 16 }} />}
-                                    onClick={handlePrintOrPdf}
+                            <Button
+                                size="small"
+                                variant="contained"
+                                disabled={downloadingPdf || downloadingDocx}
+                                onClick={handleOpenDownloadMenu}
+                                startIcon={
+                                    downloadingPdf || downloadingDocx ? (
+                                        <CircularProgress size={14} color="inherit" />
+                                    ) : (
+                                        <FileDownloadOutlinedIcon sx={{ fontSize: 17 }} />
+                                    )
+                                }
+                                endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18 }} />}
+                                sx={{
+                                    textTransform: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '12.5px',
+                                    fontWeight: 600,
+                                    bgcolor: '#1B75BB',
+                                    px: 1.8,
+                                    py: 0.6,
+                                    boxShadow: '0 2px 6px rgba(27, 117, 187, 0.25)',
+                                    '&:hover': { bgcolor: '#145d97' },
+                                }}
+                            >
+                                {downloadingPdf ? 'Downloading PDF...' : downloadingDocx ? 'Downloading Word...' : 'Download'}
+                            </Button>
+
+                            <Menu
+                                anchorEl={downloadMenuAnchor}
+                                open={isDownloadMenuOpen}
+                                onClose={handleCloseDownloadMenu}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                PaperProps={{
+                                    elevation: 4,
+                                    sx: {
+                                        mt: 1,
+                                        borderRadius: '10px',
+                                        minWidth: 220,
+                                        border: '1px solid #e2e8f0',
+                                        boxShadow: '0 10px 30px rgba(0, 29, 82, 0.12)',
+                                        p: 0.5,
+                                    },
+                                }}
+                            >
+                                <MenuItem
+                                    onClick={() => {
+                                        handleCloseDownloadMenu();
+                                        handleDownloadPdf();
+                                    }}
+                                    disabled={downloadingPdf || downloadingDocx}
                                     sx={{
-                                        textTransform: 'none',
-                                        borderRadius: '8px',
-                                        fontSize: '12px',
-                                        fontWeight: 600,
-                                        bgcolor: '#1B75BB',
-                                        '&:hover': { bgcolor: '#145d97' },
+                                        py: 1.1,
+                                        px: 1.6,
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1.2,
+                                        '&:hover': { bgcolor: 'rgba(27, 117, 187, 0.08)' },
                                     }}
                                 >
-                                    Download PDF
-                                </Button>
-                            </Tooltip>
+                                    <ListItemIcon sx={{ minWidth: 26, color: '#e11d48' }}>
+                                        <PictureAsPdfIcon sx={{ fontSize: 18 }} />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                        primary="Download as PDF (.pdf)"
+                                        primaryTypographyProps={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}
+                                    />
+                                </MenuItem>
 
-                            <Tooltip title="Download Markdown (.md)">
-                                <IconButton size="small" onClick={handleDownloadMarkdown} sx={{ color: '#64748b' }}>
-                                    <DownloadIcon sx={{ fontSize: 18 }} />
-                                </IconButton>
-                            </Tooltip>
-
-                            <Tooltip title={copied ? 'Copied!' : 'Copy to clipboard'}>
-                                <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? '#10b981' : '#64748b' }}>
-                                    {copied ? <CheckIcon sx={{ fontSize: 18 }} /> : <ContentCopyIcon sx={{ fontSize: 18 }} />}
-                                </IconButton>
-                            </Tooltip>
+                                <MenuItem
+                                    onClick={() => {
+                                        handleCloseDownloadMenu();
+                                        handleDownloadWord();
+                                    }}
+                                    disabled={downloadingPdf || downloadingDocx}
+                                    sx={{
+                                        py: 1.1,
+                                        px: 1.6,
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1.2,
+                                        '&:hover': { bgcolor: 'rgba(27, 117, 187, 0.08)' },
+                                    }}
+                                >
+                                    <ListItemIcon sx={{ minWidth: 26, color: '#2563eb' }}>
+                                        <DescriptionOutlinedIcon sx={{ fontSize: 18 }} />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                        primary="Download as Word (.docx)"
+                                        primaryTypographyProps={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}
+                                    />
+                                </MenuItem>
+                            </Menu>
                         </>
                     )}
 
@@ -1045,23 +751,6 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
                     </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-                    {!loading && reportMarkdown && (
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<PrintIcon sx={{ fontSize: 15 }} />}
-                            onClick={handlePrintOrPdf}
-                            sx={{
-                                textTransform: 'none',
-                                borderRadius: '8px',
-                                borderColor: '#cbd5e1',
-                                color: '#475569',
-                                fontSize: '12.5px',
-                            }}
-                        >
-                            Print Report
-                        </Button>
-                    )}
                     <Button
                         size="small"
                         onClick={onClose}

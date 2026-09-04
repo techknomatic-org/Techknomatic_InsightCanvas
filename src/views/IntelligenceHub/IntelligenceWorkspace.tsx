@@ -26,6 +26,10 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 
 import {
     DataProfile,
@@ -43,6 +47,8 @@ import {
     loadSessionDetail,
     saveSession,
     deleteSession,
+    togglePinSession,
+    toggleLikeSession,
     generateExecutiveReport,
 } from './intelligenceService';
 
@@ -61,6 +67,7 @@ interface IntelligenceWorkspaceProps {
     tableNames: string[];
     profile: DataProfile;
     onReset: () => void;
+    onChangeTables?: () => void;
     onBack?: () => void;
     modelConfig?: any;
 }
@@ -71,6 +78,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     tableNames,
     profile,
     onReset,
+    onChangeTables,
     onBack,
     modelConfig,
 }) => {
@@ -114,7 +122,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         const init = async () => {
             try {
                 const [suggs, sessList] = await Promise.all([
-                    fetchSuggestions(profile, modelConfig),
+                    fetchSuggestions(profile, modelConfig).catch(() => []),
                     listSessions().catch(() => []),
                 ]);
                 if (mounted) {
@@ -124,7 +132,6 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 }
             } catch (err: any) {
                 if (mounted) {
-                    setError(err?.message || 'Failed to generate suggestions');
                     setLoadingSuggestions(false);
                 }
             }
@@ -303,7 +310,47 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         }
     };
 
-    // 7. Executive Report Generation
+    // 7. Toggle Pin Session
+    const handleTogglePin = async (sessionId: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, pinned: !s.pinned } : s))
+        );
+        try {
+            const res = await togglePinSession(sessionId);
+            setSessions((prev) =>
+                prev.map((s) => (s.id === sessionId ? { ...s, pinned: res.pinned } : s))
+            );
+        } catch (err) {
+            console.error('Failed to toggle pin', err);
+            // Revert optimistic update
+            setSessions((prev) =>
+                prev.map((s) => (s.id === sessionId ? { ...s, pinned: !s.pinned } : s))
+            );
+        }
+    };
+
+    // 8. Toggle Like Session
+    const handleToggleLike = async (sessionId: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, liked: !s.liked } : s))
+        );
+        try {
+            const res = await toggleLikeSession(sessionId);
+            setSessions((prev) =>
+                prev.map((s) => (s.id === sessionId ? { ...s, liked: res.liked } : s))
+            );
+        } catch (err) {
+            console.error('Failed to toggle like', err);
+            // Revert optimistic update
+            setSessions((prev) =>
+                prev.map((s) => (s.id === sessionId ? { ...s, liked: !s.liked } : s))
+            );
+        }
+    };
+
+    // 9. Executive Report Generation
     const handleOpenReport = async () => {
         if (!dashboard) return;
         setReportDialogOpen(true);
@@ -399,6 +446,10 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         }
     };
 
+    const currentSession = sessions.find((s) => s.id === activeSessionId);
+    const isCurrentPinned = Boolean(currentSession?.pinned);
+    const isCurrentLiked = Boolean(currentSession?.liked);
+
     return (
         <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', bgcolor: '#f8fafc' }}>
             {/* Drawer for Recent Sessions (closed by default) */}
@@ -409,6 +460,8 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 activeSessionId={activeSessionId}
                 onSelectSession={handleSelectSession}
                 onDeleteSession={handleDeleteSession}
+                onTogglePin={handleTogglePin}
+                onToggleLike={handleToggleLike}
             />
 
             {/* Main Content Area */}
@@ -417,31 +470,30 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    p: { xs: 1.5, md: 2.5 },
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
+                    height: '100%',
                     minHeight: 0,
+                    overflow: 'hidden',
+                    bgcolor: '#f8fafc',
                 }}
             >
-                {/* Header Bar */}
+                {/* Fixed Top Header Bar - Never scrolls with content */}
                 <Box
                     sx={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        mb: dashboard ? 2 : 1,
                         flexShrink: 0,
                         flexWrap: 'wrap',
                         gap: 1,
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 10,
+                        px: { xs: 1.5, md: 2.5 },
+                        py: 1,
                         bgcolor: '#f8fafc',
-                        py: 0.5,
+                        borderBottom: dashboard ? '1px solid #e2e8f0' : 'none',
+                        zIndex: 10,
                     }}
                 >
-                    {/* Top Left: Back Button + Psychology Icon + Title */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                    {/* Top Left: Back Button */}
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Tooltip title={dashboard ? "Back to Recommendations & Prompts" : "Back to Table Selection"}>
                             <IconButton
                                 onClick={handleBack}
@@ -465,52 +517,26 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                 <ArrowBackIcon sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
-                        <Box
-                            sx={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: '8px',
-                                bgcolor: '#001d52',
-                                color: '#ffffff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 2px 6px rgba(0, 29, 82, 0.15)',
-                            }}
-                        >
-                            <PsychologyIcon sx={{ fontSize: 20, color: '#38bdf8' }} />
-                        </Box>
-                        {!dashboard && (
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    fontWeight: 800,
-                                    color: '#001d52',
-                                    fontSize: '18px',
-                                    letterSpacing: '-0.02em',
-                                }}
-                            >
-                                BI HUB
-                            </Typography>
-                        )}
                     </Box>
 
                     {/* Top Right Controls */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flexWrap: 'wrap' }}>
-                        {/* Change Tables action button */}
-                        <Button
-                            size="small"
-                            onClick={onReset}
-                            sx={{
-                                textTransform: 'none',
-                                color: '#64748b',
-                                fontSize: '12.5px',
-                                fontWeight: 600,
-                                '&:hover': { color: '#001d52', bgcolor: 'rgba(0,0,0,0.03)' },
-                            }}
-                        >
-                            Change Tables
-                        </Button>
+                        {/* Change Tables action button (only shown on initial prompts/recommendations view, not on dashboard) */}
+                        {!dashboard && (
+                            <Button
+                                size="small"
+                                onClick={onChangeTables || onBack || onReset}
+                                sx={{
+                                    textTransform: 'none',
+                                    color: '#64748b',
+                                    fontSize: '12.5px',
+                                    fontWeight: 600,
+                                    '&:hover': { color: '#001d52', bgcolor: 'rgba(0,0,0,0.03)' },
+                                }}
+                            >
+                                Change Tables
+                            </Button>
+                        )}
 
                         {/* Recent Sessions Drawer Button */}
                         <Tooltip title="View saved dashboard sessions">
@@ -535,9 +561,71 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                             </Button>
                         </Tooltip>
 
-                        {/* When dashboard exists: Quick Header Export & Report Buttons */}
+                        {/* When dashboard exists: Quick Header Pin, Like, Export & Report Buttons */}
                         {dashboard && (
                             <>
+                                {/* Pin Active Dashboard Button */}
+                                {activeSessionId && (
+                                    <Tooltip title={isCurrentPinned ? "Unpin dashboard" : "Pin dashboard to top"}>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleTogglePin(activeSessionId)}
+                                            sx={{
+                                                width: 32,
+                                                height: 32,
+                                                borderRadius: '8px',
+                                                border: '1px solid',
+                                                borderColor: isCurrentPinned ? '#93c5fd' : '#cbd5e1',
+                                                bgcolor: isCurrentPinned ? '#eff6ff' : '#ffffff',
+                                                color: isCurrentPinned ? '#1B75BB' : '#64748b',
+                                                transition: 'all 0.15s ease',
+                                                '&:hover': {
+                                                    bgcolor: isCurrentPinned ? '#dbeafe' : '#f8fafc',
+                                                    borderColor: '#1B75BB',
+                                                    color: '#1B75BB',
+                                                },
+                                            }}
+                                        >
+                                            {isCurrentPinned ? (
+                                                <PushPinIcon sx={{ fontSize: 17 }} />
+                                            ) : (
+                                                <PushPinOutlinedIcon sx={{ fontSize: 17 }} />
+                                            )}
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+
+                                {/* Like Active Dashboard Button */}
+                                {activeSessionId && (
+                                    <Tooltip title={isCurrentLiked ? "Unlike dashboard" : "Like dashboard"}>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleToggleLike(activeSessionId)}
+                                            sx={{
+                                                width: 32,
+                                                height: 32,
+                                                borderRadius: '8px',
+                                                border: '1px solid',
+                                                borderColor: isCurrentLiked ? '#fecaca' : '#cbd5e1',
+                                                bgcolor: isCurrentLiked ? '#fef2f2' : '#ffffff',
+                                                color: isCurrentLiked ? '#ef4444' : '#64748b',
+                                                transition: 'all 0.15s ease',
+                                                '&:hover': {
+                                                    bgcolor: isCurrentLiked ? '#fee2e2' : '#f8fafc',
+                                                    borderColor: '#ef4444',
+                                                    color: '#ef4444',
+                                                },
+                                            }}
+                                        >
+                                            {isCurrentLiked ? (
+                                                <FavoriteIcon sx={{ fontSize: 17 }} />
+                                            ) : (
+                                                <FavoriteBorderIcon sx={{ fontSize: 17 }} />
+                                            )}
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+
                                 {/* Executive Report Button in Header */}
                                 <Tooltip title="Analyze dashboard KPIs and generate an executive report">
                                     <Button
@@ -680,11 +768,23 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     </Box>
                 </Box>
 
-                {dashboard && error && (
-                    <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>
-                        {error}
-                    </Alert>
-                )}
+                {/* Scrollable Workspace Body */}
+                <Box
+                    sx={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        p: { xs: 1.5, md: 2.5 },
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        minHeight: 0,
+                    }}
+                >
+                    {dashboard && error && (
+                        <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>
+                            {error}
+                        </Alert>
+                    )}
 
                 {/* ============================================================ */}
                 {/* 1. PRE-GENERATION LANDING VIEW: Compact & Upside (No Scrollbar) */}
@@ -835,6 +935,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                     onRegenerate={handleRegenerateReport}
                     dashboard={dashboard}
                 />
+                </Box>
             </Box>
         </Box>
     );

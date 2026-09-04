@@ -101,6 +101,8 @@ export interface IntelligenceSession {
     dashboard?: DashboardSpec;
     prompt?: string;
     chat_history?: ChatMessage[];
+    pinned?: boolean;
+    liked?: boolean;
     created_at?: string;
     updated_at?: string;
 }

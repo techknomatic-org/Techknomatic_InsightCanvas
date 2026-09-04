@@ -148,7 +148,7 @@ export const About: FC<{}> = function About() {
     const capabilities: FeatureCardProps[] = [
         {
             icon: <DashboardCustomizeOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Intelligence Hub & Autonomous Dashboards",
+            title: "BI Hub & Autonomous Dashboards",
             description: "Autonomous multi-table schema profiling and 1-click dashboard synthesis. Automatically generates 4 Key Performance Indicators (KPIs), interactive categorical slicers, and 6 diverse analytical visualizations with zero manual query coding.",
             tags: ["Autonomous Dashboards", "4 KPIs + 6 Visuals", "DuckDB Slicers", "Self-Healing AI"],
             accentColor: "#1B75BB",
@@ -221,7 +221,7 @@ export const About: FC<{}> = function About() {
         {
             num: "03",
             title: "Synthesize Dashboard",
-            desc: "1-click generation of 4 KPIs, slice filters, and 6 diverse analytical visualizations via Intelligence Hub.",
+            desc: "1-click generation of 4 KPIs, slice filters, and 6 diverse analytical visualizations via BI Hub.",
         },
         {
             num: "04",
@@ -326,7 +326,7 @@ export const About: FC<{}> = function About() {
                                 },
                             }}
                         >
-                            Launch Intelligence Hub
+                            Launch BI Hub
                         </Button>
                         <Button
                             variant="outlined"
@@ -520,12 +520,11 @@ export const About: FC<{}> = function About() {
                     color: '#64748b',
                     display: 'flex',
                     flexWrap: 'wrap',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: 'transparent',
                     alignItems: 'center',
                     justifyContent: 'center',
                     py: 1.25,
                     px: 2,
-                    borderTop: '1px solid #e2e8f0',
                     mt: 'auto',
                 }}
             >

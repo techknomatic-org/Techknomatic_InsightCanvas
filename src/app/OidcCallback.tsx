@@ -54,7 +54,7 @@ export function OidcCallback() {
 
                 await mgr.signinRedirectCallback();
                 sessionStorage.setItem('df_logged_in', 'true');
-                window.location.href = "/app";
+                window.location.href = "/";
             } catch (err: any) {
                 setError(err?.message || "Unknown error");
             }

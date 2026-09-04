@@ -151,9 +151,7 @@ const TopNavButton: FC<{ id?: string; to: string; label: string; selected: boole
         to={to}
         aria-current={selected ? 'page' : undefined}
         onClick={(event) => {
-            if (selected) {
-                event.preventDefault();
-            } else if (onClick) {
+            if (onClick) {
                 onClick(event);
             }
         }}
@@ -167,7 +165,7 @@ const TopNavButton: FC<{ id?: string; to: string; label: string; selected: boole
             px: 1.5,
             py: 0.35,
             minWidth: 'auto',
-            cursor: selected ? 'default' : 'pointer',
+            cursor: 'pointer',
             color: '#ffffff',
             backgroundColor: selected ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
             fontFamily: "'Inter', 'Roboto', sans-serif",
@@ -887,14 +885,14 @@ const AppShell: FC = () => {
     const navigate = useNavigate();
     const exitSession = useExitSession();
     const inSession = isAppPage && !!activeWorkspace;
-
-    const handleLogoClick = useCallback(async () => {
+    const handleHomeClick = useCallback(async () => {
         dispatch(dfActions.setDataSourceSidebarOpen(false));
-        if (inSession) {
+        if (inSession || activeWorkspace) {
             await exitSession();
         }
+        dispatch(dfActions.resetState());
         navigate('/');
-    }, [inSession, exitSession, navigate, dispatch]);
+    }, [inSession, activeWorkspace, exitSession, navigate, dispatch]);
 
     return (
         <Box sx={{
@@ -922,20 +920,14 @@ const AppShell: FC = () => {
             }}>
                 <AppBar position="static">
                     <Toolbar id="tour-top-nav" ref={toolbarRef} variant="dense" sx={{ height: 48, minHeight: 48, position: 'relative', px: { xs: 1, sm: 2 }, bgcolor: 'transparent' }}>
-                        {/* TKS Short White Logo at leftmost corner - Clickable to Landing */}
+                        {/* TKS Short White Logo at leftmost corner - Static */}
                         <Box
-                            onClick={handleLogoClick}
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 mr: 2,
                                 flexShrink: 0,
-                                cursor: 'pointer',
-                                transition: 'opacity 0.15s ease, transform 0.15s ease',
-                                '&:hover': {
-                                    opacity: 0.85,
-                                    transform: 'scale(1.04)',
-                                },
+                                userSelect: 'none',
                             }}
                         >
                             <Box
@@ -946,11 +938,10 @@ const AppShell: FC = () => {
                             />
                         </Box>
 
-                        {/* Center text: INSIGHT CANVAS - Clickable to Landing */}
+                        {/* Center text: INSIGHT CANVAS - Static */}
                         {!isCompactToolbar && !activeWorkspace && (
                             <Typography
                                 noWrap
-                                onClick={handleLogoClick}
                                 sx={{
                                     position: 'absolute',
                                     left: '50%',
@@ -962,12 +953,7 @@ const AppShell: FC = () => {
                                     textTransform: 'uppercase',
                                     fontFamily: "'Inter', 'Roboto', sans-serif",
                                     userSelect: 'none',
-                                    cursor: 'pointer',
-                                    transition: 'opacity 0.15s ease',
                                     display: { xs: 'none', md: 'block' },
-                                    '&:hover': {
-                                        opacity: 0.82,
-                                    },
                                 }}
                             >
                                 INSIGHT CANVAS
@@ -993,18 +979,12 @@ const AppShell: FC = () => {
                                 to="/"
                                 label="Home"
                                 selected={isLandingView}
-                                onClick={async () => {
-                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
-                                    if (inSession) {
-                                        await exitSession();
-                                    }
-                                }}
+                                onClick={handleHomeClick}
                             />
                             <TopNavButton to="/about" label={t('appBar.about', { defaultValue: 'About' })} selected={isAboutPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
                             <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI HUB" selected={isIntelligenceHubPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
-                            <TopNavButton id="tour-nav-settings" to="/settings" label={t('app.settings', { defaultValue: 'Settings' })} selected={isSettingsPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
                             {inSession && <ExitSessionButton />}
-                            <AuthButton />
+                            <AuthButton id="top-nav-account" tooltipPlacement="bottom" />
                         </Box>
                     </Toolbar>
                 </AppBar>
@@ -1353,10 +1333,6 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
         return <>{children}</>;
     };
 
-    const RootRedirect: React.FC = () => {
-        return <Navigate to="/app" replace />;
-    };
-
     const router = useMemo(() => createBrowserRouter([
         {
             path: "/auth/callback",
@@ -1377,7 +1353,7 @@ export const AppFC: FC<AppFCProps> = function AppFC(appProps) {
             children: [
                 {
                     index: true,
-                    element: <RootRedirect />,
+                    element: <DataFormulatorFC />,
                 },
                 {
                     path: "app",

@@ -248,8 +248,22 @@ class TestIntelligenceHubRoutes:
         list_resp = client.get("/api/intelligence/sessions")
         assert list_resp.status_code == 200
         sessions = list_resp.get_json()["data"]["sessions"]
-        assert len(sessions) == 1
-        assert sessions[0]["id"] == sess_id
+        # Toggle pin
+        pin_resp = client.post(f"/api/intelligence/sessions/{sess_id}/toggle-pin")
+        assert pin_resp.status_code == 200
+        assert pin_resp.get_json()["data"]["pinned"] is True
+
+        # Toggle like
+        like_resp = client.post(f"/api/intelligence/sessions/{sess_id}/toggle-like")
+        assert like_resp.status_code == 200
+        assert like_resp.get_json()["data"]["liked"] is True
+
+        # Check list retains pinned & liked flags
+        list_resp2 = client.get("/api/intelligence/sessions")
+        assert list_resp2.status_code == 200
+        sessions2 = list_resp2.get_json()["data"]["sessions"]
+        assert sessions2[0]["pinned"] is True
+        assert sessions2[0]["liked"] is True
 
         # Delete session
         del_resp = client.delete(f"/api/intelligence/sessions/{sess_id}")

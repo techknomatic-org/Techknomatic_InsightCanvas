@@ -37,6 +37,93 @@ interface ChatPanelProps {
     onChangeTables?: () => void;
 }
 
+interface ParsedError {
+    isMismatch: boolean;
+    title: string;
+    description: string;
+    badgeBg: string;
+    badgeColor: string;
+    border: string;
+    bgGradient: string;
+    shadow: string;
+}
+
+const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
+    if (!errorMsg) {
+        return {
+            isMismatch: false,
+            title: 'Unable to Generate Dashboard',
+            description: 'An unexpected issue occurred while synthesizing the dashboard.',
+            badgeBg: '#fee2e2',
+            badgeColor: '#ef4444',
+            border: '1.5px solid #fca5a5',
+            bgGradient: 'linear-gradient(135deg, #fffafa 0%, #fef2f2 100%)',
+            shadow: '0 12px 32px rgba(239, 68, 68, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04)',
+        };
+    }
+
+    const lower = errorMsg.toLowerCase();
+    const isTopicOrDatasetMismatch =
+        lower.includes('mismatch') ||
+        lower.includes('not found in tables') ||
+        lower.includes('dataset does not contain') ||
+        lower.includes('unrelated') ||
+        lower.includes('different dataset') ||
+        lower.includes('does not match') ||
+        lower.includes('incompatible schema') ||
+        (lower.includes('cannot create') && lower.includes('from tables'));
+
+    if (isTopicOrDatasetMismatch) {
+        return {
+            isMismatch: true,
+            title: 'Dataset & Topic Mismatch',
+            description: errorMsg,
+            badgeBg: '#fee2e2',
+            badgeColor: '#ef4444',
+            border: '1.5px solid #fca5a5',
+            bgGradient: 'linear-gradient(135deg, #fffafa 0%, #fef2f2 100%)',
+            shadow: '0 12px 32px rgba(239, 68, 68, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04)',
+        };
+    }
+
+    if (lower.includes('rate limit') || lower.includes('quota') || lower.includes('429')) {
+        return {
+            isMismatch: false,
+            title: 'Rate Limit Reached',
+            description: 'The AI model service rate limit was reached. Please wait a moment before trying again.',
+            badgeBg: '#fef3c7',
+            badgeColor: '#d97706',
+            border: '1.5px solid #fcd34d',
+            bgGradient: 'linear-gradient(135deg, #fffdfa 0%, #fffbeb 100%)',
+            shadow: '0 12px 32px rgba(217, 119, 6, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04)',
+        };
+    }
+
+    if (lower.includes('model request failed') || lower.includes('failed to generate') || lower.includes('timeout')) {
+        return {
+            isMismatch: false,
+            title: 'Model Generation Issue',
+            description: 'The AI model was unable to process this request. Please try phrasing your prompt with specific metrics or chart types.',
+            badgeBg: '#f1f5f9',
+            badgeColor: '#475569',
+            border: '1.5px solid #cbd5e1',
+            bgGradient: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            shadow: '0 12px 32px rgba(71, 85, 105, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04)',
+        };
+    }
+
+    return {
+        isMismatch: false,
+        title: 'Unable to Generate Dashboard',
+        description: errorMsg,
+        badgeBg: '#fee2e2',
+        badgeColor: '#ef4444',
+        border: '1.5px solid #fca5a5',
+        bgGradient: 'linear-gradient(135deg, #fffafa 0%, #fef2f2 100%)',
+        shadow: '0 12px 32px rgba(239, 68, 68, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04)',
+    };
+};
+
 export const ChatPanel: React.FC<ChatPanelProps> = ({
     messages,
     onSendMessage,
@@ -54,6 +141,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const recognitionRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const errorDetails = error ? parseErrorDetails(error) : null;
 
     useEffect(() => {
         if (variant === 'floating') {
@@ -109,7 +198,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         return (
             <Box sx={{ width: '100%', maxWidth: 780, mx: 'auto', position: 'relative' }}>
                 {/* User-Friendly Floating Error / Guidance Popup */}
-                {error && (
+                {error && errorDetails && (
                     <Grow in={Boolean(error)} timeout={280}>
                         <Paper
                             elevation={0}
@@ -119,9 +208,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                 p: 2,
                                 px: 2.2,
                                 borderRadius: '14px',
-                                border: '1.5px solid #fca5a5',
-                                background: 'linear-gradient(135deg, #fffafa 0%, #fef2f2 100%)',
-                                boxShadow: '0 12px 32px rgba(239, 68, 68, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04)',
+                                border: errorDetails.border,
+                                background: errorDetails.bgGradient,
+                                boxShadow: errorDetails.shadow,
                                 position: 'relative',
                                 display: 'flex',
                                 alignItems: 'flex-start',
@@ -139,8 +228,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                     width: 32,
                                     height: 32,
                                     borderRadius: '50%',
-                                    bgcolor: '#fee2e2',
-                                    color: '#ef4444',
+                                    bgcolor: errorDetails.badgeBg,
+                                    color: errorDetails.badgeColor,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -153,18 +242,33 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.4 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#991b1b', fontSize: '13.5px' }}>
-                                        Dataset & Topic Mismatch
+                                    <Typography
+                                        variant="subtitle2"
+                                        sx={{
+                                            fontWeight: 800,
+                                            color: errorDetails.isMismatch ? '#991b1b' : '#1e293b',
+                                            fontSize: '13.5px',
+                                        }}
+                                    >
+                                        {errorDetails.title}
                                     </Typography>
                                     {onClearError && (
-                                        <IconButton size="small" onClick={onClearError} sx={{ color: '#991b1b', p: 0.3 }}>
+                                        <IconButton size="small" onClick={onClearError} sx={{ color: '#64748b', p: 0.3 }}>
                                             <CloseIcon sx={{ fontSize: 16 }} />
                                         </IconButton>
                                     )}
                                 </Box>
 
-                                <Typography variant="body2" sx={{ color: '#7f1d1d', fontSize: '12px', lineHeight: 1.55, mb: 1.4 }}>
-                                    {error}
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        color: errorDetails.isMismatch ? '#7f1d1d' : '#334155',
+                                        fontSize: '12px',
+                                        lineHeight: 1.55,
+                                        mb: 1.4,
+                                    }}
+                                >
+                                    {errorDetails.description}
                                 </Typography>
 
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -178,16 +282,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                                 textTransform: 'none',
                                                 fontSize: '11.5px',
                                                 fontWeight: 600,
-                                                color: '#991b1b',
-                                                borderColor: '#fca5a5',
+                                                color: errorDetails.isMismatch ? '#991b1b' : '#1B75BB',
+                                                borderColor: errorDetails.isMismatch ? '#fca5a5' : '#bfdbfe',
                                                 borderRadius: '7px',
                                                 py: 0.4,
                                                 px: 1.3,
                                                 bgcolor: '#ffffff',
                                                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                                                 '&:hover': {
-                                                    bgcolor: '#fef2f2',
-                                                    borderColor: '#ef4444',
+                                                    bgcolor: errorDetails.isMismatch ? '#fef2f2' : '#eff6ff',
+                                                    borderColor: errorDetails.isMismatch ? '#ef4444' : '#1B75BB',
                                                 },
                                             }}
                                         >

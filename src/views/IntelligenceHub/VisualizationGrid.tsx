@@ -8,6 +8,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import FilterAltOffOutlinedIcon from '@mui/icons-material/FilterAltOffOutlined';
 import { VisualizationSpec } from './intelligenceTypes';
 
 interface ChartCardProps {
@@ -31,9 +32,10 @@ const getChartIcon = (type?: string) => {
 
 const ChartCard: React.FC<ChartCardProps> = ({ viz, index }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const hasData = Array.isArray(viz.data) && viz.data.length > 0;
 
     useEffect(() => {
-        if (!containerRef.current || !viz.vega_spec) return;
+        if (!containerRef.current || !viz.vega_spec || !hasData) return;
 
         let isMounted = true;
         const target = containerRef.current;
@@ -74,7 +76,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index }) => {
         return () => {
             isMounted = false;
         };
-    }, [viz.vega_spec, viz.data]);
+    }, [viz.vega_spec, viz.data, hasData]);
 
     return (
         <Card
@@ -120,19 +122,47 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index }) => {
                     </Typography>
                 )}
 
-                <Box
-                    ref={containerRef}
-                    sx={{
-                        flex: 1,
-                        width: '100%',
-                        minHeight: 200,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        mt: 'auto',
-                        '& svg': { maxWidth: '100% !important' },
-                    }}
-                />
+                {hasData ? (
+                    <Box
+                        ref={containerRef}
+                        sx={{
+                            flex: 1,
+                            width: '100%',
+                            minHeight: 200,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mt: 'auto',
+                            '& svg': { maxWidth: '100% !important' },
+                        }}
+                    />
+                ) : (
+                    <Box
+                        sx={{
+                            flex: 1,
+                            width: '100%',
+                            minHeight: 200,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            p: 2,
+                            textAlign: 'center',
+                            bgcolor: '#f8fafc',
+                            borderRadius: '10px',
+                            border: '1px dashed #e2e8f0',
+                            mt: 1,
+                        }}
+                    >
+                        <FilterAltOffOutlinedIcon sx={{ fontSize: 32, color: '#94a3b8', mb: 1, opacity: 0.7 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', fontSize: '12.5px', mb: 0.3 }}>
+                            No records available
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px', maxWidth: 220 }}>
+                            No matching data for the active filter selection. Try selecting 'All' or a different value.
+                        </Typography>
+                    </Box>
+                )}
             </CardContent>
         </Card>
     );

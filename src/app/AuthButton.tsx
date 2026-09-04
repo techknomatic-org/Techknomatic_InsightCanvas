@@ -1,20 +1,18 @@
-// Copyright (c) Techknomatic Services Pvt Ltd.
-// Licensed under the MIT License.
-
-/**
- * Sign-in / sign-out button rendered in the AppBar.
- *
- * Behaviour depends on the current identity state:
- * - Authenticated (`user:*`)  → show display name + sign-out icon
- * - Anonymous with OIDC active → show "Sign In" button
- * - Anonymous without OIDC     → render nothing
- */
-
-import { FC, useCallback, useEffect, useState } from "react";
+import React, { FC, useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Alert, Box, Button, IconButton, Snackbar, Tooltip, Typography } from "@mui/material";
+import {
+    Avatar,
+    Box,
+    Divider,
+    IconButton,
+    Menu,
+    MenuItem,
+    SxProps,
+    Theme,
+    Tooltip,
+    Typography,
+} from "@mui/material";
 import LogoutIcon from "@mui/icons-material/Logout";
-import LoginIcon from "@mui/icons-material/Login";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { useTranslation } from "react-i18next";
@@ -27,14 +25,36 @@ import { getBrowserId } from "./identity";
 import { apiRequest } from "./apiClient";
 import { iconVar, textVar } from './layout';
 
-export const AuthButton: FC = () => {
+export interface AuthButtonProps {
+    id?: string;
+    tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right';
+    anchorOrigin?: {
+        vertical: 'top' | 'center' | 'bottom';
+        horizontal: 'left' | 'center' | 'right';
+    };
+    transformOrigin?: {
+        vertical: 'top' | 'center' | 'bottom';
+        horizontal: 'left' | 'center' | 'right';
+    };
+    buttonSx?: SxProps<Theme>;
+}
+
+export const AuthButton: FC<AuthButtonProps> = ({
+    id,
+    tooltipPlacement = 'bottom',
+    anchorOrigin = { vertical: 'bottom', horizontal: 'right' },
+    transformOrigin = { vertical: 'top', horizontal: 'right' },
+    buttonSx,
+}) => {
     const { t } = useTranslation();
     const dispatch = useDispatch<AppDispatch>();
     const identity = useSelector((s: DataFormulatorState) => s.identity);
     const [mgr, setMgr] = useState<UserManager | null>(null);
     const [authInfo, setAuthInfo] = useState<AuthInfo | null>(null);
     const [initError, setInitError] = useState<string | null>(null);
-    const [loginError, setLoginError] = useState<string | null>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+    const isMenuOpen = Boolean(anchorEl);
 
     useEffect(() => {
         let cancelled = false;
@@ -62,95 +82,48 @@ export const AuthButton: FC = () => {
 
     const isBackend = authInfo?.action === "backend";
 
+    const handleOpenMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleCloseMenu = () => {
+        setAnchorEl(null);
+    };
+
     const handleSignOut = useCallback(async () => {
+        handleCloseMenu();
         sessionStorage.removeItem('df_logged_in');
         localStorage.removeItem('df_logged_in');
-        if (isBackend) {
-            await apiRequest(authInfo?.logout_url || "/api/auth/oidc/logout", { method: "POST" });
-            const browserId = getBrowserId();
-            dispatch(dfActions.setIdentity({ type: "browser", id: browserId }));
-            localStorage.setItem("df_identity_type", "browser");
-            localStorage.setItem("df_browser_id", browserId);
-            await persistor.flush();
-            window.location.href = "/login";
-            return;
-        }
-        if (!mgr) {
-            const browserId = getBrowserId();
-            dispatch(dfActions.setIdentity({ type: "browser", id: browserId }));
-            localStorage.setItem("df_identity_type", "browser");
-            localStorage.setItem("df_browser_id", browserId);
-            window.location.href = "/login";
-            return;
-        }
-        try {
-            await mgr.signoutRedirect();
-        } catch {
-            await mgr.removeUser();
-            await persistor.purge();
-            window.location.href = "/login";
-        }
-    }, [mgr, isBackend, authInfo, dispatch]);
-
-    const handleSignIn = useCallback(async () => {
-        if (isBackend) {
-            window.location.href = authInfo?.login_url || "/api/auth/oidc/login";
-            return;
-        }
-        if (!mgr) {
-            window.location.href = "/login";
-            return;
-        }
-        try {
-            await mgr.signinRedirect();
-        } catch (err) {
-            console.error("[AuthButton] signinRedirect failed:", err);
-            setLoginError(err instanceof Error ? err.message : String(err));
-        }
-    }, [mgr, isBackend, authInfo]);
-
-    const handleProfileClick = useCallback(() => {
-        sessionStorage.removeItem('df_logged_in');
-        localStorage.removeItem('df_logged_in');
+        dispatch(dfActions.resetState());
+        dispatch(dfActions.setDataSourceSidebarOpen(false));
+        await persistor.purge();
         const browserId = getBrowserId();
         dispatch(dfActions.setIdentity({ type: "browser", id: browserId }));
         localStorage.setItem("df_identity_type", "browser");
         localStorage.setItem("df_browser_id", browserId);
-        window.location.href = "/login";
-    }, [dispatch]);
 
-    if (identity?.type === "user") {
-        const label = String(identity.displayName || identity.id || '');
-        return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: 1 }}>
-                <Tooltip title={label}>
-                    <IconButton
-                        size="small"
-                        onClick={handleProfileClick}
-                        sx={{
-                            color: "#ffffff",
-                            width: 32,
-                            height: 32,
-                            "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
-                        }}
-                    >
-                        <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
-                    </IconButton>
-                </Tooltip>
-                {(mgr || isBackend) && (
-                    <Tooltip title={t("auth.signOut")}>
-                        <IconButton
-                            size="small"
-                            onClick={handleSignOut}
-                            sx={{ color: "#ffffff", "&:hover": { bgcolor: "rgba(255,255,255,0.12)" } }}
-                        >
-                            <LogoutIcon sx={{ fontSize: iconVar.lg }} />
-                        </IconButton>
-                    </Tooltip>
-                )}
-            </Box>
-        );
-    }
+        if (isBackend) {
+            try {
+                await apiRequest(authInfo?.logout_url || "/api/auth/oidc/logout", { method: "POST" });
+            } catch {
+                // Ignore failure on logout call
+            }
+            window.location.href = "/login";
+            return;
+        }
+
+        if (!mgr) {
+            window.location.href = "/login";
+            return;
+        }
+
+        try {
+            await mgr.signoutRedirect();
+        } catch {
+            await mgr.removeUser();
+            window.location.href = "/login";
+        }
+    }, [mgr, isBackend, authInfo, dispatch]);
 
     if (initError) {
         return (
@@ -166,20 +139,137 @@ export const AuthButton: FC = () => {
     }
 
     return (
-        <Tooltip title={t("auth.account", { defaultValue: "Account" })}>
-            <IconButton
-                size="small"
-                onClick={handleSignIn}
-                sx={{
-                    ml: 1,
-                    color: "#ffffff",
-                    width: 32,
-                    height: 32,
-                    "&:hover": { color: "#ffffff", bgcolor: "rgba(255,255,255,0.12)" },
+        <>
+            <Tooltip title={t("auth.account", { defaultValue: "Account" })} placement={tooltipPlacement}>
+                <IconButton
+                    id={id}
+                    size="small"
+                    onClick={handleOpenMenu}
+                    aria-controls={isMenuOpen ? "account-profile-menu" : undefined}
+                    aria-haspopup="true"
+                    aria-expanded={isMenuOpen ? "true" : undefined}
+                    sx={{
+                        color: "#ffffff",
+                        width: 32,
+                        height: 32,
+                        borderRadius: "8px",
+                        bgcolor: isMenuOpen ? "rgba(255,255,255,0.2)" : "transparent",
+                        "&:hover": {
+                            bgcolor: isMenuOpen ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.12)",
+                            color: "#ffffff",
+                        },
+                        ...buttonSx,
+                    }}
+                >
+                    <AccountCircleOutlinedIcon sx={{ fontSize: 22 }} />
+                </IconButton>
+            </Tooltip>
+
+            <Menu
+                id="account-profile-menu"
+                anchorEl={anchorEl}
+                open={isMenuOpen}
+                onClose={handleCloseMenu}
+                onClick={(e) => e.stopPropagation()}
+                anchorOrigin={anchorOrigin}
+                transformOrigin={transformOrigin}
+                slotProps={{
+                    paper: {
+                        elevation: 0,
+                        sx: {
+                            mt: 1,
+                            minWidth: 230,
+                            borderRadius: '12px',
+                            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.08)',
+                            border: '1px solid rgba(226, 232, 240, 0.9)',
+                            bgcolor: '#ffffff',
+                            p: 0,
+                            overflow: 'visible',
+                        },
+                    },
                 }}
             >
-                <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-        </Tooltip>
+                {/* User Info Header */}
+                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Avatar
+                        sx={{
+                            width: 38,
+                            height: 38,
+                            bgcolor: '#1B75BB',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: '14px',
+                            boxShadow: '0 2px 6px rgba(27, 117, 187, 0.35)',
+                        }}
+                    >
+                        KS
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                            sx={{
+                                fontWeight: 600,
+                                fontSize: '13.5px',
+                                color: '#0f172a',
+                                lineHeight: 1.25,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            Krishna Shelar
+                        </Typography>
+                        <Box sx={{ mt: 0.5, display: 'inline-flex', alignItems: 'center' }}>
+                            <Box
+                                sx={{
+                                    px: 0.9,
+                                    py: 0.2,
+                                    bgcolor: 'rgba(27, 117, 187, 0.08)',
+                                    border: '1px solid rgba(27, 117, 187, 0.22)',
+                                    borderRadius: '4px',
+                                }}
+                            >
+                                <Typography
+                                    sx={{
+                                        fontSize: '10.5px',
+                                        fontWeight: 700,
+                                        color: '#1B75BB',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
+                                        lineHeight: 1,
+                                    }}
+                                >
+                                    Role- Admin
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Box>
+                </Box>
+
+                <Divider sx={{ borderColor: 'rgba(226, 232, 240, 0.8)', my: 0.5 }} />
+
+                {/* Logout Action */}
+                <MenuItem
+                    onClick={handleSignOut}
+                    sx={{
+                        py: 1.2,
+                        px: 2,
+                        gap: 1.25,
+                        color: '#dc2626',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        transition: 'all 0.15s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(220, 38, 38, 0.06)',
+                            color: '#b91c1c',
+                        },
+                    }}
+                >
+                    <LogoutIcon sx={{ fontSize: 18, color: 'inherit' }} />
+                    <Typography sx={{ fontSize: '13px', fontWeight: 500, color: 'inherit' }}>
+                        Log out
+                    </Typography>
+                </MenuItem>
+            </Menu>
+        </>
     );
 };

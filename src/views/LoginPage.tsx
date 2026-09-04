@@ -19,8 +19,9 @@ import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import PieChartRoundedIcon from "@mui/icons-material/PieChartRounded";
 import techknomaticLogo from "../assets/techknomatic-official-logo.svg";
 import { getUserManager, getAuthInfo, isBackendAuth } from "../app/oidcConfig";
-import { useSelector } from "react-redux";
-import { DataFormulatorState } from "../app/dfSlice";
+import { useSelector, useDispatch } from "react-redux";
+import { DataFormulatorState, dfActions } from "../app/dfSlice";
+import { persistor } from "../app/store";
 
 /** Official Microsoft 4-color icon */
 const MicrosoftLogo: FC<{ size?: number }> = ({ size = 20 }) => (
@@ -195,6 +196,7 @@ const AnalyticsDashboardIllustration: FC = () => {
 
 export const LoginPage: FC = () => {
     const theme = useTheme();
+    const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const identity = useSelector((state: DataFormulatorState) => state.identity);
@@ -203,6 +205,9 @@ export const LoginPage: FC = () => {
         setError(null);
         setLoading(true);
         try {
+            dispatch(dfActions.resetState());
+            dispatch(dfActions.setDataSourceSidebarOpen(false));
+            await persistor.purge();
             const isBackend = await isBackendAuth();
             const authInfo = await getAuthInfo();
             if (isBackend) {
@@ -215,14 +220,14 @@ export const LoginPage: FC = () => {
             } else {
                 // If SSO is not enabled on local/standalone server, establish session
                 sessionStorage.setItem('df_logged_in', 'true');
-                window.location.href = "/app";
+                window.location.href = "/";
             }
         } catch (err: any) {
             console.error("[LoginPage] Sign-in failed:", err);
             setError(err?.message || "Sign in failed. Please contact your administrator.");
             setLoading(false);
         }
-    }, []);
+    }, [dispatch]);
 
     // Check for errors returned in query params
     useEffect(() => {

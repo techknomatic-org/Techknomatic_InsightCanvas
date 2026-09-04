@@ -21,6 +21,8 @@ export const INTELLIGENCE_URLS = {
     SAVE_SESSION: '/api/intelligence/sessions/save',
     DELETE_SESSION: (id: string) => `/api/intelligence/sessions/${id}`,
     GET_SESSION: (id: string) => `/api/intelligence/sessions/${id}`,
+    TOGGLE_PIN: (id: string) => `/api/intelligence/sessions/${id}/toggle-pin`,
+    TOGGLE_LIKE: (id: string) => `/api/intelligence/sessions/${id}/toggle-like`,
 };
 
 export async function profileTables(tables: string[], connectorId?: string, workspaceId?: string): Promise<DataProfile> {
@@ -151,6 +153,30 @@ export async function saveSession(sessionData: Partial<IntelligenceSession>): Pr
         }
     );
     return res.data.session;
+}
+
+export async function togglePinSession(id: string, pinned?: boolean): Promise<{ session: IntelligenceSession; pinned: boolean }> {
+    const res = await apiRequest<{ session: IntelligenceSession; pinned: boolean }>(
+        INTELLIGENCE_URLS.TOGGLE_PIN(id),
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pinned !== undefined ? { pinned } : {}),
+        }
+    );
+    return res.data;
+}
+
+export async function toggleLikeSession(id: string, liked?: boolean): Promise<{ session: IntelligenceSession; liked: boolean }> {
+    const res = await apiRequest<{ session: IntelligenceSession; liked: boolean }>(
+        INTELLIGENCE_URLS.TOGGLE_LIKE(id),
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(liked !== undefined ? { liked } : {}),
+        }
+    );
+    return res.data;
 }
 
 export async function deleteSession(id: string): Promise<void> {

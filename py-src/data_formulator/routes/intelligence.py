@@ -68,10 +68,13 @@ def _get_client_from_request(model_config: dict[str, Any] | None) -> Any:
     """Resolve LiteLLM client from request model config."""
     from data_formulator.routes.agents import get_client
     if not model_config:
-        global_models = model_registry.list_configs()
+        global_models = list(model_registry._models.values())
         if global_models:
             return get_client(global_models[0], trusted=True)
-        raise AppError(ErrorCode.INVALID_REQUEST, "Model configuration is required")
+        raise AppError(
+            ErrorCode.INVALID_REQUEST,
+            "Model configuration is required. Please configure or select an AI model in Settings."
+        )
     return get_client(model_config)
 
 
@@ -696,7 +699,7 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
     combined_text = f"{measure_name} {title}".lower()
 
     # 1. Currency
-    if format_type == "currency" or any(k in combined_text for k in ("salary", "revenue", "cost", "price", "budget", "profit", "expense", "spend", "wage", "pay", "income")):
+    if format_type == "currency" or re.search(r'\b(salary|salaries|revenue|cost|costs|price|prices|budget|profit|expense|expenses|spend|spending|wage|wages|pay|payment|payments|income|sales)\b', combined_text):
         if abs(num) >= 1_000_000_000:
             return f"${num / 1_000_000_000:.2f}B", num
         if abs(num) >= 1_000_000:
@@ -706,11 +709,11 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
         return f"${num:,.2f}", num
 
     # 2. Percentage
-    if format_type == "percent" or any(k in combined_text for k in ("rate", "percent", "pct", "ratio", "share", "margin", "proportion", "efficiency", "utilization")):
+    if format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text):
         return f"{num:.1f}%", num
 
     # 3. Energy Consumption (kWh, MWh, GWh)
-    if any(k in combined_text for k in ("kwh", "energy_consumption", "total_energy", "consumption_kwh", "power_consumption", "electricity_consumption")) or ("energy" in combined_text and "cost" not in combined_text):
+    if re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh|power_consumption|electricity_consumption)\b', combined_text) or ("energy" in combined_text and "cost" not in combined_text):
         if abs(num) >= 1_000_000_000:
             return f"{num / 1_000_000_000:.2f}B kWh", num
         if abs(num) >= 1_000_000:
@@ -722,7 +725,7 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
         return f"{num:,.1f} kWh", num
 
     # 4. Power & Peak Demand (kW, MW)
-    if any(k in combined_text for k in ("kw", "peak_demand", "demand", "power_kw", "peak_kw", "load")):
+    if re.search(r'\b(kw|mw|peak_demand|demand_kw|power_kw|peak_kw)\b', combined_text):
         if abs(num) >= 1_000_000:
             return f"{num / 1_000_000:.2f}M kW", num
         if abs(num) >= 1_000:
@@ -731,8 +734,8 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
             return f"{int(num):,} kW", int(num)
         return f"{num:,.1f} kW", num
 
-    # 5. Time Units
-    if any(k in combined_text for k in ("minute", "min", "duration_min", "wait_time", "response_time")):
+    # 5. Time Units (Must use strict word boundary so 'minimum' is NOT matched as 'min')
+    if re.search(r'\b(minutes?|duration_min|duration_minutes?|wait_time|response_time|travel_time)\b', combined_text):
         if abs(num) >= 1_000_000:
             return f"{num / 1_000_000:.1f}M mins", num
         if abs(num) >= 1_000:
@@ -741,7 +744,7 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
             return f"{int(num):,} mins", int(num)
         return f"{num:.1f} mins", num
 
-    if any(k in combined_text for k in ("hour", "hr", "overtime", "hours_worked", "duration_hours")):
+    if re.search(r'\b(hours?|overtime|hours_worked|duration_hours?|working_hours?)\b', combined_text) and not re.search(r'\b(headcount|human_resources)\b', combined_text):
         if abs(num) >= 1_000_000:
             return f"{num / 1_000_000:.1f}M hrs", num
         if abs(num) >= 1_000:
@@ -751,15 +754,15 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
         return f"{num:.1f} hrs", num
 
     # 6. Carbon / Emissions
-    if any(k in combined_text for k in ("carbon", "emission", "co2", "ghg")):
+    if re.search(r'\b(carbon|emission|emissions|co2|ghg)\b', combined_text):
         if abs(num) >= 1_000_000:
             return f"{num / 1_000_000:.2f}M tCO₂", num
         if abs(num) >= 1_000:
             return f"{num / 1_000:.1f}K tCO₂", num
         return f"{num:,.1f} tCO₂", num
 
-    # 7. Integer counts
-    if format_type == "integer":
+    # 7. Integer counts / quantity (e.g. beds, employees, departments, units)
+    if format_type == "integer" or re.search(r'\b(beds?|count|counts|number|quantity|units?|items?|departments?|employees?|patients?|users?|customers?|orders?|headcount|visits?)\b', combined_text):
         if abs(num) >= 1_000_000_000:
             return f"{num / 1_000_000_000:.2f}B", num
         if abs(num) >= 1_000_000:
@@ -834,83 +837,6 @@ def _build_vega_lite_spec(
             "cornerRadius": 4,
         }
 
-    encoding: dict[str, Any] = {}
-
-    if c_type in ("pie", "donut"):
-        if y_field:
-            encoding["theta"] = {"field": y_field, "type": "quantitative"}
-        if x_field:
-            encoding["color"] = {
-                "field": x_field,
-                "type": "nominal",
-                "scale": {"range": color_range},
-                "legend": {"orient": "bottom", "columns": 3, "labelFontSize": 11, "title": None},
-            }
-    else:
-        if x_field:
-            # Use temporal type for date/time fields — clean, readable axis labels
-            if is_temporal:
-                encoding["x"] = {
-                    "field": x_field,
-                    "type": "temporal",
-                    "axis": {
-                        "format": "%b %Y",
-                        "labelAngle": -30,
-                        "labelLimit": 110,
-                        "labelColor": "#64748b",
-                        "tickColor": "#cbd5e1",
-                        "domainColor": "#cbd5e1",
-                        "title": None,
-                        "tickCount": {"interval": "month", "step": 1} if len(data_records) <= 12 else {"interval": "month", "step": 3},
-                    },
-                }
-            else:
-                encoding["x"] = {
-                    "field": x_field,
-                    "type": "nominal" if c_type in ("bar", "column") else "ordinal",
-                    "axis": {
-                        "labelAngle": -25 if len(data_records) > 5 else 0,
-                        "labelLimit": 110,
-                        "labelColor": "#64748b",
-                        "tickColor": "#cbd5e1",
-                        "domainColor": "#cbd5e1",
-                        "title": None,
-                    },
-                }
-        if y_field:
-            y_scale: dict[str, Any] = {}
-            if data_records and isinstance(data_records, list):
-                y_nums = [r.get(y_field) for r in data_records if isinstance(r.get(y_field), (int, float))]
-                if len(y_nums) >= 2:
-                    y_min, y_max = min(y_nums), max(y_nums)
-                    if y_min > 0 and y_max > 0:
-                        rel_diff = (y_max - y_min) / y_max
-                        # If values are tightly clustered (less than 25% variation), don't force zero baseline
-                        if rel_diff < 0.25 and rel_diff > 0:
-                            y_scale = {"zero": False}
-
-            encoding["y"] = {
-                "field": y_field,
-                "type": "quantitative",
-                "scale": y_scale if y_scale else {"zero": True},
-                "axis": {
-                    "format": "~s",
-                    "grid": True,
-                    "gridColor": "#f1f5f9",
-                    "labelColor": "#64748b",
-                    "tickColor": "#cbd5e1",
-                    "domainColor": "#cbd5e1",
-                    "title": None,
-                },
-            }
-        if color_field and color_field != x_field:
-            encoding["color"] = {
-                "field": color_field,
-                "type": "nominal",
-                "scale": {"range": color_range},
-                "legend": {"orient": "bottom", "title": None},
-            }
-
     tooltip = []
     if x_field:
         x_tooltip_type = "temporal" if is_temporal else "nominal"
@@ -918,24 +844,173 @@ def _build_vega_lite_spec(
     if y_field:
         y_title = str(y_field).replace("_", " ").title()
         y_lower = str(y_field).lower()
-        if any(k in y_lower for k in ("rate", "percent", "pct", "ratio", "share", "margin", "efficiency", "utilization")):
+        if re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": ".1%"})
-        elif any(k in y_lower for k in ("kwh", "energy_consumption", "total_energy", "consumption_kwh")) or ("energy" in y_lower and "cost" not in y_lower):
+        elif re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh)\b', y_lower) or ("energy" in y_lower and "cost" not in y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kWh)", "format": ",.0f"})
-        elif any(k in y_lower for k in ("kw", "peak_demand", "demand", "power")):
+        elif re.search(r'\b(kw|mw|peak_demand|demand|power_kw)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kW)", "format": ",.0f"})
-        elif any(k in y_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend", "sales", "income")):
+        elif re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} ($)", "format": "$,.2f"})
-        elif any(k in y_lower for k in ("minute", "min", "duration_min", "wait_time", "response_time")):
+        elif re.search(r'\b(minutes?|duration_min|duration_minutes|wait_time|response_time|travel_time)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (mins)", "format": ",.0f"})
-        elif any(k in y_lower for k in ("hour", "hr", "overtime", "hours_worked", "duration_hours")):
+        elif re.search(r'\b(hours?|overtime|hours_worked|duration_hours?|working_hours?)\b', y_lower) and not re.search(r'\b(headcount|human_resources)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (hrs)", "format": ",.1f"})
-        elif any(k in y_lower for k in ("carbon", "emission", "co2")):
+        elif re.search(r'\b(carbon|emission|emissions|co2|ghg)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (tCO₂)", "format": ",.1f"})
         else:
             tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": "~s"})
     if color_field and color_field not in (x_field, y_field):
         tooltip.append({"field": color_field, "type": "nominal", "title": str(color_field).replace("_", " ").title()})
+
+    # For pie and donut charts: Render layered spec with arc slice and compact, readable value labels (k, M, B)
+    if c_type in ("pie", "donut"):
+        y_lower = str(y_field or "").lower()
+        max_val = 0
+        if data_records and isinstance(data_records, list):
+            y_nums = [r.get(y_field) for r in data_records if isinstance(r.get(y_field), (int, float))]
+            if y_nums:
+                max_val = max(abs(v) for v in y_nums)
+
+        if re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b', y_lower):
+            text_format = ".1%"
+        elif re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b', y_lower):
+            text_format = "$~s" if max_val >= 1000 else "$,.0f"
+        elif re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh)\b', y_lower) or ("energy" in y_lower and "cost" not in y_lower):
+            text_format = "~s" if max_val >= 1000 else ",.0f"
+        elif re.search(r'\b(kw|mw|peak_demand|demand|power_kw)\b', y_lower):
+            text_format = "~s" if max_val >= 1000 else ",.0f"
+        elif re.search(r'\b(minutes?|duration_min|duration_minutes|wait_time|response_time|travel_time)\b', y_lower):
+            text_format = "~s" if max_val >= 1000 else ",.0f"
+        elif re.search(r'\b(hours?|overtime|hours_worked|duration_hours?|working_hours?)\b', y_lower) and not re.search(r'\b(headcount|human_resources)\b', y_lower):
+            text_format = "~s" if max_val >= 1000 else ",.1f"
+        elif re.search(r'\b(carbon|emission|emissions|co2|ghg)\b', y_lower):
+            text_format = "~s" if max_val >= 1000 else ",.1f"
+        else:
+            text_format = "~s" if max_val >= 1000 else ",.0f"
+
+        arc_layer: dict[str, Any] = {
+            "mark": {
+                "type": "arc",
+                "innerRadius": 45 if c_type == "donut" else 0,
+                "outerRadius": 80,
+                "padAngle": 0.03,
+                "cornerRadius": 4,
+            },
+            "encoding": {
+                "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
+                "color": {
+                    "field": x_field,
+                    "type": "nominal",
+                    "scale": {"range": color_range},
+                    "legend": {"orient": "bottom", "columns": 3, "labelFontSize": 11, "title": None},
+                } if x_field else None,
+                "tooltip": tooltip if tooltip else None,
+            },
+        }
+        arc_layer["encoding"] = {k: v for k, v in arc_layer["encoding"].items() if v is not None}
+
+        text_layer: dict[str, Any] = {
+            "mark": {
+                "type": "text",
+                "radius": 63 if c_type == "donut" else 52,
+                "fontSize": 11,
+                "fontWeight": 700,
+                "fill": "#ffffff",
+            },
+            "encoding": {
+                "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
+                "detail": {"field": x_field, "type": "nominal"} if x_field else None,
+                "text": {"field": y_field, "type": "quantitative", "format": text_format} if y_field else None,
+            },
+        }
+        text_layer["encoding"] = {k: v for k, v in text_layer["encoding"].items() if v is not None}
+
+        return {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "title": {
+                "text": chart_title,
+                "anchor": "start",
+                "fontSize": 13,
+                "fontWeight": 700,
+                "color": "#0f172a",
+            },
+            "width": "container",
+            "height": 220,
+            "data": {"values": data_records},
+            "layer": [arc_layer, text_layer],
+            "config": {
+                "view": {"stroke": "transparent"},
+                "font": "Inter, Roboto, sans-serif",
+                "axis": {"domainColor": "#e2e8f0", "tickColor": "#e2e8f0"},
+            },
+        }
+
+    encoding: dict[str, Any] = {}
+    if x_field:
+        # Use temporal type for date/time fields — clean, readable axis labels
+        if is_temporal:
+            encoding["x"] = {
+                "field": x_field,
+                "type": "temporal",
+                "axis": {
+                    "format": "%b %Y",
+                    "labelAngle": -30,
+                    "labelLimit": 110,
+                    "labelColor": "#64748b",
+                    "tickColor": "#cbd5e1",
+                    "domainColor": "#cbd5e1",
+                    "title": None,
+                    "tickCount": {"interval": "month", "step": 1} if len(data_records) <= 12 else {"interval": "month", "step": 3},
+                },
+            }
+        else:
+            encoding["x"] = {
+                "field": x_field,
+                "type": "nominal" if c_type in ("bar", "column") else "ordinal",
+                "axis": {
+                    "labelAngle": -25 if len(data_records) > 5 else 0,
+                    "labelLimit": 110,
+                    "labelColor": "#64748b",
+                    "tickColor": "#cbd5e1",
+                    "domainColor": "#cbd5e1",
+                    "title": None,
+                },
+            }
+    if y_field:
+        y_scale: dict[str, Any] = {}
+        if data_records and isinstance(data_records, list):
+            y_nums = [r.get(y_field) for r in data_records if isinstance(r.get(y_field), (int, float))]
+            if len(y_nums) >= 2:
+                y_min, y_max = min(y_nums), max(y_nums)
+                if y_min > 0 and y_max > 0:
+                    rel_diff = (y_max - y_min) / y_max
+                    # If values are tightly clustered (less than 25% variation), don't force zero baseline
+                    if rel_diff < 0.25 and rel_diff > 0:
+                        y_scale = {"zero": False}
+
+        encoding["y"] = {
+            "field": y_field,
+            "type": "quantitative",
+            "scale": y_scale if y_scale else {"zero": True},
+            "axis": {
+                "format": "~s",
+                "grid": True,
+                "gridColor": "#f1f5f9",
+                "labelColor": "#64748b",
+                "tickColor": "#cbd5e1",
+                "domainColor": "#cbd5e1",
+                "title": None,
+            },
+        }
+    if color_field and color_field != x_field:
+        encoding["color"] = {
+            "field": color_field,
+            "type": "nominal",
+            "scale": {"range": color_range},
+            "legend": {"orient": "bottom", "title": None},
+        }
+
     if tooltip:
         encoding["tooltip"] = tooltip
 
@@ -1203,18 +1278,24 @@ def _hydrate_dashboard_spec(
 
                 # Proper aggregation expression
                 clean_agg = agg.upper()
+                is_count_metric = False
                 if "DISTINCT" in clean_agg or "UNIQUE" in clean_agg:
                     y_agg_expr = f'COUNT(DISTINCT "{y_col}")'
+                    is_count_metric = True
                 elif clean_agg in ("COUNT",):
                     y_agg_expr = f'COUNT("{y_col}")'
+                    is_count_metric = True
                 elif clean_agg in ("AVG", "AVERAGE", "MEAN"):
-                    y_agg_expr = f'AVG("{y_col}")'
+                    y_agg_expr = f'AVG(TRY_CAST("{y_col}" AS DOUBLE))'
                 elif clean_agg in ("MIN", "MINIMUM"):
-                    y_agg_expr = f'MIN("{y_col}")'
+                    y_agg_expr = f'MIN(TRY_CAST("{y_col}" AS DOUBLE))'
                 elif clean_agg in ("MAX", "MAXIMUM"):
-                    y_agg_expr = f'MAX("{y_col}")'
+                    y_agg_expr = f'MAX(TRY_CAST("{y_col}" AS DOUBLE))'
                 else:
-                    y_agg_expr = f'SUM("{y_col}")'
+                    y_agg_expr = f'SUM(TRY_CAST("{y_col}" AS DOUBLE))'
+
+                x_valid_cond = f'"{x_col}" IS NOT NULL AND TRIM(CAST("{x_col}" AS VARCHAR)) NOT IN (\'\', \'NaN\', \'None\', \'null\', \'NAT\', \'undefined\')'
+                y_valid_cond = f'"{y_col}" IS NOT NULL' if is_count_metric else f'TRY_CAST("{y_col}" AS DOUBLE) IS NOT NULL'
 
                 # ── BI Best Practice: Smart query construction per chart type ──
                 if c_type in ("pie", "donut"):
@@ -1223,7 +1304,7 @@ def _hydrate_dashboard_spec(
                     inner_sql = f"""
                     SELECT \"{x_col}\", {y_agg_expr} AS \"{y_col}\"
                     FROM {target_src}
-                    {where_prefix} \"{x_col}\" IS NOT NULL AND TRIM(CAST(\"{x_col}\" AS VARCHAR)) NOT IN ('', 'NaN', 'None', 'null', 'NAT') AND \"{y_col}\" IS NOT NULL
+                    {where_prefix} {x_valid_cond} AND {y_valid_cond}
                     GROUP BY \"{x_col}\"
                     ORDER BY \"{y_col}\" DESC
                     """
@@ -1255,7 +1336,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {select_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
+                    {where_prefix} {x_valid_cond} AND {y_valid_cond}
                     GROUP BY {group_by_str}
                     ORDER BY DATE_TRUNC('month', "{x_col}"::TIMESTAMP) ASC
                     LIMIT 36
@@ -1273,7 +1354,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {group_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
+                    {where_prefix} {x_valid_cond} AND {y_valid_cond}
                     GROUP BY {group_by_str}
                     ORDER BY "{x_col}" ASC
                     LIMIT 30
@@ -1289,7 +1370,7 @@ def _hydrate_dashboard_spec(
                     sql = f"""
                     SELECT {group_str}, {y_agg_expr} AS "{y_col}"
                     FROM {target_src}
-                    {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
+                    {where_prefix} {x_valid_cond} AND {y_valid_cond}
                     GROUP BY {group_str}
                     ORDER BY "{y_col}" DESC
                     LIMIT {row_limit}
@@ -1300,7 +1381,7 @@ def _hydrate_dashboard_spec(
                     if not v_df.empty:
                         v_df = v_df.dropna(subset=[x_col, y_col])
                         if x_col in v_df.columns:
-                            v_df = v_df[~v_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', ''])]
+                            v_df = v_df[~v_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', 'undefined', ''])]
                     records = df_to_safe_records(v_df)
 
                     # Adaptive time-series resolution: if monthly grouping gave <= 2 points, drill down to daily points
@@ -1311,7 +1392,7 @@ def _hydrate_dashboard_spec(
                                {y_agg_expr} AS "{y_col}"
                                {f', "{color_col}"' if color_col and color_col != x_col else ''}
                         FROM {target_src}
-                        {where_prefix} "{x_col}" IS NOT NULL AND "{y_col}" IS NOT NULL
+                        {where_prefix} {x_valid_cond} AND {y_valid_cond}
                         GROUP BY strftime("{x_col}"::TIMESTAMP, '%d %b'), DATE_TRUNC('day', "{x_col}"::TIMESTAMP){f', "{color_col}"' if color_col and color_col != x_col else ''}
                         ORDER BY DATE_TRUNC('day', "{x_col}"::TIMESTAMP) ASC
                         LIMIT 31
@@ -1321,7 +1402,7 @@ def _hydrate_dashboard_spec(
                             if not day_df.empty:
                                 day_df = day_df.dropna(subset=[x_col, y_col])
                                 if x_col in day_df.columns:
-                                    day_df = day_df[~day_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', ''])]
+                                    day_df = day_df[~day_df[x_col].astype(str).str.lower().isin(['nan', 'none', 'null', 'nat', 'undefined', ''])]
                             day_records = df_to_safe_records(day_df)
                             if len(day_records) > len(records):
                                 records = day_records
@@ -1340,7 +1421,7 @@ def _hydrate_dashboard_spec(
                         fb_sql = f"""
                         SELECT {group_str_fb}, {y_agg_expr} AS "{y_col}"
                         FROM {target_src}
-                        WHERE "{x_col}" IS NOT NULL
+                        WHERE {x_valid_cond} AND {y_valid_cond}
                         GROUP BY {group_str_fb}
                         ORDER BY "{y_col}" DESC
                         LIMIT 15
@@ -1360,8 +1441,6 @@ def _hydrate_dashboard_spec(
             if c_type in ("line", "area") and len(records) <= 1:
                 c_type = "bar"
 
-            vega_spec = _build_vega_lite_spec(v_title, c_type, x_col, y_col, color_col, records, is_temporal=x_is_temporal)
-
             hydrated_visuals.append({
                 "id": viz.get("id", str(uuid.uuid4())),
                 "title": v_title,
@@ -1373,19 +1452,70 @@ def _hydrate_dashboard_spec(
                 "color_field": color_col,
                 "aggregation": agg,
                 "data": records,
-                "vega_spec": vega_spec,
+                "is_temporal": x_is_temporal,
                 "_query_status": query_status,
                 "_query_error": query_error_detail if query_error_detail else None,
             })
 
+        # Automated Diversity Balancer: Ensure a balanced mix of visual types across the 6 charts
+        chart_type_counts: dict[str, int] = {}
+        for hv in hydrated_visuals:
+            ct = hv["chart_type"]
+            chart_type_counts[ct] = chart_type_counts.get(ct, 0) + 1
+
+        donut_count = chart_type_counts.get("donut", 0) + chart_type_counts.get("pie", 0)
+        line_count = chart_type_counts.get("line", 0) + chart_type_counts.get("area", 0)
+
+        # 1. Promote suitable low-cardinality categorical bar charts to donut/pie if donut count < 2
+        if donut_count < 2:
+            for hv in hydrated_visuals:
+                if donut_count >= 2:
+                    break
+                if hv["chart_type"] in ("bar", "column") and not hv.get("is_temporal"):
+                    rec_count = len(hv.get("data", []))
+                    t_lower = hv["title"].lower()
+                    x_lower = (hv["x_field"] or "").lower()
+                    # Check if candidates are low cardinality (2 to 7 records) or composition-oriented
+                    is_composition = any(k in t_lower or k in x_lower for k in ("distribution", "breakdown", "status", "mode", "type", "category", "share", "gender", "department", "tier", "role"))
+                    if 2 <= rec_count <= 7 or (is_composition and 2 <= rec_count <= 8):
+                        hv["chart_type"] = "donut"
+                        donut_count += 1
+                        logger.info("Automated diversity balancer: promoted '%s' from bar to donut (%d slices)", hv["title"], rec_count)
+
+        # 2. Promote suitable multi-period temporal bar charts to line/area if line count < 2
+        if line_count < 2:
+            for hv in hydrated_visuals:
+                if line_count >= 2:
+                    break
+                if hv["chart_type"] in ("bar", "column") and hv.get("is_temporal"):
+                    rec_count = len(hv.get("data", []))
+                    if rec_count >= 3:
+                        hv["chart_type"] = "line" if line_count == 0 else "area"
+                        line_count += 1
+                        logger.info("Automated diversity balancer: promoted temporal '%s' from bar to %s (%d points)", hv["title"], hv["chart_type"], rec_count)
+
+        # Build Vega-Lite specifications with finalized diverse chart types
+        for hv in hydrated_visuals:
+            hv["vega_spec"] = _build_vega_lite_spec(
+                hv["title"],
+                hv["chart_type"],
+                hv["x_field"],
+                hv["y_field"],
+                hv["color_field"],
+                hv["data"],
+                is_temporal=hv.get("is_temporal", False),
+            )
+            hv.pop("is_temporal", None)
+
         while len(hydrated_visuals) < 6:
+            pad_type = "donut" if donut_count < 2 else ("line" if line_count < 2 else "bar")
             hydrated_visuals.append({
                 "id": f"viz_pad_{len(hydrated_visuals)}",
                 "title": f"Visualization {len(hydrated_visuals)+1}",
                 "description": "Additional analytical perspective",
-                "chart_type": "bar",
+                "chart_type": pad_type,
                 "data": [],
-                "vega_spec": _build_vega_lite_spec(f"Visualization {len(hydrated_visuals)+1}", "bar", None, None, None, []),
+                "vega_spec": _build_vega_lite_spec(f"Visualization {len(hydrated_visuals)+1}", pad_type, None, None, None, []),
             })
 
         spec["visualizations"] = hydrated_visuals
@@ -1421,6 +1551,89 @@ def profile_data():
         raise AppError(ErrorCode.DATA_LOAD_ERROR, f"Failed to profile tables: {exc}") from exc
 
 
+def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build high-quality rule-based fallback suggestions from data profile."""
+    suggestions = []
+    tables = profile.get("tables", [])
+    if not tables:
+        return []
+
+    t0 = tables[0]
+    t_name = t0.get("table_name", "Data")
+    measures = t0.get("measures", [])
+    dimensions = t0.get("dimensions", [])
+    temporal = t0.get("temporal_columns", [])
+
+    clean_name = t_name.replace("_", " ").title()
+
+    # Suggestion 1: Executive Overview
+    suggestions.append({
+        "id": "executive_overview",
+        "title": f"{clean_name} Overview",
+        "description": f"Comprehensive overview of {clean_name} key performance indicators and metrics.",
+        "prompt": f"Create an executive overview dashboard analyzing all key metrics in {t_name}.",
+        "reason": f"Provides high-level insights for {t_name}",
+        "focus_metrics": measures[:2],
+    })
+
+    # Suggestion 2: Breakdown by Dimension
+    if dimensions:
+        dim = dimensions[0].replace("_", " ").title()
+        suggestions.append({
+            "id": "dimension_breakdown",
+            "title": f"{clean_name} by {dim}",
+            "description": f"Analyze metrics distribution and performance segmented across {dim.lower()}.",
+            "prompt": f"Create a dashboard analyzing {t_name} broken down by {dimensions[0]}.",
+            "reason": f"Reveals segment patterns across {dim}",
+            "focus_metrics": [dimensions[0]] + measures[:1],
+        })
+
+    # Suggestion 3: Temporal Trends (if date column exists) or Secondary Measure Analysis
+    if temporal:
+        date_col = temporal[0].replace("_", " ").title()
+        suggestions.append({
+            "id": "temporal_trends",
+            "title": f"{clean_name} Trends Over Time",
+            "description": f"Track temporal dynamics and trajectory across {date_col.lower()}.",
+            "prompt": f"Create a timeline dashboard showing {t_name} trends and fluctuations over {temporal[0]}.",
+            "reason": f"Identifies trajectory and periodicity over time",
+            "focus_metrics": [temporal[0]] + measures[:1],
+        })
+    elif len(measures) >= 2:
+        m2 = measures[1].replace("_", " ").title()
+        suggestions.append({
+            "id": "measure_analysis",
+            "title": f"{m2} Comparative Analysis",
+            "description": f"In-depth analysis focusing on {m2.lower()} performance and variance.",
+            "prompt": f"Create a dashboard analyzing {measures[1]} in relation to other factors in {t_name}.",
+            "reason": f"Explores critical metric {m2}",
+            "focus_metrics": measures[:2],
+        })
+
+    # Suggestion 4: Distribution / Summary
+    if len(dimensions) >= 2:
+        dim2 = dimensions[1].replace("_", " ").title()
+        suggestions.append({
+            "id": "category_distribution",
+            "title": f"{dim2} Distribution & Capacity",
+            "description": f"Examine distribution patterns and resource allocation across {dim2.lower()}.",
+            "prompt": f"Create a summary dashboard examining {t_name} patterns across {dimensions[1]}.",
+            "reason": f"Analyzes distribution across {dim2}",
+            "focus_metrics": [dimensions[1]],
+        })
+    elif len(suggestions) < 4:
+        suggestions.append({
+            "id": "summary_analysis",
+            "title": f"{clean_name} Detailed Analysis",
+            "description": f"Multi-dimensional analysis of key metrics across {clean_name}.",
+            "prompt": f"Create a detailed multi-chart analytics dashboard for {t_name}.",
+            "reason": f"Full metric exploration for {t_name}",
+            "focus_metrics": measures[:1],
+        })
+
+    return suggestions[:4]
+
+
 @intelligence_bp.route("/suggestions", methods=["POST"])
 def generate_suggestions():
     """Generate dynamic, intelligent dashboard suggestions based on data profile."""
@@ -1430,9 +1643,6 @@ def generate_suggestions():
 
     if not profile or not profile.get("tables"):
         raise AppError(ErrorCode.INVALID_REQUEST, "Valid data profile is required")
-
-    client = _get_client_from_request(model_config)
-    lang_inst = build_language_instruction(_get_ui_lang(), mode="full")
 
     summary_tables = []
     for t in profile.get("tables", []):
@@ -1446,7 +1656,11 @@ def generate_suggestions():
             "sample_records": t.get("sample_records", [])[:2],
         })
 
-    system_prompt = f"""You are an elite business intelligence and data analyst AI for InsightCanvas.
+    try:
+        client = _get_client_from_request(model_config)
+        lang_inst = build_language_instruction(_get_ui_lang(), mode="full")
+
+        system_prompt = f"""You are an elite business intelligence and data analyst AI for InsightCanvas.
 Your task is to analyze the provided dataset schema and profile, and propose 4 to 5 highly relevant, diverse dashboard concepts tailored specifically to the actual data.
 
 IMPORTANT RULES:
@@ -1474,10 +1688,9 @@ Return ONLY valid JSON matching this schema:
   ]
 }}
 """
-    system_prompt = inject_language_instruction(system_prompt, lang_inst)
-    user_query = f"Dataset Profile:\n{json.dumps(summary_tables, ensure_ascii=False, indent=2)}"
+        system_prompt = inject_language_instruction(system_prompt, lang_inst)
+        user_query = f"Dataset Profile:\n{json.dumps(summary_tables, ensure_ascii=False, indent=2)}"
 
-    try:
         response = client.get_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -1487,13 +1700,15 @@ Return ONLY valid JSON matching this schema:
         )
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
-        if json_objs and "suggestions" in json_objs[0]:
+        if json_objs and "suggestions" in json_objs[0] and json_objs[0]["suggestions"]:
             return json_ok(json_objs[0])
         parsed = json.loads(content)
-        return json_ok(parsed if "suggestions" in parsed else {"suggestions": []})
+        if "suggestions" in parsed and parsed["suggestions"]:
+            return json_ok(parsed)
+        return json_ok({"suggestions": _build_heuristic_suggestions(profile)})
     except Exception as exc:
-        logger.error("Error generating suggestions: %s", exc, exc_info=True)
-        raise classify_and_wrap_llm_error(exc) from exc
+        logger.warning("Error generating LLM suggestions: %s, using heuristic suggestions", exc)
+        return json_ok({"suggestions": _build_heuristic_suggestions(profile)})
 
 
 @intelligence_bp.route("/generate-dashboard", methods=["POST"])
@@ -1560,7 +1775,12 @@ LAYOUT REQUIREMENTS (STRICT):
 1. **1 Top-Level Filter**: Select the single most useful categorical or date dimension field across the data (e.g. Region, Department, Category, Year, Status).
 2. **Exactly 4 KPI Cards**: Pick the 4 most critical summary metrics. Choose appropriate aggregations (SUM, AVG, COUNT, MIN, MAX) and formatting ('currency', 'number', 'percent', 'integer').
 3. **Exactly 6 Visualizations** (3 in Row 1, 3 in Row 2):
-   - Choose diverse, complementary chart types from ('bar', 'line', 'area', 'scatter', 'donut', 'pie').
+   - MANDATORY AUTOMATED CHART DIVERSITY RULE:
+     You MUST generate a balanced and diverse mix of chart types across the 6 visual cards:
+     * **1 to 2 Composition / Distribution charts**: ALWAYS include 'donut' or 'pie' for low-cardinality categorical breakdowns (<= 7 categories, e.g. Attendance Status, Work Mode, Gender, Priority, Role, Department).
+     * **1 to 2 Trend / Trajectory charts**: 'line' or 'area' (when temporal/date/time columns exist with multiple time periods).
+     * **2 to 3 Comparison / Ranking / Distribution charts**: 'bar' or 'column' for categorical rankings and leaderboards, or 'scatter' for 2-metric correlations.
+     * NEVER output all 'bar' charts. Ensure at least 3 DISTINCT chart types across the 6 visual cards whenever the dataset supports them!
    - For ANY time-series, trajectory, or trend over time (e.g. 'Trend of Hours Worked', 'Overtime Trend'): ALWAYS use 'line', 'area', or 'column'. NEVER EVER use 'pie' or 'donut' for date/time/temporal fields!
    - Use 'pie' or 'donut' ONLY for low-cardinality categorical breakdowns (<= 7 categories, e.g. Attendance Status, Department, Work Model).
    - If a date column has only 1 or 2 distinct dates (a single point in time / snapshot, e.g. only '2026-01-01'), do NOT use a line chart — use 'bar' or 'donut' broken down by a category (e.g. Department, Performance Rating, Location).
@@ -2006,11 +2226,20 @@ def list_intelligence_sessions():
                     "created_at": meta.get("created_at"),
                     "updated_at": meta.get("updated_at"),
                     "prompt": meta.get("prompt"),
+                    "pinned": bool(meta.get("pinned", False)),
+                    "liked": bool(meta.get("liked", False)),
                 })
         except Exception as exc:
             logger.debug("Failed to read session file %s: %s", f, exc)
 
-    sessions.sort(key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)
+    # Sort pinned sessions first, then by updated_at / created_at descending
+    sessions.sort(
+        key=lambda x: (
+            1 if x.get("pinned", False) else 0,
+            x.get("updated_at") or x.get("created_at") or "",
+        ),
+        reverse=True,
+    )
     return json_ok({"sessions": sessions})
 
 
@@ -2038,26 +2267,96 @@ def save_intelligence_session():
     data = request.get_json() or {}
     session_id = data.get("id") or f"ih_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     
+    s_dir = _get_sessions_dir(identity_id)
+    s_path = s_dir / f"{session_id}.json"
+    existing_data = {}
+    if s_path.exists():
+        try:
+            with open(s_path, "r", encoding="utf-8") as fh:
+                existing_data = json.load(fh)
+        except Exception:
+            existing_data = {}
+
+    pinned = data.get("pinned")
+    if pinned is None:
+        pinned = existing_data.get("pinned", False)
+
+    liked = data.get("liked")
+    if liked is None:
+        liked = existing_data.get("liked", False)
+
     payload = {
         "id": session_id,
-        "title": data.get("title") or data.get("dashboard", {}).get("title") or "Intelligence Dashboard",
-        "source_id": data.get("source_id"),
-        "database": data.get("database"),
-        "tables": data.get("tables", []),
-        "profile": data.get("profile"),
-        "dashboard": data.get("dashboard"),
-        "prompt": data.get("prompt"),
-        "chat_history": data.get("chat_history", []),
-        "created_at": data.get("created_at") or datetime.now().isoformat(),
+        "title": data.get("title") or data.get("dashboard", {}).get("title") or existing_data.get("title") or "Intelligence Dashboard",
+        "source_id": data.get("source_id") or existing_data.get("source_id"),
+        "database": data.get("database") or existing_data.get("database"),
+        "tables": data.get("tables", existing_data.get("tables", [])),
+        "profile": data.get("profile", existing_data.get("profile")),
+        "dashboard": data.get("dashboard", existing_data.get("dashboard")),
+        "prompt": data.get("prompt", existing_data.get("prompt")),
+        "chat_history": data.get("chat_history", existing_data.get("chat_history", [])),
+        "pinned": bool(pinned),
+        "liked": bool(liked),
+        "created_at": data.get("created_at") or existing_data.get("created_at") or datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
     }
 
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
     with open(s_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
     return json_ok({"session": payload})
+
+
+@intelligence_bp.route("/sessions/<session_id>/toggle-pin", methods=["POST"])
+def toggle_session_pin(session_id: str):
+    """Toggle or set pinned state of an Intelligence Hub session."""
+    identity_id = _safe_get_identity_id()
+
+    s_dir = _get_sessions_dir(identity_id)
+    s_path = s_dir / f"{session_id}.json"
+    if not s_path.exists():
+        raise AppError(ErrorCode.NOT_FOUND, "Session not found")
+
+    with open(s_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+
+    body = request.get_json(silent=True) or {}
+    if "pinned" in body:
+        data["pinned"] = bool(body["pinned"])
+    else:
+        data["pinned"] = not bool(data.get("pinned", False))
+    data["updated_at"] = datetime.now().isoformat()
+
+    with open(s_path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+
+    return json_ok({"session": data, "pinned": data["pinned"]})
+
+
+@intelligence_bp.route("/sessions/<session_id>/toggle-like", methods=["POST"])
+def toggle_session_like(session_id: str):
+    """Toggle or set liked state of an Intelligence Hub session."""
+    identity_id = _safe_get_identity_id()
+
+    s_dir = _get_sessions_dir(identity_id)
+    s_path = s_dir / f"{session_id}.json"
+    if not s_path.exists():
+        raise AppError(ErrorCode.NOT_FOUND, "Session not found")
+
+    with open(s_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+
+    body = request.get_json(silent=True) or {}
+    if "liked" in body:
+        data["liked"] = bool(body["liked"])
+    else:
+        data["liked"] = not bool(data.get("liked", False))
+    data["updated_at"] = datetime.now().isoformat()
+
+    with open(s_path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+
+    return json_ok({"session": data, "liked": data["liked"]})
 
 
 @intelligence_bp.route("/sessions/<session_id>", methods=["DELETE"])

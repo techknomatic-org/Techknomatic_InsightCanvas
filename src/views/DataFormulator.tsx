@@ -665,9 +665,7 @@ export const DataFormulatorFC = ({ }) => {
             boxSizing: 'border-box',
             zIndex: 10,
             flexShrink: 0,
-            bgcolor: 'rgba(255, 255, 255, 0.75)',
-            backdropFilter: 'blur(8px)',
-            borderTop: '1px solid rgba(226, 232, 240, 0.85)',
+            bgcolor: 'transparent',
         }}
     >
         <Button
