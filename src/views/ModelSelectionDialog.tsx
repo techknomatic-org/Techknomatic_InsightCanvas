@@ -576,10 +576,18 @@ export const ModelSelectionContent: React.FC<{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: '240px 1fr' },
             gap: 3,
-            py: 1,
             height: '100%',
+            minHeight: 0,
         }}>
-            <Box sx={{ pr: { md: 2.5 }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' }, overflowY: 'auto' }}>
+            <Box sx={{
+                pr: { md: 2.5 },
+                borderRight: { md: '1px solid' },
+                borderColor: { md: 'divider' },
+                overflowY: 'auto',
+                minHeight: 0,
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' },
+            }}>
                 <Box sx={{ display: 'grid' }}>
                     {allModels.map(model => (
                         <Box
@@ -647,7 +655,13 @@ export const ModelSelectionContent: React.FC<{
                     </Button>
                 </Box>
             </Box>
-            <Box sx={{ minWidth: 0, overflowY: 'auto' }}>
+            <Box sx={{
+                minWidth: 0,
+                minHeight: 0,
+                overflowY: 'auto',
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' },
+            }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -716,8 +730,8 @@ export const ModelSelectionContent: React.FC<{
     let tempModelName = tempModel ? `${tempModel.endpoint}/${tempModel.model}` : t('model.pleaseSelectModel');
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 2.5 }, pt: { xs: 2.5, sm: 3 }, overflow: 'hidden' }}>
-            <Box sx={{ flex: 1, overflowY: 'auto', mb: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 2.5 }, pt: { xs: 2.5, sm: 3 }, overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {modelManagerView}
             </Box>
 
