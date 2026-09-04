@@ -555,6 +555,7 @@ const DataSourceSidebarPanel: React.FC<{
     const { t } = useTranslation();
     const dispatch = useDispatch<AppDispatch>();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const activeWorkspace = useSelector((state: DataFormulatorState) => state.activeWorkspace);
     const identityKey = useSelector(
@@ -813,6 +814,9 @@ const DataSourceSidebarPanel: React.FC<{
             const state = await importWorkspace(file, wsId, wsName);
             const restoredName = (state as any).activeWorkspace?.displayName || wsName;
             dispatch(dfActions.loadState({ ...state, activeWorkspace: { id: wsId, displayName: restoredName } }));
+            if (location.pathname !== '/' && location.pathname !== '/app') {
+                navigate('/');
+            }
         } catch (e) {
             console.warn('Failed to import workspace:', e);
             dispatch(dfActions.addMessages({
@@ -823,7 +827,7 @@ const DataSourceSidebarPanel: React.FC<{
         }
         dispatch(dfActions.setSessionLoading({ loading: false }));
         if (importRef.current) importRef.current.value = '';
-    }, [dispatch, t]);
+    }, [dispatch, location.pathname, navigate, t]);
 
     useEffect(() => {
         refreshSessions();
@@ -1672,6 +1676,11 @@ const DataSourceSidebarPanel: React.FC<{
                     defaultValue: `Loaded ${ok} of ${tables.length} tables${truncated > 0 ? ` (${truncated} truncated)` : ''}.`,
                 }),
             }));
+
+            // Automatically navigate to canvas (Home) if currently on Settings, About, or any non-canvas view
+            if (location.pathname !== '/' && location.pathname !== '/app') {
+                navigate('/');
+            }
         }
         if (failed.length > 0) {
             dispatch(dfActions.addMessages({
@@ -1687,7 +1696,7 @@ const DataSourceSidebarPanel: React.FC<{
         }
         closePreview();
         clearSelection();
-    }, [activeWorkspace, createNewSession, loadTableNode, dispatch, closePreview, clearSelection, connectors, onStartDataLoadingChat, t]);
+    }, [activeWorkspace, createNewSession, loadTableNode, dispatch, closePreview, clearSelection, connectors, onStartDataLoadingChat, t, location.pathname, navigate]);
 
     // ── Refresh table data ───────────────────────────────────────────────────
 

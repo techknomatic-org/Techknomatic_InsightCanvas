@@ -30,7 +30,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { StreamIcon, getConnectorIcon, connectorSortOrder } from '../icons';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -1037,6 +1037,8 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
     const theme = useTheme();
     const { t } = useTranslation();
     const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
+    const location = useLocation();
     const existingTables = useSelector(dfSelectors.getAllTables);
     const serverConfig = useSelector((state: DataFormulatorState) => state.serverConfig);
     const dataLoadingChatMessages = useSelector((state: DataFormulatorState) => state.dataLoadingChatMessages);
@@ -1185,6 +1187,13 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
         setExampleUrls([]);
         onClose();
     }, [onClose]);
+
+    const finishLoadAndClose = useCallback(() => {
+        handleClose();
+        if (location.pathname !== '/' && location.pathname !== '/app') {
+            navigate('/');
+        }
+    }, [handleClose, location.pathname, navigate]);
 
     // Connector setup escape hatch: queue the seeded question and switch to the
     // data-loading chat, where the agent can inspect config and finish setup.
@@ -1349,7 +1358,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                     table: tableWithSource,
                     file: storeOnServer ? filePreviewFiles[filePreviewActiveIndex] || filePreviewFiles[0] : undefined,
                 })).unwrap();
-                handleClose();
+                finishLoadAndClose();
             } catch (err: any) {
                 console.error('Failed to load table:', err);
                 setFilePreviewError(err?.message || 'Failed to load table to workspace. Please check your data and try again.');
@@ -1398,7 +1407,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                     replaceSource: storeOnServer && isFirstForFile,
                 })).unwrap();
             }
-            handleClose();
+            finishLoadAndClose();
         } catch (err: any) {
             console.error('Failed to load all tables:', err);
             setFilePreviewError(err?.message || 'Failed to load all tables to workspace.');
@@ -1459,7 +1468,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
             setTableLoading(true);
             try {
                 await dispatch(loadTable({ table: tableWithSource })).unwrap();
-                handleClose();
+                finishLoadAndClose();
             } catch (err: any) {
                 console.error('Failed to load pasted data:', err);
             } finally {
@@ -1564,7 +1573,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
             setTableLoading(true);
             try {
                 await dispatch(loadTable({ table: tableWithSource })).unwrap();
-                handleClose();
+                finishLoadAndClose();
             } catch (err: any) {
                 console.error('Failed to load URL table:', err);
                 setUrlPreviewError(err?.message || 'Failed to load URL table');
@@ -1597,7 +1606,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
                 const tableWithSource = { ...table, source: sourceConfig };
                 await dispatch(loadTable({ table: tableWithSource })).unwrap();
             }
-            handleClose();
+            finishLoadAndClose();
         } catch (err: any) {
             console.error('Failed to load all URL tables:', err);
             setUrlPreviewError(err?.message || 'Failed to load URL tables');
@@ -2386,7 +2395,7 @@ export const UnifiedDataUploadDialog: React.FC<UnifiedDataUploadDialogProps> = (
 
                 {/* Extract Data Tab */}
                 <TabPanel value={activeTab} index="extract">
-                    <DataLoadingChat onTableLoaded={handleClose} />
+                    <DataLoadingChat onTableLoaded={finishLoadAndClose} />
                 </TabPanel>
 
                 {/* Local folder is no longer a dedicated tab — the "Link local
