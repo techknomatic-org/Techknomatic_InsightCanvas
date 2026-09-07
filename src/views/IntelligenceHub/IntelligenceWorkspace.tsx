@@ -311,41 +311,97 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     };
 
     // 7. Toggle Pin Session
-    const handleTogglePin = async (sessionId: string, e?: React.MouseEvent) => {
+    const handleTogglePin = async (sessionId?: string | null, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setSessions((prev) =>
-            prev.map((s) => (s.id === sessionId ? { ...s, pinned: !s.pinned } : s))
-        );
+        let targetId = sessionId || activeSessionId;
+        if (!targetId) {
+            targetId = `ih_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            setActiveSessionId(targetId);
+        }
+
+        setSessions((prev) => {
+            const exists = prev.some((s) => s.id === targetId);
+            if (!exists) {
+                return [
+                    {
+                        id: targetId!,
+                        title: dashboard?.title || 'Intelligence Dashboard',
+                        source_id: sourceId,
+                        database: databaseName,
+                        tables: tableNames,
+                        pinned: true,
+                        liked: false,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    },
+                    ...prev,
+                ];
+            }
+            return prev.map((s) => (s.id === targetId ? { ...s, pinned: !s.pinned } : s));
+        });
+
         try {
-            const res = await togglePinSession(sessionId);
-            setSessions((prev) =>
-                prev.map((s) => (s.id === sessionId ? { ...s, pinned: res.pinned } : s))
-            );
+            const res = await togglePinSession(targetId);
+            setSessions((prev) => {
+                const exists = prev.some((s) => s.id === targetId);
+                if (!exists && res.session) {
+                    return [res.session, ...prev];
+                }
+                return prev.map((s) => (s.id === targetId ? { ...s, pinned: res.pinned } : s));
+            });
         } catch (err) {
             console.error('Failed to toggle pin', err);
             // Revert optimistic update
             setSessions((prev) =>
-                prev.map((s) => (s.id === sessionId ? { ...s, pinned: !s.pinned } : s))
+                prev.map((s) => (s.id === targetId ? { ...s, pinned: !s.pinned } : s))
             );
         }
     };
 
     // 8. Toggle Like Session
-    const handleToggleLike = async (sessionId: string, e?: React.MouseEvent) => {
+    const handleToggleLike = async (sessionId?: string | null, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setSessions((prev) =>
-            prev.map((s) => (s.id === sessionId ? { ...s, liked: !s.liked } : s))
-        );
+        let targetId = sessionId || activeSessionId;
+        if (!targetId) {
+            targetId = `ih_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            setActiveSessionId(targetId);
+        }
+
+        setSessions((prev) => {
+            const exists = prev.some((s) => s.id === targetId);
+            if (!exists) {
+                return [
+                    {
+                        id: targetId!,
+                        title: dashboard?.title || 'Intelligence Dashboard',
+                        source_id: sourceId,
+                        database: databaseName,
+                        tables: tableNames,
+                        pinned: false,
+                        liked: true,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    },
+                    ...prev,
+                ];
+            }
+            return prev.map((s) => (s.id === targetId ? { ...s, liked: !s.liked } : s));
+        });
+
         try {
-            const res = await toggleLikeSession(sessionId);
-            setSessions((prev) =>
-                prev.map((s) => (s.id === sessionId ? { ...s, liked: res.liked } : s))
-            );
+            const res = await toggleLikeSession(targetId);
+            setSessions((prev) => {
+                const exists = prev.some((s) => s.id === targetId);
+                if (!exists && res.session) {
+                    return [res.session, ...prev];
+                }
+                return prev.map((s) => (s.id === targetId ? { ...s, liked: res.liked } : s));
+            });
         } catch (err) {
             console.error('Failed to toggle like', err);
             // Revert optimistic update
             setSessions((prev) =>
-                prev.map((s) => (s.id === sessionId ? { ...s, liked: !s.liked } : s))
+                prev.map((s) => (s.id === targetId ? { ...s, liked: !s.liked } : s))
             );
         }
     };
@@ -565,66 +621,62 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         {dashboard && (
                             <>
                                 {/* Pin Active Dashboard Button */}
-                                {activeSessionId && (
-                                    <Tooltip title={isCurrentPinned ? "Unpin dashboard" : "Pin dashboard to top"}>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleTogglePin(activeSessionId)}
-                                            sx={{
-                                                width: 32,
-                                                height: 32,
-                                                borderRadius: '8px',
-                                                border: '1px solid',
-                                                borderColor: isCurrentPinned ? '#93c5fd' : '#cbd5e1',
-                                                bgcolor: isCurrentPinned ? '#eff6ff' : '#ffffff',
-                                                color: isCurrentPinned ? '#1B75BB' : '#64748b',
-                                                transition: 'all 0.15s ease',
-                                                '&:hover': {
-                                                    bgcolor: isCurrentPinned ? '#dbeafe' : '#f8fafc',
-                                                    borderColor: '#1B75BB',
-                                                    color: '#1B75BB',
-                                                },
-                                            }}
-                                        >
-                                            {isCurrentPinned ? (
-                                                <PushPinIcon sx={{ fontSize: 17 }} />
-                                            ) : (
-                                                <PushPinOutlinedIcon sx={{ fontSize: 17 }} />
-                                            )}
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <Tooltip title={isCurrentPinned ? "Unpin dashboard" : "Pin dashboard to top"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleTogglePin(activeSessionId)}
+                                        sx={{
+                                            width: 32,
+                                            height: 32,
+                                            borderRadius: '8px',
+                                            border: '1px solid',
+                                            borderColor: isCurrentPinned ? '#93c5fd' : '#cbd5e1',
+                                            bgcolor: isCurrentPinned ? '#eff6ff' : '#ffffff',
+                                            color: isCurrentPinned ? '#1B75BB' : '#64748b',
+                                            transition: 'all 0.15s ease',
+                                            '&:hover': {
+                                                bgcolor: isCurrentPinned ? '#dbeafe' : '#f8fafc',
+                                                borderColor: '#1B75BB',
+                                                color: '#1B75BB',
+                                            },
+                                        }}
+                                    >
+                                        {isCurrentPinned ? (
+                                            <PushPinIcon sx={{ fontSize: 17 }} />
+                                        ) : (
+                                            <PushPinOutlinedIcon sx={{ fontSize: 17 }} />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Like Active Dashboard Button */}
-                                {activeSessionId && (
-                                    <Tooltip title={isCurrentLiked ? "Unlike dashboard" : "Like dashboard"}>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleToggleLike(activeSessionId)}
-                                            sx={{
-                                                width: 32,
-                                                height: 32,
-                                                borderRadius: '8px',
-                                                border: '1px solid',
-                                                borderColor: isCurrentLiked ? '#fecaca' : '#cbd5e1',
-                                                bgcolor: isCurrentLiked ? '#fef2f2' : '#ffffff',
-                                                color: isCurrentLiked ? '#ef4444' : '#64748b',
-                                                transition: 'all 0.15s ease',
-                                                '&:hover': {
-                                                    bgcolor: isCurrentLiked ? '#fee2e2' : '#f8fafc',
-                                                    borderColor: '#ef4444',
-                                                    color: '#ef4444',
-                                                },
-                                            }}
-                                        >
-                                            {isCurrentLiked ? (
-                                                <FavoriteIcon sx={{ fontSize: 17 }} />
-                                            ) : (
-                                                <FavoriteBorderIcon sx={{ fontSize: 17 }} />
-                                            )}
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <Tooltip title={isCurrentLiked ? "Unlike dashboard" : "Like dashboard"}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleToggleLike(activeSessionId)}
+                                        sx={{
+                                            width: 32,
+                                            height: 32,
+                                            borderRadius: '8px',
+                                            border: '1px solid',
+                                            borderColor: isCurrentLiked ? '#fecaca' : '#cbd5e1',
+                                            bgcolor: isCurrentLiked ? '#fef2f2' : '#ffffff',
+                                            color: isCurrentLiked ? '#ef4444' : '#64748b',
+                                            transition: 'all 0.15s ease',
+                                            '&:hover': {
+                                                bgcolor: isCurrentLiked ? '#fee2e2' : '#f8fafc',
+                                                borderColor: '#ef4444',
+                                                color: '#ef4444',
+                                            },
+                                        }}
+                                    >
+                                        {isCurrentLiked ? (
+                                            <FavoriteIcon sx={{ fontSize: 17 }} />
+                                        ) : (
+                                            <FavoriteBorderIcon sx={{ fontSize: 17 }} />
+                                        )}
+                                    </IconButton>
+                                </Tooltip>
 
                                 {/* Executive Report Button in Header */}
                                 <Tooltip title="Analyze dashboard KPIs and generate an executive report">

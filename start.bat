@@ -34,13 +34,13 @@ echo [1/2] Starting Backend Server (Flask) on port %BACKEND_PORT%...
 start "InsightCanvas - Backend" cmd /k "title InsightCanvas - Backend && python -m uv run data_formulator --port %BACKEND_PORT% --dev"
 
 :: Wait 3 seconds for backend to initialize
-timeout /t 3 /nobreak >nul
+timeout /t 3 /nobreak >nul 2>&1 || ping -n 4 127.0.0.1 >nul
 
 echo [2/2] Starting Frontend Server (Vite) on port %FRONTEND_PORT%...
 start "InsightCanvas - Frontend" cmd /k "title InsightCanvas - Frontend && yarn start --port %FRONTEND_PORT%"
 
 :: Wait 2 seconds and open browser
-timeout /t 2 /nobreak >nul
+timeout /t 2 /nobreak >nul 2>&1 || ping -n 3 127.0.0.1 >nul
 echo.
 echo Opening browser at http://localhost:%FRONTEND_PORT% ...
 start http://localhost:%FRONTEND_PORT%

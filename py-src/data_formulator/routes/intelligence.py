@@ -86,6 +86,48 @@ def _get_sessions_dir(identity_id: str) -> Path:
     return s_dir
 
 
+def _locate_session_file(session_id: str, identity_id: str) -> Path:
+    """Locate session file across current user dir, fallback identities, and all user dirs."""
+    from data_formulator.datalake.workspace import get_data_formulator_home
+    s_dir = _get_sessions_dir(identity_id)
+    s_path = s_dir / f"{session_id}.json"
+    if s_path.exists():
+        return s_path
+
+    # Check client identity header if different
+    client_identity = request.headers.get("X-Identity-Id")
+    if client_identity:
+        val = client_identity.split(":", 1)[-1]
+        for candidate_id in [f"browser:{val}", f"user:{val}", val]:
+            try:
+                candidate_dir = _get_sessions_dir(candidate_id)
+                candidate_path = candidate_dir / f"{session_id}.json"
+                if candidate_path.exists():
+                    return candidate_path
+            except Exception:
+                pass
+
+    # Check anonymous / browser dirs
+    anon_dir = _get_sessions_dir("local:anonymous")
+    anon_path = anon_dir / f"{session_id}.json"
+    if anon_path.exists():
+        return anon_path
+
+    # Search all user dirs under users/
+    try:
+        users_root = get_data_formulator_home() / "users"
+        if users_root.exists():
+            for user_dir in users_root.iterdir():
+                if user_dir.is_dir():
+                    candidate_file = user_dir / "intelligence_sessions" / f"{session_id}.json"
+                    if candidate_file.exists():
+                        return candidate_file
+    except Exception as exc:
+        logger.debug("Error searching users_root for session %s: %s", session_id, exc)
+
+    return s_path
+
+
 def _get_or_create_workspace(identity_id: str, requested_ws_id: str | None = None) -> Workspace:
     """Get active workspace from request body/header or create a default user workspace."""
     ws_id = requested_ws_id or get_active_workspace_id() or f"intelligence_hub_{identity_id.replace(':', '_')}"
@@ -2208,17 +2250,46 @@ Return ONLY the complete Markdown document. Do not wrap in JSON or code fences."
 
 @intelligence_bp.route("/sessions", methods=["GET"])
 def list_intelligence_sessions():
-    """List all saved Intelligence Hub sessions."""
+    """List all saved Intelligence Hub sessions across current identity and fallback identities."""
     identity_id = _safe_get_identity_id()
 
     s_dir = _get_sessions_dir(identity_id)
+    session_files = list(s_dir.glob("*.json"))
+
+    # Also check client identity header if different
+    client_identity = request.headers.get("X-Identity-Id")
+    if client_identity:
+        val = client_identity.split(":", 1)[-1]
+        for candidate_id in [f"browser:{val}", f"user:{val}"]:
+            if candidate_id != identity_id:
+                try:
+                    c_dir = _get_sessions_dir(candidate_id)
+                    if c_dir.exists():
+                        session_files.extend(list(c_dir.glob("*.json")))
+                except Exception:
+                    pass
+
+    # Also check local:anonymous if user directory has no sessions
+    if not session_files and identity_id != "local:anonymous":
+        try:
+            anon_dir = _get_sessions_dir("local:anonymous")
+            if anon_dir.exists():
+                session_files.extend(list(anon_dir.glob("*.json")))
+        except Exception:
+            pass
+
     sessions = []
-    for f in s_dir.glob("*.json"):
+    seen_ids = set()
+    for f in session_files:
         try:
             with open(f, "r", encoding="utf-8") as fh:
                 meta = json.load(fh)
+                sid = meta.get("id", f.stem)
+                if sid in seen_ids:
+                    continue
+                seen_ids.add(sid)
                 sessions.append({
-                    "id": meta.get("id", f.stem),
+                    "id": sid,
                     "title": meta.get("title", "Untitled Dashboard"),
                     "source_id": meta.get("source_id"),
                     "database": meta.get("database"),
@@ -2248,8 +2319,7 @@ def get_intelligence_session(session_id: str):
     """Retrieve full detail of a saved session."""
     identity_id = _safe_get_identity_id()
 
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
+    s_path = _locate_session_file(session_id, identity_id)
     if not s_path.exists():
         raise AppError(ErrorCode.NOT_FOUND, "Session not found")
 
@@ -2267,8 +2337,11 @@ def save_intelligence_session():
     data = request.get_json() or {}
     session_id = data.get("id") or f"ih_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
+    s_path = _locate_session_file(session_id, identity_id)
+    if not s_path.exists():
+        s_dir = _get_sessions_dir(identity_id)
+        s_path = s_dir / f"{session_id}.json"
+
     existing_data = {}
     if s_path.exists():
         try:
@@ -2312,20 +2385,28 @@ def toggle_session_pin(session_id: str):
     """Toggle or set pinned state of an Intelligence Hub session."""
     identity_id = _safe_get_identity_id()
 
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
-    if not s_path.exists():
-        raise AppError(ErrorCode.NOT_FOUND, "Session not found")
-
-    with open(s_path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-
+    s_path = _locate_session_file(session_id, identity_id)
     body = request.get_json(silent=True) or {}
-    if "pinned" in body:
-        data["pinned"] = bool(body["pinned"])
+
+    if not s_path.exists():
+        s_dir = _get_sessions_dir(identity_id)
+        s_path = s_dir / f"{session_id}.json"
+        data = {
+            "id": session_id,
+            "title": body.get("title", "Intelligence Dashboard"),
+            "pinned": True if "pinned" not in body else bool(body["pinned"]),
+            "liked": bool(body.get("liked", False)),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
     else:
-        data["pinned"] = not bool(data.get("pinned", False))
-    data["updated_at"] = datetime.now().isoformat()
+        with open(s_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if "pinned" in body:
+            data["pinned"] = bool(body["pinned"])
+        else:
+            data["pinned"] = not bool(data.get("pinned", False))
+        data["updated_at"] = datetime.now().isoformat()
 
     with open(s_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -2338,20 +2419,28 @@ def toggle_session_like(session_id: str):
     """Toggle or set liked state of an Intelligence Hub session."""
     identity_id = _safe_get_identity_id()
 
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
-    if not s_path.exists():
-        raise AppError(ErrorCode.NOT_FOUND, "Session not found")
-
-    with open(s_path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-
+    s_path = _locate_session_file(session_id, identity_id)
     body = request.get_json(silent=True) or {}
-    if "liked" in body:
-        data["liked"] = bool(body["liked"])
+
+    if not s_path.exists():
+        s_dir = _get_sessions_dir(identity_id)
+        s_path = s_dir / f"{session_id}.json"
+        data = {
+            "id": session_id,
+            "title": body.get("title", "Intelligence Dashboard"),
+            "pinned": bool(body.get("pinned", False)),
+            "liked": True if "liked" not in body else bool(body["liked"]),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
     else:
-        data["liked"] = not bool(data.get("liked", False))
-    data["updated_at"] = datetime.now().isoformat()
+        with open(s_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if "liked" in body:
+            data["liked"] = bool(body["liked"])
+        else:
+            data["liked"] = not bool(data.get("liked", False))
+        data["updated_at"] = datetime.now().isoformat()
 
     with open(s_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -2364,9 +2453,12 @@ def delete_intelligence_session(session_id: str):
     """Delete a saved session."""
     identity_id = _safe_get_identity_id()
 
-    s_dir = _get_sessions_dir(identity_id)
-    s_path = s_dir / f"{session_id}.json"
+    s_path = _locate_session_file(session_id, identity_id)
     if s_path.exists():
-        s_path.unlink()
+        try:
+            s_path.unlink()
+        except Exception as exc:
+            logger.debug("Failed to unlink session file %s: %s", s_path, exc)
 
     return json_ok({"deleted": True, "id": session_id})
+
