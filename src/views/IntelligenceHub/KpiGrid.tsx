@@ -100,7 +100,9 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                         key={kpi.id || idx}
                         elevation={0}
                         sx={{
-                            height: '100%',
+                            minHeight: 145,
+                            display: 'flex',
+                            flexDirection: 'column',
                             borderRadius: '12px',
                             border: '1px solid #e2e8f0',
                             borderTop: `4px solid ${accent.color}`,
@@ -108,7 +110,6 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                             transition: 'all 0.2s ease',
                             boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
                             position: 'relative',
-                            overflow: 'hidden',
                             '&:hover': {
                                 transform: 'translateY(-2px)',
                                 boxShadow: `0 8px 20px ${accent.color}18`,
@@ -118,14 +119,14 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                     >
                         <CardContent
                             sx={{
-                                p: 2.2,
-                                '&:last-child': { pb: 2.2 },
-                                height: '100%',
+                                p: 2,
+                                '&:last-child': { pb: 2 },
+                                flex: 1,
                                 display: 'flex',
                                 flexDirection: 'column',
                             }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1, gap: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 0.8, gap: 1 }}>
                                 <Typography
                                     variant="caption"
                                     sx={{
@@ -165,7 +166,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                     letterSpacing: '-0.03em',
                                     fontSize: '26px',
                                     lineHeight: 1.2,
-                                    mb: 0.8,
+                                    mb: 0.6,
                                 }}
                             >
                                 {kpi.formatted_value || '—'}
@@ -192,7 +193,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                         WebkitBoxOrient: 'vertical',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
-                                        mb: kpi.comparison ? 1 : 0,
+                                        mb: Boolean(kpi.comparison && kpi.comparison.trim()) ? 1 : 0,
                                         cursor: formulaText || (kpi.subtitle && kpi.subtitle.length > 40) ? 'help' : 'default',
                                     }}
                                 >
@@ -205,30 +206,43 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                 </Typography>
                             </Tooltip>
 
-                            {kpi.comparison && (
-                                <Box sx={{ mt: 'auto', pt: 0.5, display: 'flex', alignItems: 'center' }}>
-                                    <Tooltip title={kpi.comparison} arrow placement="bottom">
-                                        <Chip
-                                            size="small"
-                                            icon={<TrendingUpIcon sx={{ fontSize: '12px !important' }} />}
-                                            label={kpi.comparison}
-                                            sx={{
-                                                maxWidth: '100%',
-                                                height: 22,
-                                                fontSize: '10.5px',
-                                                fontWeight: 600,
-                                                bgcolor: '#ecfdf5',
-                                                color: '#059669',
-                                                border: '1px solid #a7f3d0',
-                                                '& .MuiChip-label': {
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    px: 1,
-                                                },
-                                            }}
-                                        />
-                                    </Tooltip>
+                            {Boolean(kpi.comparison && kpi.comparison.trim()) && (
+                                <Box sx={{ mt: 'auto', pt: 1, display: 'flex', alignItems: 'center' }}>
+                                    {(() => {
+                                        const compText = (kpi.comparison || '').trim();
+                                        const isNegative = compText.includes('-') || /\b(down|drop|decrease|decline|loss|flagged|below|exceeded|critical|alert|warning)\b/i.test(compText);
+                                        return (
+                                            <Tooltip title={compText} arrow placement="bottom">
+                                                <Chip
+                                                    size="small"
+                                                    icon={
+                                                        isNegative ? (
+                                                            <TrendingDownIcon sx={{ fontSize: '12px !important', color: '#dc2626 !important' }} />
+                                                        ) : (
+                                                            <TrendingUpIcon sx={{ fontSize: '12px !important', color: '#059669 !important' }} />
+                                                        )
+                                                    }
+                                                    label={compText}
+                                                    sx={{
+                                                        maxWidth: '100%',
+                                                        height: 22,
+                                                        fontSize: '10.5px',
+                                                        fontWeight: 600,
+                                                        bgcolor: isNegative ? '#fef2f2' : '#ecfdf5',
+                                                        color: isNegative ? '#dc2626' : '#059669',
+                                                        border: '1px solid',
+                                                        borderColor: isNegative ? '#fecaca' : '#a7f3d0',
+                                                        '& .MuiChip-label': {
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            px: 0.8,
+                                                        },
+                                                    }}
+                                                />
+                                            </Tooltip>
+                                        );
+                                    })()}
                                 </Box>
                             )}
                         </CardContent>
