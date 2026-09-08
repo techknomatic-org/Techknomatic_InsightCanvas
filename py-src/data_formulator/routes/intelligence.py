@@ -1372,25 +1372,90 @@ def _hydrate_dashboard_spec(
         numeric_types = {"INTEGER", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "HUGEINT", "TINYINT", "SMALLINT", "INT", "INT4", "INT8", "FLOAT4", "FLOAT8", "REAL"}
         numeric_cols = {col for col, dtype in all_col_types.items() if any(nt in str(dtype).upper() for nt in numeric_types)}
 
+        # Helper to resolve actual DuckDB column name matching user/LLM field name
+        def _resolve_col_name(field_name: str | None) -> str | None:
+            if not field_name:
+                return None
+            if field_name in all_known_cols:
+                return field_name
+            f_lower = field_name.strip().lower()
+            for c in all_known_cols:
+                if c.lower() == f_lower:
+                    return c
+            f_norm = re.sub(r'[\s_\-]+', '', f_lower)
+            for c in all_known_cols:
+                if re.sub(r'[\s_\-]+', '', c.lower()) == f_norm:
+                    return c
+            for c in all_known_cols:
+                c_lower = c.lower()
+                if f_lower == c_lower.replace('_', ' ') or f_lower.replace(' ', '_') == c_lower:
+                    return c
+            return field_name
+
         # Helper to resolve table for columns
         def _find_query_source(cols: list[str]) -> str:
-            # Check if all columns exist in a single table
+            resolved_cols = [_resolve_col_name(c) for c in cols if c]
+            # 1. Check if all columns exist in a single table
             for t_name, t_cols in table_columns.items():
-                if all(c in t_cols for c in cols if c):
+                t_cols_lower = {c.lower(): c for c in t_cols}
+                if all((c and c.lower() in t_cols_lower) for c in resolved_cols if c):
                     return f'"{t_name}"'
-            # If unified analytics view exists and has columns, use it
-            if unified_cols and all(c in unified_cols for c in cols if c):
+            # 2. If unified analytics view exists and has columns, use it
+            if unified_cols:
+                unified_lower = {c.lower(): c for c in unified_cols}
+                if all((c and c.lower() in unified_lower) for c in resolved_cols if c):
+                    return '"_unified_analytics"'
+            # 3. Fallback to any table with at least one column
+            for t_name, t_cols in table_columns.items():
+                t_cols_lower = {c.lower(): c for c in t_cols}
+                if any((c and c.lower() in t_cols_lower) for c in resolved_cols if c):
+                    return f'"{t_name}"'
+            if unified_cols:
                 return '"_unified_analytics"'
-            # Fallback to first table that contains any column or default
-            for t_name, t_cols in table_columns.items():
-                if any(c in t_cols for c in cols if c):
-                    return f'"{t_name}"'
             first_tbl = list(table_columns.keys())[0] if table_columns else "data"
             return f'"{first_tbl}"'
 
+        # Helper to build robust WHERE clauses across single & joined tables
+        def _build_where_clause(target_src: str, f_field: str | None, f_val: Any, is_date: bool = False) -> tuple[str, str]:
+            if not filter_active or not f_field or f_val is None:
+                return ("", target_src)
+
+            src_raw = target_src.strip('"')
+            src_cols = table_columns.get(src_raw, list(unified_cols) if src_raw == "_unified_analytics" else list(all_known_cols))
+
+            matching_col = None
+            f_lower = f_field.strip().lower()
+            f_norm = re.sub(r'[\s_\-]+', '', f_lower)
+            for c in src_cols:
+                if c.lower() == f_lower or re.sub(r'[\s_\-]+', '', c.lower()) == f_norm:
+                    matching_col = c
+                    break
+
+            actual_src = target_src
+            if not matching_col and unified_cols and target_src != '"_unified_analytics"':
+                for c in unified_cols:
+                    if c.lower() == f_lower or re.sub(r'[\s_\-]+', '', c.lower()) == f_norm:
+                        matching_col = c
+                        actual_src = '"_unified_analytics"'
+                        break
+
+            if not matching_col:
+                matching_col = _resolve_col_name(f_field)
+                if matching_col and unified_cols:
+                    actual_src = '"_unified_analytics"'
+
+            if not matching_col:
+                return ("", target_src)
+
+            escaped_val = str(f_val).replace("'", "''").strip()
+            if is_date or re.match(r"^\d{4}-\d{2}-\d{2}", escaped_val):
+                return (f"WHERE strftime(\"{matching_col}\"::TIMESTAMP, '%Y-%m-%d') = '{escaped_val[:10]}'", actual_src)
+            else:
+                return (f"WHERE LOWER(TRIM(CAST(\"{matching_col}\" AS VARCHAR))) = LOWER(TRIM('{escaped_val}'))", actual_src)
+
         # 1. Hydrate Filter Options
         filter_spec = spec.get("filter") or {}
-        filter_field = filter_spec.get("field")
+        filter_field = _resolve_col_name(filter_spec.get("field"))
         filter_table = filter_spec.get("table")
 
         filter_options = ["All"]
@@ -1438,7 +1503,7 @@ def _hydrate_dashboard_spec(
         hydrated_kpis = []
         for kpi in spec.get("kpis", [])[:4]:
             t_name = kpi.get("table")
-            measure = kpi.get("measure_column")
+            measure = _resolve_col_name(kpi.get("measure_column"))
             expr = kpi.get("expression") or kpi.get("formula")
             agg = (kpi.get("aggregation") or "SUM").upper()
             fmt = kpi.get("format") or "number"
@@ -1477,13 +1542,7 @@ def _hydrate_dashboard_spec(
                     needed_cols.append(filter_field)
                 target_src = _find_query_source(needed_cols)
 
-                where_clause = ""
-                if filter_active and filter_field:
-                    escaped_val = str(filter_value).replace("'", "''")
-                    if re.match(r"^\d{4}-\d{2}-\d{2}", escaped_val) or is_filter_date:
-                        where_clause = f"WHERE strftime(\"{filter_field}\"::TIMESTAMP, '%Y-%m-%d') = '{escaped_val[:10]}'"
-                    else:
-                        where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
+                where_clause, target_src = _build_where_clause(target_src, filter_field, filter_value, is_filter_date)
 
                 sql = f"SELECT {agg_expr} AS kpi_val FROM {target_src} {where_clause}"
                 try:
@@ -1492,7 +1551,7 @@ def _hydrate_dashboard_spec(
                         raw_val = k_df.iloc[0]["kpi_val"]
                         val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or expr or "", title=kpi.get("title") or "")
                 except Exception as e:
-                    # Fallback without where clause if filter column caused mismatch
+                    logger.warning("KPI '%s' query failed with filter (%s). Retrying fallback query.", kpi.get("title"), e)
                     try:
                         fallback_sql = f"SELECT {agg_expr} AS kpi_val FROM {target_src}"
                         k_df = _execute_safe_query(con, fallback_sql)
@@ -1500,7 +1559,7 @@ def _hydrate_dashboard_spec(
                             raw_val = k_df.iloc[0]["kpi_val"]
                             val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or expr or "", title=kpi.get("title") or "")
                     except Exception as fb_err:
-                        logger.warning("Error calculating KPI '%s': %s", kpi.get("title"), fb_err)
+                        logger.warning("Error calculating fallback KPI '%s': %s", kpi.get("title"), fb_err)
 
             hydrated_kpis.append({
                 "id": kpi.get("id", str(uuid.uuid4())),
@@ -1534,10 +1593,10 @@ def _hydrate_dashboard_spec(
             v_title = viz.get("title", "Chart")
             t_name = viz.get("table")
             c_type = viz.get("chart_type", "bar")
-            x_col = viz.get("x_field")
-            y_col = viz.get("y_field")
+            x_col = _resolve_col_name(viz.get("x_field"))
+            y_col = _resolve_col_name(viz.get("y_field"))
             expr = viz.get("expression") or viz.get("formula")
-            color_col = viz.get("color_field")
+            color_col = _resolve_col_name(viz.get("color_field"))
             agg = (viz.get("aggregation") or "SUM").upper()
 
             # Smart aggregation override for y-axis based on column semantics
@@ -1595,14 +1654,7 @@ def _hydrate_dashboard_spec(
                     needed_cols.append(filter_field)
 
                 target_src = _find_query_source(needed_cols)
-
-                where_clause = ""
-                if filter_active and filter_field:
-                    escaped_val = str(filter_value).replace("'", "''")
-                    if re.match(r"^\d{4}-\d{2}-\d{2}", escaped_val) or is_filter_date:
-                        where_clause = f"WHERE strftime(\"{filter_field}\"::TIMESTAMP, '%Y-%m-%d') = '{escaped_val[:10]}'"
-                    else:
-                        where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
+                where_clause, target_src = _build_where_clause(target_src, filter_field, filter_value, is_filter_date)
 
                 chart_y_label = y_col or "metric_val"
                 x_valid_cond = f'"{x_col}" IS NOT NULL AND TRIM(CAST("{x_col}" AS VARCHAR)) NOT IN (\'\', \'NaN\', \'None\', \'null\', \'NAT\', \'undefined\')'
@@ -1723,6 +1775,7 @@ def _hydrate_dashboard_spec(
                     if not records:
                         query_status = "no_data"
                 except Exception as e:
+                    logger.warning("Chart query with filter failed (%s). Retrying fallback query.", e)
                     # Fallback: simple query without temporal aggregation or where clause
                     try:
                         group_cols_fb = [f'"{x_col}"']

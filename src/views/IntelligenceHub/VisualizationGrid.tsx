@@ -123,7 +123,11 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     };
 
     useEffect(() => {
-        if (!containerRef.current || !viz.vega_spec || !hasData) return;
+        if (!containerRef.current) return;
+        if (!viz.vega_spec || !hasData) {
+            containerRef.current.innerHTML = '';
+            return;
+        }
 
         let isMounted = true;
         const target = containerRef.current;
