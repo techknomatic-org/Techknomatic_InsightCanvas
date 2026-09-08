@@ -1775,27 +1775,68 @@ def _hydrate_dashboard_spec(
                             logger.debug("Day drilldown fallback error: %s", day_err)
 
                     if not records:
+                        # Fallback Attempt A: Query without strict y_valid_cond
+                        try:
+                            fb_sql_a = f"""
+                            SELECT {group_str}, {y_agg_expr} AS "{y_col}"
+                            FROM {target_src}
+                            WHERE {x_valid_cond}
+                            GROUP BY {group_str}
+                            ORDER BY "{y_col}" DESC NULLS LAST
+                            LIMIT {row_limit}
+                            """
+                            v_df_a = _execute_safe_query(con, fb_sql_a)
+                            if not v_df_a.empty:
+                                v_df_a = v_df_a.dropna(subset=[x_col])
+                                if y_col in v_df_a.columns:
+                                    v_df_a[y_col] = v_df_a[y_col].fillna(0)
+                                records = df_to_safe_records(v_df_a)
+                        except Exception as fa_err:
+                            logger.debug("Fallback A failed: %s", fa_err)
+
+                    if not records:
+                        # Fallback Attempt B: Count distribution across x_col
+                        try:
+                            cnt_label = y_col or "Count"
+                            fb_sql_b = f"""
+                            SELECT "{x_col}", COUNT(*) AS "{cnt_label}"
+                            FROM {target_src}
+                            WHERE {x_valid_cond}
+                            GROUP BY "{x_col}"
+                            ORDER BY "{cnt_label}" DESC
+                            LIMIT 15
+                            """
+                            v_df_b = _execute_safe_query(con, fb_sql_b)
+                            if not v_df_b.empty:
+                                v_df_b = v_df_b.dropna(subset=[x_col])
+                                records = df_to_safe_records(v_df_b)
+                                if records:
+                                    y_col = cnt_label
+                                    query_status = "ok"
+                        except Exception as fb_err:
+                            logger.debug("Fallback B failed: %s", fb_err)
+
+                    if not records:
                         query_status = "no_data"
                 except Exception as e:
-                    logger.warning("Chart query with filter failed (%s). Retrying fallback query.", e)
-                    # Fallback: simple query without temporal aggregation or where clause
+                    logger.warning("Chart query failed (%s). Retrying fallback query.", e)
                     try:
-                        group_cols_fb = [f'"{x_col}"']
-                        if color_col and color_col != x_col:
-                            group_cols_fb.append(f'"{color_col}"')
-                        group_str_fb = ", ".join(group_cols_fb)
+                        cnt_label = y_col or "Count"
                         fb_sql = f"""
-                        SELECT {group_str_fb}, {y_agg_expr} AS "{y_col}"
+                        SELECT "{x_col}", COUNT(*) AS "{cnt_label}"
                         FROM {target_src}
-                        WHERE {x_valid_cond} AND {y_valid_cond}
-                        GROUP BY {group_str_fb}
-                        ORDER BY "{y_col}" DESC
+                        WHERE {x_valid_cond}
+                        GROUP BY "{x_col}"
+                        ORDER BY "{cnt_label}" DESC
                         LIMIT 15
                         """
                         v_df = _execute_safe_query(con, fb_sql)
-                        records = df_to_safe_records(v_df)
-                        if not records:
-                            query_status = "no_data"
+                        if not v_df.empty:
+                            v_df = v_df.dropna(subset=[x_col])
+                            records = df_to_safe_records(v_df)
+                            if records:
+                                y_col = cnt_label
+                                query_status = "ok"
                     except Exception as fb_err:
                         query_status = "query_error"
                         query_error_detail = str(fb_err)[:200]
@@ -1803,8 +1844,8 @@ def _hydrate_dashboard_spec(
             elif query_status == "ok":
                 query_status = "missing_fields"
 
-            # If a line chart still has only 1 data point after query execution, convert to bar chart
-            if c_type in ("line", "area") and len(records) <= 1:
+            # If a line chart still has only 1 data point or categorical X axis, convert to bar chart
+            if c_type in ("line", "area") and (len(records) <= 1 or not x_is_temporal):
                 c_type = "bar"
 
             hydrated_visuals.append({

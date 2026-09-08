@@ -145,18 +145,39 @@ export function rebuildVegaSpec(
         }
     }
 
-    const xField = viz.x_field || viz.vega_spec?.encoding?.x?.field || null;
-    const yField = viz.y_field || viz.vega_spec?.encoding?.y?.field || null;
-    const colorField = viz.color_field || viz.vega_spec?.encoding?.color?.field || null;
+    const firstRow = records[0] || {};
+    const availableKeys = Object.keys(firstRow);
+
+    // Resolve exact field key from data records
+    const resolveFieldKey = (candidate: string | null | undefined): string | null => {
+        if (!candidate) return null;
+        if (candidate in firstRow) return candidate;
+        const cLower = candidate.toLowerCase().trim();
+        for (const k of availableKeys) {
+            if (k.toLowerCase().trim() === cLower) return k;
+            if (k.toLowerCase().replace(/[_\s-]+/g, '') === cLower.replace(/[_\s-]+/g, '')) return k;
+        }
+        return candidate;
+    };
+
+    const rawX = viz.x_field || viz.vega_spec?.encoding?.x?.field || (availableKeys.length > 0 ? availableKeys[0] : null);
+    const rawY = viz.y_field || viz.vega_spec?.encoding?.y?.field || (availableKeys.length > 1 ? availableKeys[1] : null);
+    const rawColor = viz.color_field || viz.vega_spec?.encoding?.color?.field || null;
+
+    const xField = resolveFieldKey(rawX);
+    const yField = resolveFieldKey(rawY);
+    const colorField = resolveFieldKey(rawColor);
     const chartTitle = viz.title || 'Visualization';
     const cType = normalizeChartType(newChartType);
 
     const primaryColor = themePreset.primaryColor;
     const colorPalette = themePreset.palette;
 
-    // Detect if x-axis is temporal from existing spec
+    // Detect if x-axis is temporal from existing spec or field name
     const existingXType = viz.vega_spec?.encoding?.x?.type;
-    const isTemporal = existingXType === 'temporal';
+    const isTemporal =
+        existingXType === 'temporal' ||
+        Boolean(xField && /date|time|timestamp|created_at|updated_at|month|year/i.test(xField));
 
     const formatTitle = (str: string) =>
         str.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());

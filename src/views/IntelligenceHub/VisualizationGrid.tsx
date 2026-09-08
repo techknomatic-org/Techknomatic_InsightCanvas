@@ -67,7 +67,10 @@ const getChartIcon = (type?: string) => {
 
 const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const hasData = Array.isArray(viz.data) && viz.data.length > 0;
+    const hasData =
+        (Array.isArray(viz.data) && viz.data.length > 0) ||
+        (Array.isArray(viz.vega_spec?.data?.values) && viz.vega_spec.data.values.length > 0) ||
+        (Array.isArray(viz.vega_spec?.layer) && viz.vega_spec.layer.some((l: any) => Array.isArray(l?.data?.values) && l.data.values.length > 0));
 
     const currentThemeId = viz.theme_id || (viz as any).theme_id || 'techknomatic';
     const [selectedThemeId, setSelectedThemeId] = useState<string>(currentThemeId);
@@ -124,7 +127,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     useEffect(() => {
         if (!containerRef.current) return;
-        if (!viz.vega_spec || !hasData) {
+        if (!hasData) {
             containerRef.current.innerHTML = '';
             return;
         }
@@ -137,10 +140,8 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         const activeTheme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
         const activeType = normalizeChartType(viz.chart_type);
 
-        // Ensure spec is built with the active theme
-        const baseSpec = selectedThemeId !== 'techknomatic'
-            ? rebuildVegaSpec(viz, activeType, activeTheme)
-            : viz.vega_spec;
+        // Always compile a verified Vega spec matching active data records and theme
+        const baseSpec = rebuildVegaSpec(viz, activeType, activeTheme);
 
         // Strip duplicate internal Vega title so only the single styled card header is shown
         const { title: _internalTitle, ...vegaSpecWithoutTitle } = baseSpec;
@@ -171,13 +172,15 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         }).catch((err) => {
             if (isMounted) {
                 console.warn('Vega embed warning for:', viz.title, err);
+                // Fallback attempt with canvas renderer
+                embed(target, specToRender, { actions: false, renderer: 'canvas' }).catch(() => {});
             }
         });
 
         return () => {
             isMounted = false;
         };
-    }, [viz.vega_spec, viz.data, hasData]);
+    }, [viz.vega_spec, viz.data, viz.chart_type, selectedThemeId, hasData]);
 
     const isMenuOpen = Boolean(anchorEl);
     const activeType = (viz.chart_type || 'bar').toLowerCase();
