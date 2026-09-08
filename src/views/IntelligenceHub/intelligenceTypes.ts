@@ -88,7 +88,6 @@ export interface VisualizationSpec {
     formula?: string;
     color_field?: string | null;
     aggregation?: string;
-    show_data_labels?: boolean;
     data: Record<string, any>[];
     vega_spec: any;
 }

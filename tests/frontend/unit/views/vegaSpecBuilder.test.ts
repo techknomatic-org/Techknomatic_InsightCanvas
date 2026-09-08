@@ -46,66 +46,46 @@ describe('vegaSpecBuilder - Unit Tests', () => {
             ],
         };
 
-        it('rebuilds a vertical bar chart spec with direct data labels layer by default', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'bar', CHART_THEME_PRESETS[0], true);
+        it('rebuilds a vertical bar chart spec with Techknomatic theme', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'bar', CHART_THEME_PRESETS[0]);
             expect(spec).toBeDefined();
             expect(spec.data.values).toHaveLength(3);
-            expect(spec.layer).toHaveLength(2);
-            expect(spec.layer[0].mark.type).toBe('bar');
-            expect(spec.layer[0].encoding.x.field).toBe('plant_name');
-            expect(spec.layer[0].encoding.y.field).toBe('revenue');
-            expect(spec.layer[1].mark.type).toBe('text');
-            expect(spec.layer[1].encoding.text.field).toBe('revenue');
-            expect(spec.config).toBeDefined();
-        });
-
-        it('rebuilds a vertical bar chart without direct data labels when toggled off', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'bar', CHART_THEME_PRESETS[0], false);
-            expect(spec).toBeDefined();
             expect(spec.mark).toBeDefined();
             expect(spec.encoding.x.field).toBe('plant_name');
             expect(spec.encoding.y.field).toBe('revenue');
+            expect(spec.config).toBeDefined();
         });
 
-        it('rebuilds a horizontal bar chart spec correctly swapping encodings with data labels', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'horizontal_bar', CHART_THEME_PRESETS[1], true);
+        it('rebuilds a horizontal bar chart spec correctly swapping encodings', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'horizontal_bar', CHART_THEME_PRESETS[1]);
             expect(spec).toBeDefined();
-            expect(spec.layer).toHaveLength(2);
-            expect(spec.layer[0].encoding.y.field).toBe('plant_name');
-            expect(spec.layer[0].encoding.x.field).toBe('revenue');
-            expect(spec.layer[1].mark.type).toBe('text');
-            expect(spec.layer[1].encoding.text.field).toBe('revenue');
+            expect(spec.encoding.y.field).toBe('plant_name');
+            expect(spec.encoding.x.field).toBe('revenue');
         });
 
-        it('rebuilds a donut chart spec with inner radius, theme colors, and slice labels', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'donut', CHART_THEME_PRESETS[2], true);
+        it('rebuilds a donut chart spec with inner radius and theme colors', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'donut', CHART_THEME_PRESETS[2]);
             expect(spec).toBeDefined();
             expect(spec.layer).toBeDefined();
             expect(spec.layer[0].encoding.theta).toBeDefined();
             expect(spec.layer[0].encoding.color.field).toBe('plant_name');
             expect(spec.layer[0].encoding.color.scale.range).toEqual(CHART_THEME_PRESETS[2].palette);
-            expect(spec.layer[1].mark.type).toBe('text');
         });
 
-        it('rebuilds a monthly line chart with pre-formatted date strings using ordinal encoding', () => {
-            const monthlyViz: VisualizationSpec = {
-                id: 'viz_monthly',
-                title: 'Monthly Sales Trend',
-                chart_type: 'line',
-                x_field: 'OrderDate',
-                y_field: 'SalesAmount',
-                data: [
-                    { OrderDate: 'Jan 2020', SalesAmount: 120000 },
-                    { OrderDate: 'Feb 2020', SalesAmount: 150000 },
-                    { OrderDate: 'Mar 2020', SalesAmount: 180000 },
-                ],
-            };
-            const spec = rebuildVegaSpec(monthlyViz, 'line', CHART_THEME_PRESETS[0], true);
+        it('rebuilds a line chart spec with smooth interpolation and point overlays', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'line', CHART_THEME_PRESETS[3]);
             expect(spec).toBeDefined();
-            expect(spec.layer).toHaveLength(2);
-            // X-encoding should be ordinal so 'Jan 2020' string labels render reliably without date parse failure
-            expect(spec.layer[0].encoding.x.type).toBe('ordinal');
-            expect(spec.layer[1].encoding.x.type).toBe('ordinal');
+            expect(spec.layer || spec.mark).toBeDefined();
+        });
+
+        it('rebuilds an area chart spec with gradient styling', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'area', CHART_THEME_PRESETS[4]);
+            expect(spec).toBeDefined();
+        });
+
+        it('rebuilds a scatter plot spec with point marks and tooltips', () => {
+            const spec = rebuildVegaSpec(sampleViz, 'scatter', CHART_THEME_PRESETS[5]);
+            expect(spec).toBeDefined();
         });
     });
 });

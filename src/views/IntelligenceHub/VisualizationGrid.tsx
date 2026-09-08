@@ -12,7 +12,6 @@ import {
     Tooltip,
     Divider,
     ButtonBase,
-    Switch,
 } from '@mui/material';
 import embed from 'vega-embed';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -26,7 +25,6 @@ import CheckIcon from '@mui/icons-material/Check';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
-import LabelOutlinedIcon from '@mui/icons-material/LabelOutlined';
 import { VisualizationSpec } from './intelligenceTypes';
 import {
     SupportedChartType,
@@ -76,21 +74,14 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     const currentThemeId = viz.theme_id || (viz as any).theme_id || 'techknomatic';
     const [selectedThemeId, setSelectedThemeId] = useState<string>(currentThemeId);
-    const [showDataLabels, setShowDataLabels] = useState<boolean>(viz.show_data_labels ?? true);
 
-    // Synchronize local theme and data labels state if parent passes down updates
+    // Synchronize local theme state if parent passes down a theme_id
     useEffect(() => {
         const tid = viz.theme_id || (viz as any).theme_id;
         if (tid) {
             setSelectedThemeId(tid);
         }
     }, [viz.theme_id, (viz as any).theme_id]);
-
-    useEffect(() => {
-        if (viz.show_data_labels !== undefined) {
-            setShowDataLabels(viz.show_data_labels);
-        }
-    }, [viz.show_data_labels]);
 
     // Anchor element for customization popover
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -107,12 +98,11 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     const handleSelectChartType = (newType: SupportedChartType) => {
         const theme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
         const normalized = normalizeChartType(newType);
-        const newVegaSpec = rebuildVegaSpec(viz, normalized, theme, showDataLabels);
+        const newVegaSpec = rebuildVegaSpec(viz, normalized, theme);
         const updatedViz: VisualizationSpec = {
             ...viz,
             chart_type: normalized,
             theme_id: theme.id,
-            show_data_labels: showDataLabels,
             vega_spec: newVegaSpec,
         };
         if (onUpdateVisualization) {
@@ -123,29 +113,11 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     const handleSelectTheme = (theme: ChartThemePreset) => {
         setSelectedThemeId(theme.id);
         const currentType = normalizeChartType(viz.chart_type);
-        const newVegaSpec = rebuildVegaSpec(viz, currentType, theme, showDataLabels);
+        const newVegaSpec = rebuildVegaSpec(viz, currentType, theme);
         const updatedViz: VisualizationSpec = {
             ...viz,
             chart_type: currentType,
             theme_id: theme.id,
-            show_data_labels: showDataLabels,
-            vega_spec: newVegaSpec,
-        };
-        if (onUpdateVisualization) {
-            onUpdateVisualization(index, updatedViz);
-        }
-    };
-
-    const handleToggleDataLabels = (newVal: boolean) => {
-        setShowDataLabels(newVal);
-        const theme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
-        const currentType = normalizeChartType(viz.chart_type);
-        const newVegaSpec = rebuildVegaSpec(viz, currentType, theme, newVal);
-        const updatedViz: VisualizationSpec = {
-            ...viz,
-            chart_type: currentType,
-            theme_id: theme.id,
-            show_data_labels: newVal,
             vega_spec: newVegaSpec,
         };
         if (onUpdateVisualization) {
@@ -169,7 +141,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         const activeType = normalizeChartType(viz.chart_type);
 
         // Always compile a verified Vega spec matching active data records and theme
-        const baseSpec = rebuildVegaSpec(viz, activeType, activeTheme, showDataLabels);
+        const baseSpec = rebuildVegaSpec(viz, activeType, activeTheme);
 
         // Strip duplicate internal Vega title so only the single styled card header is shown
         const { title: _internalTitle, ...vegaSpecWithoutTitle } = baseSpec;
@@ -208,7 +180,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         return () => {
             isMounted = false;
         };
-    }, [viz.vega_spec, viz.data, viz.chart_type, selectedThemeId, showDataLabels, hasData]);
+    }, [viz.vega_spec, viz.data, viz.chart_type, selectedThemeId, hasData]);
 
     const isMenuOpen = Boolean(anchorEl);
     const activeType = (viz.chart_type || 'bar').toLowerCase();
@@ -485,47 +457,6 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                             </Tooltip>
                         );
                     })}
-                </Box>
-
-                <Divider sx={{ my: 1.2 }} />
-
-                {/* Direct Data Labels Toggle */}
-                <Box
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        px: 0.5,
-                        py: 0.4,
-                        borderRadius: '8px',
-                        bgcolor: '#f8fafc',
-                        border: '1px solid #f1f5f9',
-                    }}
-                >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                        <LabelOutlinedIcon sx={{ fontSize: 16, color: '#1B75BB' }} />
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#001d52', fontSize: '12px', lineHeight: 1.2 }}>
-                                Data Labels
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '10px', display: 'block' }}>
-                                Show values on chart
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Switch
-                        size="small"
-                        checked={showDataLabels}
-                        onChange={(e) => handleToggleDataLabels(e.target.checked)}
-                        sx={{
-                            '& .MuiSwitch-switchBase.Mui-checked': {
-                                color: '#1B75BB',
-                            },
-                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                backgroundColor: '#1B75BB',
-                            },
-                        }}
-                    />
                 </Box>
             </Popover>
         </Card>
