@@ -113,7 +113,8 @@ export function normalizeChartType(rawType?: string): SupportedChartType {
 export function rebuildVegaSpec(
     viz: VisualizationSpec,
     newChartType: SupportedChartType | string,
-    themePreset: ChartThemePreset = CHART_THEME_PRESETS[0]
+    themePreset: ChartThemePreset = CHART_THEME_PRESETS[0],
+    showDataLabels?: boolean
 ): any {
     // Deep-extract data from various Vega-Lite spec structures (flat, layered, concatenated)
     let records: Record<string, any>[] = [];
@@ -170,6 +171,8 @@ export function rebuildVegaSpec(
     const chartTitle = viz.title || 'Visualization';
     const cType = normalizeChartType(newChartType);
 
+    const shouldShowLabels = showDataLabels !== undefined ? showDataLabels : (viz.show_data_labels ?? true);
+
     const primaryColor = themePreset.primaryColor;
     const colorPalette = themePreset.palette;
 
@@ -182,6 +185,19 @@ export function rebuildVegaSpec(
     const formatTitle = (str: string) =>
         str.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
+    // Determine smart data label format based on field semantics
+    const yLower = (yField || '').toLowerCase();
+    let labelFormat = '~s';
+    if (/\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/.test(yLower)) {
+        labelFormat = '.1%';
+    } else if (/\b(cost|price|revenue|salary|wage|budget|spend|sales|income|fee|fees)\b/.test(yLower)) {
+        labelFormat = '$~s';
+    } else if (/\b(minutes?|duration_min|duration_minutes|wait_time|response_time)\b/.test(yLower)) {
+        labelFormat = ',.0f';
+    } else if (/\b(hours?|overtime|hours_worked|duration_hours?)\b/.test(yLower)) {
+        labelFormat = ',.1f';
+    }
+
     // Build tooltips
     const tooltip: any[] = [];
     if (xField) {
@@ -193,22 +209,11 @@ export function rebuildVegaSpec(
     }
     if (yField) {
         const yTitle = formatTitle(yField);
-        const yLower = yField.toLowerCase();
-        let format = '~s';
-        if (/\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/.test(yLower)) {
-            format = '.1%';
-        } else if (/\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b/.test(yLower)) {
-            format = '$,.2f';
-        } else if (/\b(minutes?|duration_min|duration_minutes|wait_time|response_time)\b/.test(yLower)) {
-            format = ',.0f';
-        } else if (/\b(hours?|overtime|hours_worked|duration_hours?)\b/.test(yLower)) {
-            format = ',.1f';
-        }
         tooltip.push({
             field: yField,
             type: 'quantitative',
             title: yTitle,
-            format,
+            format: labelFormat === '$~s' ? '$,.2f' : labelFormat,
         });
     }
     if (colorField && colorField !== xField && colorField !== yField) {
@@ -219,7 +224,14 @@ export function rebuildVegaSpec(
         });
     }
 
-    // Pie / Donut Charts (Arc with Layered Text)
+    const commonConfig: any = {
+        view: { stroke: 'transparent' },
+        font: 'Inter, Roboto, sans-serif',
+        range: { category: colorPalette },
+        axis: { domainColor: '#e2e8f0', tickColor: '#e2e8f0' },
+    };
+
+    // 1. Pie / Donut Charts (Arc with Layered Direct Labels)
     if (cType === 'donut' || cType === 'pie') {
         const arcLayer: any = {
             mark: {
@@ -254,7 +266,7 @@ export function rebuildVegaSpec(
             encoding: {
                 theta: yField ? { field: yField, type: 'quantitative', stack: true } : undefined,
                 detail: xField ? { field: xField, type: 'nominal' } : undefined,
-                text: yField ? { field: yField, type: 'quantitative', format: '~s' } : undefined,
+                text: yField ? { field: yField, type: 'quantitative', format: labelFormat } : undefined,
             },
         };
 
@@ -270,34 +282,19 @@ export function rebuildVegaSpec(
             width: 'container',
             height: 220,
             data: { values: records },
-            layer: [arcLayer, textLayer],
-            config: {
-                view: { stroke: 'transparent' },
-                font: 'Inter, Roboto, sans-serif',
-                axis: { domainColor: '#e2e8f0', tickColor: '#e2e8f0' },
-            },
+            layer: shouldShowLabels ? [arcLayer, textLayer] : [arcLayer],
+            config: commonConfig,
         };
     }
 
-    // Horizontal Bar Chart: swap X and Y
+    // 2. Horizontal Bar Chart: swap X and Y with Direct Value Labels
     if (cType === 'horizontal_bar') {
         const yTitle = yField ? formatTitle(yField) : 'Value';
-        return {
-            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-            title: {
-                text: chartTitle,
-                anchor: 'start',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#0f172a',
-            },
-            width: 'container',
-            height: 220,
-            data: { values: records },
+        const barLayer: any = {
             mark: {
                 type: 'bar',
                 cornerRadiusEnd: 6,
-                color: primaryColor,
+                color: colorField ? undefined : primaryColor,
             },
             encoding: {
                 y: xField
@@ -337,29 +334,55 @@ export function rebuildVegaSpec(
                           scale: { range: colorPalette },
                           legend: colorField === xField ? null : { orient: 'bottom', columns: 3, labelFontSize: 11, title: null },
                       }
-                    : { value: primaryColor },
+                    : undefined,
                 tooltip: tooltip.length > 0 ? tooltip : undefined,
             },
-            config: {
-                view: { stroke: 'transparent' },
-                font: 'Inter, Roboto, sans-serif',
-                range: { category: colorPalette },
-                axis: { domainColor: '#e2e8f0', tickColor: '#e2e8f0' },
-            },
+        };
+
+        if (shouldShowLabels && yField) {
+            const labelLayer: any = {
+                mark: {
+                    type: 'text',
+                    align: 'left',
+                    baseline: 'middle',
+                    dx: 5,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fill: '#334155',
+                },
+                encoding: {
+                    y: xField ? { field: xField, type: 'nominal' } : undefined,
+                    x: { field: yField, type: 'quantitative' },
+                    text: { field: yField, type: 'quantitative', format: labelFormat },
+                },
+            };
+            return {
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+                width: 'container',
+                height: 220,
+                data: { values: records },
+                layer: [barLayer, labelLayer],
+                config: commonConfig,
+            };
+        }
+
+        return {
+            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+            width: 'container',
+            height: 220,
+            data: { values: records },
+            ...barLayer,
+            config: commonConfig,
         };
     }
 
-    // Box Plot
+    // 3. Box Plot
     if (cType === 'boxplot') {
         return {
             $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-            title: {
-                text: chartTitle,
-                anchor: 'start',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#0f172a',
-            },
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
             width: 'container',
             height: 220,
             data: { values: records },
@@ -377,69 +400,15 @@ export function rebuildVegaSpec(
                     : { value: primaryColor },
                 tooltip: tooltip.length > 0 ? tooltip : undefined,
             },
-            config: {
-                view: { stroke: 'transparent' },
-                font: 'Inter, Roboto, sans-serif',
-                range: { category: colorPalette },
-                axis: { domainColor: '#e2e8f0', tickColor: '#e2e8f0' },
-            },
+            config: commonConfig,
         };
     }
 
-    // Mark definition for standard 2D charts
-    let mark: any = 'bar';
-    if (cType === 'bar') {
-        mark = {
-            type: 'bar',
-            cornerRadiusEnd: 6,
-            color: primaryColor,
-        };
-    } else if (cType === 'line') {
-        mark = {
-            type: 'line',
-            interpolate: 'monotone',
-            strokeWidth: 2.5,
-            color: primaryColor,
-            point: { filled: true, size: 36, fill: primaryColor },
-        };
-    } else if (cType === 'step_line') {
-        mark = {
-            type: 'line',
-            interpolate: 'step-after',
-            strokeWidth: 2.5,
-            color: primaryColor,
-            point: { filled: true, size: 36, fill: primaryColor },
-        };
-    } else if (cType === 'area') {
-        mark = {
-            type: 'area',
-            interpolate: 'monotone',
-            opacity: 0.28,
-            color: primaryColor,
-            line: { color: primaryColor, width: 2.5 },
-        };
-    } else if (cType === 'scatter') {
-        mark = {
-            type: 'point',
-            size: 60,
-            filled: true,
-            opacity: 0.8,
-            color: primaryColor,
-        };
-    } else if (cType === 'dot_plot') {
-        mark = {
-            type: 'point',
-            size: 80,
-            filled: true,
-            opacity: 0.95,
-            color: primaryColor,
-        };
-    }
-
-    const encoding: any = {};
+    // Base Encodings for Standard 2D Charts (Bar, Line, Area, Scatter, Dot Plot)
+    const baseEncoding: any = {};
     if (xField) {
         if (isTemporal) {
-            encoding.x = {
+            baseEncoding.x = {
                 field: xField,
                 type: 'temporal',
                 axis: {
@@ -453,7 +422,7 @@ export function rebuildVegaSpec(
                 },
             };
         } else {
-            encoding.x = {
+            baseEncoding.x = {
                 field: xField,
                 type: 'nominal',
                 axis: {
@@ -470,7 +439,7 @@ export function rebuildVegaSpec(
 
     if (yField) {
         const yTitle = formatTitle(yField);
-        encoding.y = {
+        baseEncoding.y = {
             field: yField,
             type: 'quantitative',
             axis: {
@@ -488,41 +457,234 @@ export function rebuildVegaSpec(
     }
 
     if (colorField) {
-        encoding.color = {
+        baseEncoding.color = {
             field: colorField,
             type: 'nominal',
             scale: { range: colorPalette },
             legend: colorField === xField ? null : { orient: 'bottom', columns: 3, labelFontSize: 11, title: null },
         };
     } else {
-        encoding.color = { value: primaryColor };
+        baseEncoding.color = { value: primaryColor };
     }
 
     if (tooltip.length > 0) {
-        encoding.tooltip = tooltip;
+        baseEncoding.tooltip = tooltip;
+    }
+
+    // 4. Vertical Bar / Column Chart with Direct Value Labels
+    if (cType === 'bar') {
+        const barLayer: any = {
+            mark: {
+                type: 'bar',
+                cornerRadiusEnd: 6,
+                color: colorField ? undefined : primaryColor,
+            },
+            encoding: baseEncoding,
+        };
+
+        if (shouldShowLabels && yField) {
+            const labelLayer: any = {
+                mark: {
+                    type: 'text',
+                    align: 'center',
+                    baseline: 'bottom',
+                    dy: -4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fill: '#475569',
+                },
+                encoding: {
+                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    y: { field: yField, type: 'quantitative' },
+                    text: { field: yField, type: 'quantitative', format: labelFormat },
+                },
+            };
+            return {
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+                width: 'container',
+                height: 220,
+                data: { values: records },
+                layer: [barLayer, labelLayer],
+                config: commonConfig,
+            };
+        }
+
+        return {
+            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+            width: 'container',
+            height: 220,
+            data: { values: records },
+            ...barLayer,
+            config: commonConfig,
+        };
+    }
+
+    // 5. Line & Step Line Charts with Direct Data Point Labels
+    if (cType === 'line' || cType === 'step_line') {
+        const lineLayer: any = {
+            mark: {
+                type: 'line',
+                interpolate: cType === 'step_line' ? 'step-after' : 'monotone',
+                strokeWidth: 2.5,
+                color: colorField ? undefined : primaryColor,
+                point: { filled: true, size: 36, fill: primaryColor },
+            },
+            encoding: baseEncoding,
+        };
+
+        if (shouldShowLabels && yField) {
+            const labelLayer: any = {
+                mark: {
+                    type: 'text',
+                    align: 'center',
+                    baseline: 'bottom',
+                    dy: -8,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fill: '#1e293b',
+                },
+                encoding: {
+                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    y: { field: yField, type: 'quantitative' },
+                    text: { field: yField, type: 'quantitative', format: labelFormat },
+                },
+            };
+            return {
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+                width: 'container',
+                height: 220,
+                data: { values: records },
+                layer: [lineLayer, labelLayer],
+                config: commonConfig,
+            };
+        }
+
+        return {
+            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+            width: 'container',
+            height: 220,
+            data: { values: records },
+            ...lineLayer,
+            config: commonConfig,
+        };
+    }
+
+    // 6. Area Chart with Direct Top Labels
+    if (cType === 'area') {
+        const areaLayer: any = {
+            mark: {
+                type: 'area',
+                interpolate: 'monotone',
+                opacity: 0.28,
+                color: colorField ? undefined : primaryColor,
+                line: { color: primaryColor, width: 2.5 },
+            },
+            encoding: baseEncoding,
+        };
+
+        if (shouldShowLabels && yField) {
+            const labelLayer: any = {
+                mark: {
+                    type: 'text',
+                    align: 'center',
+                    baseline: 'bottom',
+                    dy: -6,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fill: '#1e293b',
+                },
+                encoding: {
+                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    y: { field: yField, type: 'quantitative' },
+                    text: { field: yField, type: 'quantitative', format: labelFormat },
+                },
+            };
+            return {
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+                width: 'container',
+                height: 220,
+                data: { values: records },
+                layer: [areaLayer, labelLayer],
+                config: commonConfig,
+            };
+        }
+
+        return {
+            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+            width: 'container',
+            height: 220,
+            data: { values: records },
+            ...areaLayer,
+            config: commonConfig,
+        };
+    }
+
+    // 7. Scatter & Dot Plot with Direct Labels
+    if (cType === 'scatter' || cType === 'dot_plot') {
+        const pointLayer: any = {
+            mark: {
+                type: 'point',
+                size: cType === 'dot_plot' ? 80 : 60,
+                filled: true,
+                opacity: 0.85,
+                color: colorField ? undefined : primaryColor,
+            },
+            encoding: baseEncoding,
+        };
+
+        if (shouldShowLabels && yField) {
+            const labelLayer: any = {
+                mark: {
+                    type: 'text',
+                    align: 'center',
+                    baseline: 'bottom',
+                    dy: -8,
+                    fontSize: 9.5,
+                    fontWeight: 600,
+                    fill: '#475569',
+                },
+                encoding: {
+                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : (cType === 'scatter' ? 'quantitative' : 'nominal') } : undefined,
+                    y: { field: yField, type: 'quantitative' },
+                    text: { field: yField, type: 'quantitative', format: labelFormat },
+                },
+            };
+            return {
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+                width: 'container',
+                height: 220,
+                data: { values: records },
+                layer: [pointLayer, labelLayer],
+                config: commonConfig,
+            };
+        }
+
+        return {
+            $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+            title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
+            width: 'container',
+            height: 220,
+            data: { values: records },
+            ...pointLayer,
+            config: commonConfig,
+        };
     }
 
     return {
         $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-        title: {
-            text: chartTitle,
-            anchor: 'start',
-            fontSize: 13,
-            fontWeight: 700,
-            color: '#0f172a',
-        },
+        title: { text: chartTitle, anchor: 'start', fontSize: 13, fontWeight: 700, color: '#0f172a' },
         width: 'container',
         height: 220,
         data: { values: records },
-        mark,
-        encoding,
-        config: {
-            view: { stroke: 'transparent' },
-            font: 'Inter, Roboto, sans-serif',
-            range: {
-                category: colorPalette,
-            },
-            axis: { domainColor: '#e2e8f0', tickColor: '#e2e8f0' },
-        },
+        mark: 'bar',
+        encoding: baseEncoding,
+        config: commonConfig,
     };
 }
