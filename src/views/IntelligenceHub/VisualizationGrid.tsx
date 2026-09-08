@@ -127,14 +127,14 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     useEffect(() => {
         if (!containerRef.current) return;
+        const target = containerRef.current;
+        target.innerHTML = '';
+
         if (!hasData) {
-            containerRef.current.innerHTML = '';
             return;
         }
 
         let isMounted = true;
-        const target = containerRef.current;
-        target.innerHTML = '';
 
         // Determine active theme preset
         const activeTheme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
@@ -179,6 +179,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
         return () => {
             isMounted = false;
+            if (target) target.innerHTML = '';
         };
     }, [viz.vega_spec, viz.data, viz.chart_type, selectedThemeId, hasData]);
 
@@ -254,6 +255,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
                 {hasData ? (
                     <Box
+                        key={`chart-container-${viz.id || index}`}
                         ref={containerRef}
                         sx={{
                             flex: 1,
@@ -268,6 +270,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                     />
                 ) : (
                     <Box
+                        key={`empty-state-${viz.id || index}`}
                         sx={{
                             flex: 1,
                             width: '100%',

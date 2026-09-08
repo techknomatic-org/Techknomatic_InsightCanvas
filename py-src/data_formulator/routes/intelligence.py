@@ -1783,8 +1783,8 @@ def _hydrate_dashboard_spec(
                         except Exception as day_err:
                             logger.debug("Day drilldown fallback error: %s", day_err)
 
-                    if not records:
-                        # Fallback Attempt A: Query without strict y_valid_cond
+                    if not records and not filter_active:
+                        # Fallback Attempt A: Query without strict y_valid_cond (only when no filter active)
                         try:
                             fb_sql_a = f"""
                             SELECT {group_str}, {y_agg_expr} AS "{y_col}"
@@ -1803,8 +1803,8 @@ def _hydrate_dashboard_spec(
                         except Exception as fa_err:
                             logger.debug("Fallback A failed: %s", fa_err)
 
-                    if not records:
-                        # Fallback Attempt B: Count distribution across x_col
+                    if not records and not filter_active:
+                        # Fallback Attempt B: Count distribution across x_col (only when no filter active)
                         try:
                             cnt_label = y_col or "Count"
                             fb_sql_b = f"""
