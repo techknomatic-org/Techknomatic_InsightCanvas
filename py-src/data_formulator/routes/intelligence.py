@@ -113,6 +113,15 @@ def _locate_session_file(session_id: str, identity_id: str) -> Path:
     if anon_path.exists():
         return anon_path
 
+    # Check shared / global intelligence_sessions directory
+    try:
+        shared_dir = get_data_formulator_home() / "intelligence_sessions"
+        shared_path = shared_dir / f"{session_id}.json"
+        if shared_path.exists():
+            return shared_path
+    except Exception:
+        pass
+
     # Search all user dirs under users/
     try:
         users_root = get_data_formulator_home() / "users"
@@ -2734,13 +2743,30 @@ def list_intelligence_sessions():
                     pass
 
     # Also check local:anonymous if user directory has no sessions
-    if not session_files and identity_id != "local:anonymous":
+    if identity_id != "local:anonymous":
         try:
             anon_dir = _get_sessions_dir("local:anonymous")
             if anon_dir.exists():
                 session_files.extend(list(anon_dir.glob("*.json")))
         except Exception:
             pass
+
+    # Also check global / shared intelligence_sessions directory
+    try:
+        from data_formulator.datalake.workspace import get_data_formulator_home
+        shared_dir = get_data_formulator_home() / "intelligence_sessions"
+        if shared_dir.exists():
+            session_files.extend(list(shared_dir.glob("*.json")))
+        
+        users_root = get_data_formulator_home() / "users"
+        if users_root.exists():
+            for user_dir in users_root.iterdir():
+                if user_dir.is_dir():
+                    cand_dir = user_dir / "intelligence_sessions"
+                    if cand_dir.exists():
+                        session_files.extend(list(cand_dir.glob("*.json")))
+    except Exception as exc:
+        logger.debug("Failed scanning shared/user session dirs: %s", exc)
 
     sessions = []
     seen_ids = set()

@@ -140,21 +140,36 @@ function mergeSessionsWithLocal(serverSessions: IntelligenceSession[]): Intellig
     localCache.forEach((s) => {
         mergedMap.set(s.id, {
             ...s,
-            pinned: localPinned.has(s.id) || Boolean(s.pinned),
-            liked: localLiked.has(s.id) || Boolean(s.liked),
+            pinned: s.pinned !== undefined ? Boolean(s.pinned) : localPinned.has(s.id),
+            liked: s.liked !== undefined ? Boolean(s.liked) : localLiked.has(s.id),
         });
     });
 
     // 2. Overwrite / merge with server sessions
     serverSessions.forEach((s) => {
         const existing = mergedMap.get(s.id);
+        const isPinned = s.pinned !== undefined ? Boolean(s.pinned) : (existing?.pinned ?? localPinned.has(s.id));
+        const isLiked = s.liked !== undefined ? Boolean(s.liked) : (existing?.liked ?? localLiked.has(s.id));
+
+        // Keep local storage IDs in sync with server truth
+        if (isPinned) localPinned.add(s.id);
+        else localPinned.delete(s.id);
+
+        if (isLiked) localLiked.add(s.id);
+        else localLiked.delete(s.id);
+
         mergedMap.set(s.id, {
             ...existing,
             ...s,
-            pinned: localPinned.has(s.id) || Boolean(s.pinned),
-            liked: localLiked.has(s.id) || Boolean(s.liked),
+            pinned: isPinned,
+            liked: isLiked,
         });
     });
+
+    try {
+        localStorage.setItem(PINNED_IDS_KEY, JSON.stringify(Array.from(localPinned)));
+        localStorage.setItem(LIKED_IDS_KEY, JSON.stringify(Array.from(localLiked)));
+    } catch {}
 
     const list = Array.from(mergedMap.values());
     list.sort((a, b) => {
@@ -515,64 +530,49 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     // 7. Toggle Pin Session
     const handleTogglePin = async (sessionId?: string | null, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        let targetId = sessionId || activeSessionId;
-        if (!targetId) {
-            targetId = `ih_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            setActiveSessionId(targetId);
-        }
+        const targetId = sessionId || activeSessionId;
+        if (!targetId) return;
 
-        let newPinnedState = false;
+        // Compute current and new pinned state reliably
+        const currentSess = sessions.find((s) => s.id === targetId);
+        const newPinnedState = currentSess ? !currentSess.pinned : true;
+
+        setLocalPinnedId(targetId, newPinnedState);
         setSessions((prev) => {
             const exists = prev.some((s) => s.id === targetId);
+            let updated: IntelligenceSession[];
             if (!exists) {
-                newPinnedState = true;
                 const newSession: IntelligenceSession = {
-                    id: targetId!,
+                    id: targetId,
                     title: dashboard?.title || 'Intelligence Dashboard',
                     source_id: sourceId,
                     database: databaseName,
                     tables: tableNames,
                     dashboard: dashboard || undefined,
-                    pinned: true,
-                    liked: getLocalLikedIds().has(targetId!),
+                    pinned: newPinnedState,
+                    liked: getLocalLikedIds().has(targetId),
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 };
-                const updated = [newSession, ...prev];
-                setLocalPinnedId(targetId!, true);
-                saveLocalSessionsCache(updated);
-                return updated;
+                updated = [newSession, ...prev];
+            } else {
+                updated = prev.map((s) => (s.id === targetId ? { ...s, pinned: newPinnedState } : s));
             }
-
-            const updated = prev.map((s) => {
-                if (s.id === targetId) {
-                    newPinnedState = !s.pinned;
-                    setLocalPinnedId(targetId!, newPinnedState);
-                    return { ...s, pinned: newPinnedState };
-                }
-                return s;
-            });
             saveLocalSessionsCache(updated);
             return updated;
         });
 
         try {
             const targetSession = sessions.find((s) => s.id === targetId);
-            const extraData: Partial<IntelligenceSession> = targetSession?.dashboard ? {
-                title: targetSession.title,
-                dashboard: targetSession.dashboard,
-                tables: targetSession.tables,
-                database: targetSession.database,
-                source_id: targetSession.source_id,
-                liked: targetSession.liked,
-            } : (dashboard ? {
-                title: dashboard.title,
-                dashboard: dashboard,
-                tables: tableNames,
-                database: databaseName,
-                source_id: sourceId,
-                liked: getLocalLikedIds().has(targetId!),
-            } : {});
+            const extraData: Partial<IntelligenceSession> = {
+                title: targetSession?.title || dashboard?.title || 'Intelligence Dashboard',
+                dashboard: targetSession?.dashboard || (activeSessionId === targetId ? (dashboard || undefined) : undefined),
+                tables: targetSession?.tables || (activeSessionId === targetId ? tableNames : undefined),
+                database: targetSession?.database || (activeSessionId === targetId ? databaseName : undefined),
+                source_id: targetSession?.source_id || (activeSessionId === targetId ? sourceId : undefined),
+                pinned: newPinnedState,
+                liked: targetSession?.liked ?? getLocalLikedIds().has(targetId),
+            };
 
             const res = await togglePinSession(targetId, newPinnedState, extraData);
             if (res?.session) {
@@ -590,64 +590,49 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     // 8. Toggle Like Session
     const handleToggleLike = async (sessionId?: string | null, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        let targetId = sessionId || activeSessionId;
-        if (!targetId) {
-            targetId = `ih_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            setActiveSessionId(targetId);
-        }
+        const targetId = sessionId || activeSessionId;
+        if (!targetId) return;
 
-        let newLikedState = false;
+        // Compute current and new liked state reliably
+        const currentSess = sessions.find((s) => s.id === targetId);
+        const newLikedState = currentSess ? !currentSess.liked : true;
+
+        setLocalLikedId(targetId, newLikedState);
         setSessions((prev) => {
             const exists = prev.some((s) => s.id === targetId);
+            let updated: IntelligenceSession[];
             if (!exists) {
-                newLikedState = true;
                 const newSession: IntelligenceSession = {
-                    id: targetId!,
+                    id: targetId,
                     title: dashboard?.title || 'Intelligence Dashboard',
                     source_id: sourceId,
                     database: databaseName,
                     tables: tableNames,
                     dashboard: dashboard || undefined,
-                    pinned: getLocalPinnedIds().has(targetId!),
-                    liked: true,
+                    pinned: getLocalPinnedIds().has(targetId),
+                    liked: newLikedState,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 };
-                const updated = [newSession, ...prev];
-                setLocalLikedId(targetId!, true);
-                saveLocalSessionsCache(updated);
-                return updated;
+                updated = [newSession, ...prev];
+            } else {
+                updated = prev.map((s) => (s.id === targetId ? { ...s, liked: newLikedState } : s));
             }
-
-            const updated = prev.map((s) => {
-                if (s.id === targetId) {
-                    newLikedState = !s.liked;
-                    setLocalLikedId(targetId!, newLikedState);
-                    return { ...s, liked: newLikedState };
-                }
-                return s;
-            });
             saveLocalSessionsCache(updated);
             return updated;
         });
 
         try {
             const targetSession = sessions.find((s) => s.id === targetId);
-            const extraData: Partial<IntelligenceSession> = targetSession?.dashboard ? {
-                title: targetSession.title,
-                dashboard: targetSession.dashboard,
-                tables: targetSession.tables,
-                database: targetSession.database,
-                source_id: targetSession.source_id,
-                pinned: targetSession.pinned,
-            } : (dashboard ? {
-                title: dashboard.title,
-                dashboard: dashboard,
-                tables: tableNames,
-                database: databaseName,
-                source_id: sourceId,
-                pinned: getLocalPinnedIds().has(targetId!),
-            } : {});
+            const extraData: Partial<IntelligenceSession> = {
+                title: targetSession?.title || dashboard?.title || 'Intelligence Dashboard',
+                dashboard: targetSession?.dashboard || (activeSessionId === targetId ? (dashboard || undefined) : undefined),
+                tables: targetSession?.tables || (activeSessionId === targetId ? tableNames : undefined),
+                database: targetSession?.database || (activeSessionId === targetId ? databaseName : undefined),
+                source_id: targetSession?.source_id || (activeSessionId === targetId ? sourceId : undefined),
+                liked: newLikedState,
+                pinned: targetSession?.pinned ?? getLocalPinnedIds().has(targetId),
+            };
 
             const res = await toggleLikeSession(targetId, newLikedState, extraData);
             if (res?.session) {
