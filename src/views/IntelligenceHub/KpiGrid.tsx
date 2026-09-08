@@ -116,8 +116,16 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                             },
                         }}
                     >
-                        <CardContent sx={{ p: 2.2, '&:last-child': { pb: 2.2 } }}>
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.2 }}>
+                        <CardContent
+                            sx={{
+                                p: 2.2,
+                                '&:last-child': { pb: 2.2 },
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1, gap: 1 }}>
                                 <Typography
                                     variant="caption"
                                     sx={{
@@ -126,6 +134,8 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                         textTransform: 'uppercase',
                                         letterSpacing: '0.05em',
                                         color: '#475569',
+                                        lineHeight: 1.3,
+                                        flex: 1,
                                     }}
                                 >
                                     {kpi.title}
@@ -161,40 +171,66 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                 {kpi.formatted_value || '—'}
                             </Typography>
 
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                                <Tooltip title={formulaText ? `Formula: ${formulaText}` : ''} arrow placement="top">
-                                    <Typography
-                                        variant="caption"
-                                        color="text.secondary"
-                                        sx={{
-                                            fontSize: '11px',
-                                            fontWeight: 500,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                            cursor: formulaText ? 'help' : 'default',
-                                        }}
-                                    >
-                                        {formulaText && <FunctionsIcon sx={{ fontSize: 12, color: accent.color }} />}
-                                        {kpi.subtitle || `${kpi.aggregation || 'Total'} metric`}
-                                    </Typography>
-                                </Tooltip>
-                                {kpi.comparison && (
-                                    <Chip
-                                        size="small"
-                                        icon={<TrendingUpIcon sx={{ fontSize: '12px !important' }} />}
-                                        label={kpi.comparison}
-                                        sx={{
-                                            height: 20,
-                                            fontSize: '10px',
-                                            fontWeight: 600,
-                                            bgcolor: '#ecfdf5',
-                                            color: '#059669',
-                                            border: '1px solid #a7f3d0',
-                                        }}
-                                    />
-                                )}
-                            </Box>
+                            <Tooltip
+                                title={
+                                    formulaText
+                                        ? `Formula: ${formulaText}\n${kpi.subtitle || ''}`
+                                        : kpi.subtitle || ''
+                                }
+                                arrow
+                                placement="top"
+                            >
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        fontSize: '11.5px',
+                                        fontWeight: 500,
+                                        color: '#64748b',
+                                        lineHeight: 1.35,
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        mb: kpi.comparison ? 1 : 0,
+                                        cursor: formulaText || (kpi.subtitle && kpi.subtitle.length > 40) ? 'help' : 'default',
+                                    }}
+                                >
+                                    {formulaText && (
+                                        <FunctionsIcon
+                                            sx={{ fontSize: 12, color: accent.color, verticalAlign: 'middle', mr: 0.4 }}
+                                        />
+                                    )}
+                                    {kpi.subtitle || `${kpi.aggregation || 'Total'} metric`}
+                                </Typography>
+                            </Tooltip>
+
+                            {kpi.comparison && (
+                                <Box sx={{ mt: 'auto', pt: 0.5, display: 'flex', alignItems: 'center' }}>
+                                    <Tooltip title={kpi.comparison} arrow placement="bottom">
+                                        <Chip
+                                            size="small"
+                                            icon={<TrendingUpIcon sx={{ fontSize: '12px !important' }} />}
+                                            label={kpi.comparison}
+                                            sx={{
+                                                maxWidth: '100%',
+                                                height: 22,
+                                                fontSize: '10.5px',
+                                                fontWeight: 600,
+                                                bgcolor: '#ecfdf5',
+                                                color: '#059669',
+                                                border: '1px solid #a7f3d0',
+                                                '& .MuiChip-label': {
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    px: 1,
+                                                },
+                                            }}
+                                        />
+                                    </Tooltip>
+                                </Box>
+                            )}
                         </CardContent>
                     </Card>
                 );
