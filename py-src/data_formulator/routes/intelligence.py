@@ -2762,6 +2762,13 @@ def toggle_session_pin(session_id: str):
         data = {
             "id": session_id,
             "title": body.get("title", "Intelligence Dashboard"),
+            "source_id": body.get("source_id"),
+            "database": body.get("database"),
+            "tables": body.get("tables", []),
+            "profile": body.get("profile"),
+            "dashboard": body.get("dashboard"),
+            "prompt": body.get("prompt"),
+            "chat_history": body.get("chat_history", []),
             "pinned": True if "pinned" not in body else bool(body["pinned"]),
             "liked": bool(body.get("liked", False)),
             "created_at": datetime.now().isoformat(),
@@ -2774,8 +2781,12 @@ def toggle_session_pin(session_id: str):
             data["pinned"] = bool(body["pinned"])
         else:
             data["pinned"] = not bool(data.get("pinned", False))
+        for key in ["title", "source_id", "database", "tables", "profile", "dashboard", "prompt", "chat_history"]:
+            if key in body and body[key] is not None:
+                data[key] = body[key]
         data["updated_at"] = datetime.now().isoformat()
 
+    s_path.parent.mkdir(parents=True, exist_ok=True)
     with open(s_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
 
@@ -2796,6 +2807,13 @@ def toggle_session_like(session_id: str):
         data = {
             "id": session_id,
             "title": body.get("title", "Intelligence Dashboard"),
+            "source_id": body.get("source_id"),
+            "database": body.get("database"),
+            "tables": body.get("tables", []),
+            "profile": body.get("profile"),
+            "dashboard": body.get("dashboard"),
+            "prompt": body.get("prompt"),
+            "chat_history": body.get("chat_history", []),
             "pinned": bool(body.get("pinned", False)),
             "liked": True if "liked" not in body else bool(body["liked"]),
             "created_at": datetime.now().isoformat(),
@@ -2808,8 +2826,12 @@ def toggle_session_like(session_id: str):
             data["liked"] = bool(body["liked"])
         else:
             data["liked"] = not bool(data.get("liked", False))
+        for key in ["title", "source_id", "database", "tables", "profile", "dashboard", "prompt", "chat_history"]:
+            if key in body and body[key] is not None:
+                data[key] = body[key]
         data["updated_at"] = datetime.now().isoformat()
 
+    s_path.parent.mkdir(parents=True, exist_ok=True)
     with open(s_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
 

@@ -383,6 +383,7 @@ export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
                                             <IconButton
                                                 size="small"
                                                 onClick={(e) => {
+                                                    e.stopPropagation();
                                                     if (onTogglePin) onTogglePin(sess.id, e);
                                                 }}
                                                 sx={{
@@ -408,6 +409,7 @@ export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
                                             <IconButton
                                                 size="small"
                                                 onClick={(e) => {
+                                                    e.stopPropagation();
                                                     if (onToggleLike) onToggleLike(sess.id, e);
                                                 }}
                                                 sx={{
@@ -432,7 +434,10 @@ export const RecentSessionsSidebar: React.FC<RecentSessionsSidebarProps> = ({
                                         <Tooltip title="Delete session">
                                             <IconButton
                                                 size="small"
-                                                onClick={(e) => onDeleteSession(sess.id, e)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (onDeleteSession) onDeleteSession(sess.id, e);
+                                                }}
                                                 sx={{
                                                     p: 0.4,
                                                     color: '#94a3b8',

@@ -74,6 +74,100 @@ interface IntelligenceWorkspaceProps {
     modelConfig?: any;
 }
 
+const SESSIONS_STORAGE_KEY = 'ih_recent_sessions_cache';
+const PINNED_IDS_KEY = 'ih_pinned_session_ids';
+const LIKED_IDS_KEY = 'ih_liked_session_ids';
+
+function getLocalPinnedIds(): Set<string> {
+    try {
+        const raw = localStorage.getItem(PINNED_IDS_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
+function setLocalPinnedId(id: string, isPinned: boolean) {
+    try {
+        const current = getLocalPinnedIds();
+        if (isPinned) current.add(id);
+        else current.delete(id);
+        localStorage.setItem(PINNED_IDS_KEY, JSON.stringify(Array.from(current)));
+    } catch {}
+}
+
+function getLocalLikedIds(): Set<string> {
+    try {
+        const raw = localStorage.getItem(LIKED_IDS_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
+function setLocalLikedId(id: string, isLiked: boolean) {
+    try {
+        const current = getLocalLikedIds();
+        if (isLiked) current.add(id);
+        else current.delete(id);
+        localStorage.setItem(LIKED_IDS_KEY, JSON.stringify(Array.from(current)));
+    } catch {}
+}
+
+function getLocalSessionsCache(): IntelligenceSession[] {
+    try {
+        const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveLocalSessionsCache(sessions: IntelligenceSession[]) {
+    try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions.slice(0, 50)));
+    } catch {}
+}
+
+function mergeSessionsWithLocal(serverSessions: IntelligenceSession[]): IntelligenceSession[] {
+    const localPinned = getLocalPinnedIds();
+    const localLiked = getLocalLikedIds();
+    const localCache = getLocalSessionsCache();
+
+    const mergedMap = new Map<string, IntelligenceSession>();
+
+    // 1. Add cached local sessions
+    localCache.forEach((s) => {
+        mergedMap.set(s.id, {
+            ...s,
+            pinned: localPinned.has(s.id) || Boolean(s.pinned),
+            liked: localLiked.has(s.id) || Boolean(s.liked),
+        });
+    });
+
+    // 2. Overwrite / merge with server sessions
+    serverSessions.forEach((s) => {
+        const existing = mergedMap.get(s.id);
+        mergedMap.set(s.id, {
+            ...existing,
+            ...s,
+            pinned: localPinned.has(s.id) || Boolean(s.pinned),
+            liked: localLiked.has(s.id) || Boolean(s.liked),
+        });
+    });
+
+    const list = Array.from(mergedMap.values());
+    list.sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        const dateA = a.updated_at || a.created_at || '';
+        const dateB = b.updated_at || b.created_at || '';
+        return dateB.localeCompare(dateA);
+    });
+
+    return list;
+}
+
 export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     sourceId,
     databaseName,
@@ -121,6 +215,10 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     useEffect(() => {
         let mounted = true;
 
+        // Immediately populate from local storage cache for instant UI rendering
+        const initialMerged = mergeSessionsWithLocal([]);
+        setSessions(initialMerged);
+
         const init = async () => {
             try {
                 const [suggs, sessList] = await Promise.all([
@@ -129,7 +227,9 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 ]);
                 if (mounted) {
                     setSuggestions(suggs);
-                    setSessions(sessList);
+                    const merged = mergeSessionsWithLocal(sessList);
+                    setSessions(merged);
+                    saveLocalSessionsCache(merged);
                     setLoadingSuggestions(false);
                 }
             } catch (err: any) {
@@ -191,10 +291,33 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             const finalChat = [...updatedChat, assistantMsg];
             setChatMessages(finalChat);
 
-            // Auto-save session
-            const saved = await saveSession({
-                id: activeSessionId || undefined,
-                title: result.title || titleHint || 'Intelligence Dashboard',
+            const sessionTitle = result.title || titleHint || 'Intelligence Dashboard';
+            const targetId = activeSessionId || `ih_session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            setActiveSessionId(targetId);
+
+            // Auto-save session to backend
+            let savedSessionObj: IntelligenceSession | null = null;
+            try {
+                savedSessionObj = await saveSession({
+                    id: targetId,
+                    title: sessionTitle,
+                    source_id: sourceId,
+                    database: databaseName,
+                    tables: tableNames,
+                    profile,
+                    dashboard: result,
+                    prompt,
+                    chat_history: finalChat,
+                    pinned: getLocalPinnedIds().has(targetId),
+                    liked: getLocalLikedIds().has(targetId),
+                });
+            } catch (saveErr) {
+                console.warn('Backend saveSession failed; caching locally:', saveErr);
+            }
+
+            const activeSessionPayload: IntelligenceSession = savedSessionObj || {
+                id: targetId,
+                title: sessionTitle,
                 source_id: sourceId,
                 database: databaseName,
                 tables: tableNames,
@@ -202,10 +325,18 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 dashboard: result,
                 prompt,
                 chat_history: finalChat,
+                pinned: getLocalPinnedIds().has(targetId),
+                liked: getLocalLikedIds().has(targetId),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+
+            setSessions((prev) => {
+                const filtered = prev.filter((s) => s.id !== targetId);
+                const updated = [activeSessionPayload, ...filtered];
+                saveLocalSessionsCache(updated);
+                return updated;
             });
-            setActiveSessionId(saved.id);
-            const freshSessions = await listSessions();
-            setSessions(freshSessions);
         } catch (err: any) {
             const errMsg = err?.message || 'Failed to generate dashboard';
             setError(errMsg);
@@ -294,11 +425,26 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
 
             // Update persisted session
             if (activeSessionId) {
-                await saveSession({
-                    id: activeSessionId,
-                    title: updatedDashboard.title,
-                    dashboard: updatedDashboard,
-                    chat_history: finalChat,
+                try {
+                    await saveSession({
+                        id: activeSessionId,
+                        title: updatedDashboard.title,
+                        dashboard: updatedDashboard,
+                        chat_history: finalChat,
+                        pinned: getLocalPinnedIds().has(activeSessionId),
+                        liked: getLocalLikedIds().has(activeSessionId),
+                    });
+                } catch (err) {
+                    console.warn('Backend update failed; updated locally:', err);
+                }
+                setSessions((prev) => {
+                    const updated = prev.map((s) =>
+                        s.id === activeSessionId
+                            ? { ...s, title: updatedDashboard.title, dashboard: updatedDashboard, chat_history: finalChat }
+                            : s
+                    );
+                    saveLocalSessionsCache(updated);
+                    return updated;
                 });
             }
         } catch (err: any) {
@@ -323,30 +469,46 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         setActiveSessionId(sess.id);
         setReportMarkdown('');
 
+        // If session already has cached dashboard in memory / local state:
+        if (sess.dashboard) {
+            setDashboard(sess.dashboard);
+            if (sess.chat_history) {
+                setChatMessages(sess.chat_history);
+            }
+        }
+
         try {
             const fullDetail = await loadSessionDetail(sess.id);
-            if (fullDetail.dashboard) {
+            if (fullDetail?.dashboard) {
                 setDashboard(fullDetail.dashboard);
             }
-            if (fullDetail.chat_history) {
+            if (fullDetail?.chat_history) {
                 setChatMessages(fullDetail.chat_history);
             }
         } catch (err: any) {
-            setError(err?.message || 'Failed to load session detail');
+            if (!sess.dashboard) {
+                setError(err?.message || 'Failed to load session detail');
+            }
         }
     };
 
     // 6. Delete Session
-    const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setLocalPinnedId(sessionId, false);
+        setLocalLikedId(sessionId, false);
+        setSessions((prev) => {
+            const updated = prev.filter((s) => s.id !== sessionId);
+            saveLocalSessionsCache(updated);
+            return updated;
+        });
+        if (activeSessionId === sessionId) {
+            setActiveSessionId(null);
+        }
         try {
             await deleteSession(sessionId);
-            setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-            if (activeSessionId === sessionId) {
-                setActiveSessionId(null);
-            }
         } catch (err) {
-            console.error('Failed to delete session', err);
+            console.warn('Backend delete session failed (removed locally):', err);
         }
     };
 
@@ -359,42 +521,69 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             setActiveSessionId(targetId);
         }
 
+        let newPinnedState = false;
         setSessions((prev) => {
             const exists = prev.some((s) => s.id === targetId);
             if (!exists) {
-                return [
-                    {
-                        id: targetId!,
-                        title: dashboard?.title || 'Intelligence Dashboard',
-                        source_id: sourceId,
-                        database: databaseName,
-                        tables: tableNames,
-                        pinned: true,
-                        liked: false,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    },
-                    ...prev,
-                ];
+                newPinnedState = true;
+                const newSession: IntelligenceSession = {
+                    id: targetId!,
+                    title: dashboard?.title || 'Intelligence Dashboard',
+                    source_id: sourceId,
+                    database: databaseName,
+                    tables: tableNames,
+                    dashboard: dashboard || undefined,
+                    pinned: true,
+                    liked: getLocalLikedIds().has(targetId!),
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+                const updated = [newSession, ...prev];
+                setLocalPinnedId(targetId!, true);
+                saveLocalSessionsCache(updated);
+                return updated;
             }
-            return prev.map((s) => (s.id === targetId ? { ...s, pinned: !s.pinned } : s));
+
+            const updated = prev.map((s) => {
+                if (s.id === targetId) {
+                    newPinnedState = !s.pinned;
+                    setLocalPinnedId(targetId!, newPinnedState);
+                    return { ...s, pinned: newPinnedState };
+                }
+                return s;
+            });
+            saveLocalSessionsCache(updated);
+            return updated;
         });
 
         try {
-            const res = await togglePinSession(targetId);
-            setSessions((prev) => {
-                const exists = prev.some((s) => s.id === targetId);
-                if (!exists && res.session) {
-                    return [res.session, ...prev];
-                }
-                return prev.map((s) => (s.id === targetId ? { ...s, pinned: res.pinned } : s));
-            });
+            const targetSession = sessions.find((s) => s.id === targetId);
+            const extraData: Partial<IntelligenceSession> = targetSession?.dashboard ? {
+                title: targetSession.title,
+                dashboard: targetSession.dashboard,
+                tables: targetSession.tables,
+                database: targetSession.database,
+                source_id: targetSession.source_id,
+                liked: targetSession.liked,
+            } : (dashboard ? {
+                title: dashboard.title,
+                dashboard: dashboard,
+                tables: tableNames,
+                database: databaseName,
+                source_id: sourceId,
+                liked: getLocalLikedIds().has(targetId!),
+            } : {});
+
+            const res = await togglePinSession(targetId, newPinnedState, extraData);
+            if (res?.session) {
+                setSessions((prev) => {
+                    const updated = prev.map((s) => (s.id === targetId ? { ...s, pinned: res.pinned } : s));
+                    saveLocalSessionsCache(updated);
+                    return updated;
+                });
+            }
         } catch (err) {
-            console.error('Failed to toggle pin', err);
-            // Revert optimistic update
-            setSessions((prev) =>
-                prev.map((s) => (s.id === targetId ? { ...s, pinned: !s.pinned } : s))
-            );
+            console.warn('Backend sync failed for toggle pin (persisted locally):', err);
         }
     };
 
@@ -407,42 +596,69 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             setActiveSessionId(targetId);
         }
 
+        let newLikedState = false;
         setSessions((prev) => {
             const exists = prev.some((s) => s.id === targetId);
             if (!exists) {
-                return [
-                    {
-                        id: targetId!,
-                        title: dashboard?.title || 'Intelligence Dashboard',
-                        source_id: sourceId,
-                        database: databaseName,
-                        tables: tableNames,
-                        pinned: false,
-                        liked: true,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    },
-                    ...prev,
-                ];
+                newLikedState = true;
+                const newSession: IntelligenceSession = {
+                    id: targetId!,
+                    title: dashboard?.title || 'Intelligence Dashboard',
+                    source_id: sourceId,
+                    database: databaseName,
+                    tables: tableNames,
+                    dashboard: dashboard || undefined,
+                    pinned: getLocalPinnedIds().has(targetId!),
+                    liked: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+                const updated = [newSession, ...prev];
+                setLocalLikedId(targetId!, true);
+                saveLocalSessionsCache(updated);
+                return updated;
             }
-            return prev.map((s) => (s.id === targetId ? { ...s, liked: !s.liked } : s));
+
+            const updated = prev.map((s) => {
+                if (s.id === targetId) {
+                    newLikedState = !s.liked;
+                    setLocalLikedId(targetId!, newLikedState);
+                    return { ...s, liked: newLikedState };
+                }
+                return s;
+            });
+            saveLocalSessionsCache(updated);
+            return updated;
         });
 
         try {
-            const res = await toggleLikeSession(targetId);
-            setSessions((prev) => {
-                const exists = prev.some((s) => s.id === targetId);
-                if (!exists && res.session) {
-                    return [res.session, ...prev];
-                }
-                return prev.map((s) => (s.id === targetId ? { ...s, liked: res.liked } : s));
-            });
+            const targetSession = sessions.find((s) => s.id === targetId);
+            const extraData: Partial<IntelligenceSession> = targetSession?.dashboard ? {
+                title: targetSession.title,
+                dashboard: targetSession.dashboard,
+                tables: targetSession.tables,
+                database: targetSession.database,
+                source_id: targetSession.source_id,
+                pinned: targetSession.pinned,
+            } : (dashboard ? {
+                title: dashboard.title,
+                dashboard: dashboard,
+                tables: tableNames,
+                database: databaseName,
+                source_id: sourceId,
+                pinned: getLocalPinnedIds().has(targetId!),
+            } : {});
+
+            const res = await toggleLikeSession(targetId, newLikedState, extraData);
+            if (res?.session) {
+                setSessions((prev) => {
+                    const updated = prev.map((s) => (s.id === targetId ? { ...s, liked: res.liked } : s));
+                    saveLocalSessionsCache(updated);
+                    return updated;
+                });
+            }
         } catch (err) {
-            console.error('Failed to toggle like', err);
-            // Revert optimistic update
-            setSessions((prev) =>
-                prev.map((s) => (s.id === targetId ? { ...s, liked: !s.liked } : s))
-            );
+            console.warn('Backend sync failed for toggle like (persisted locally):', err);
         }
     };
 
