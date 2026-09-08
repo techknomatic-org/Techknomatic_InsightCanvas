@@ -1259,8 +1259,10 @@ def _build_vega_lite_spec(
 
     encoding: dict[str, Any] = {}
     if x_field:
-        # Use temporal type for date/time fields — clean, readable axis labels
-        if is_temporal:
+        first_x_val = data_records[0].get(x_field) if (data_records and isinstance(data_records, list) and len(data_records) > 0) else None
+        is_iso_date = isinstance(first_x_val, str) and bool(re.match(r"^\d{4}-\d{2}", first_x_val.strip()))
+        # Use temporal type only when field is raw ISO date string; pre-formatted strings (e.g. 'Jan 2020') use ordinal
+        if is_temporal and is_iso_date:
             encoding["x"] = {
                 "field": x_field,
                 "type": "temporal",
@@ -1278,7 +1280,7 @@ def _build_vega_lite_spec(
         else:
             encoding["x"] = {
                 "field": x_field,
-                "type": "nominal" if c_type in ("bar", "column") else "ordinal",
+                "type": "ordinal" if c_type in ("line", "area", "step_line") else "nominal",
                 "axis": {
                     "labelAngle": -25 if len(data_records) > 5 else 0,
                     "labelLimit": 110,

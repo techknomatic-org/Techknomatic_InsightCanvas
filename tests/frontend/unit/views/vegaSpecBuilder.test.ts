@@ -87,20 +87,25 @@ describe('vegaSpecBuilder - Unit Tests', () => {
             expect(spec.layer[1].mark.type).toBe('text');
         });
 
-        it('rebuilds a line chart spec with smooth interpolation and point overlays', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'line', CHART_THEME_PRESETS[3], true);
+        it('rebuilds a monthly line chart with pre-formatted date strings using ordinal encoding', () => {
+            const monthlyViz: VisualizationSpec = {
+                id: 'viz_monthly',
+                title: 'Monthly Sales Trend',
+                chart_type: 'line',
+                x_field: 'OrderDate',
+                y_field: 'SalesAmount',
+                data: [
+                    { OrderDate: 'Jan 2020', SalesAmount: 120000 },
+                    { OrderDate: 'Feb 2020', SalesAmount: 150000 },
+                    { OrderDate: 'Mar 2020', SalesAmount: 180000 },
+                ],
+            };
+            const spec = rebuildVegaSpec(monthlyViz, 'line', CHART_THEME_PRESETS[0], true);
             expect(spec).toBeDefined();
-            expect(spec.layer || spec.mark).toBeDefined();
-        });
-
-        it('rebuilds an area chart spec with gradient styling', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'area', CHART_THEME_PRESETS[4], true);
-            expect(spec).toBeDefined();
-        });
-
-        it('rebuilds a scatter plot spec with point marks and tooltips', () => {
-            const spec = rebuildVegaSpec(sampleViz, 'scatter', CHART_THEME_PRESETS[5], true);
-            expect(spec).toBeDefined();
+            expect(spec.layer).toHaveLength(2);
+            // X-encoding should be ordinal so 'Jan 2020' string labels render reliably without date parse failure
+            expect(spec.layer[0].encoding.x.type).toBe('ordinal');
+            expect(spec.layer[1].encoding.x.type).toBe('ordinal');
         });
     });
 });

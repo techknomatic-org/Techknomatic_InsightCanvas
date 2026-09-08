@@ -176,11 +176,15 @@ export function rebuildVegaSpec(
     const primaryColor = themePreset.primaryColor;
     const colorPalette = themePreset.palette;
 
-    // Detect if x-axis is temporal from existing spec or field name
-    const existingXType = viz.vega_spec?.encoding?.x?.type;
-    const isTemporal =
-        existingXType === 'temporal' ||
-        Boolean(xField && /date|time|timestamp|created_at|updated_at|month|year/i.test(xField));
+    // Detect if x-axis field values are raw ISO date strings / Date objects vs pre-formatted strings (e.g. 'Jan 2020', 'Feb 2020')
+    const sampleVal = firstRow && xField ? firstRow[xField] : null;
+    const isIsoDate = typeof sampleVal === 'string' && /^\d{4}-\d{2}(-\d{2})?/.test(sampleVal.trim());
+    const isDateObj = sampleVal instanceof Date;
+    // Vega-Lite only parses 'temporal' properly if values are raw ISO timestamps (YYYY-MM-DD) or Date objects.
+    // Pre-formatted strings (e.g. 'Jan 2020', 'Feb 2020', 'Q1 2023') MUST use 'ordinal' / 'nominal'
+    // to prevent Vega-Lite date parsing failure (which produces NaN and renders an empty chart).
+    const useVegaTemporal = isIsoDate || isDateObj;
+    const xEncodingType = useVegaTemporal ? 'temporal' : (cType === 'line' || cType === 'area' || cType === 'step_line' ? 'ordinal' : 'nominal');
 
     const formatTitle = (str: string) =>
         str.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
@@ -203,7 +207,7 @@ export function rebuildVegaSpec(
     if (xField) {
         tooltip.push({
             field: xField,
-            type: isTemporal ? 'temporal' : 'nominal',
+            type: xEncodingType,
             title: formatTitle(xField),
         });
     }
@@ -407,7 +411,7 @@ export function rebuildVegaSpec(
     // Base Encodings for Standard 2D Charts (Bar, Line, Area, Scatter, Dot Plot)
     const baseEncoding: any = {};
     if (xField) {
-        if (isTemporal) {
+        if (useVegaTemporal) {
             baseEncoding.x = {
                 field: xField,
                 type: 'temporal',
@@ -424,10 +428,10 @@ export function rebuildVegaSpec(
         } else {
             baseEncoding.x = {
                 field: xField,
-                type: 'nominal',
+                type: xEncodingType,
                 axis: {
-                    labelAngle: records.length > 6 ? -30 : 0,
-                    labelLimit: 90,
+                    labelAngle: records.length > 5 ? -30 : 0,
+                    labelLimit: 110,
                     labelColor: '#64748b',
                     tickColor: '#cbd5e1',
                     domainColor: '#cbd5e1',
@@ -494,7 +498,7 @@ export function rebuildVegaSpec(
                     fill: '#475569',
                 },
                 encoding: {
-                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    x: xField ? { field: xField, type: xEncodingType } : undefined,
                     y: { field: yField, type: 'quantitative' },
                     text: { field: yField, type: 'quantitative', format: labelFormat },
                 },
@@ -546,7 +550,7 @@ export function rebuildVegaSpec(
                     fill: '#1e293b',
                 },
                 encoding: {
-                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    x: xField ? { field: xField, type: xEncodingType } : undefined,
                     y: { field: yField, type: 'quantitative' },
                     text: { field: yField, type: 'quantitative', format: labelFormat },
                 },
@@ -598,7 +602,7 @@ export function rebuildVegaSpec(
                     fill: '#1e293b',
                 },
                 encoding: {
-                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : 'nominal' } : undefined,
+                    x: xField ? { field: xField, type: xEncodingType } : undefined,
                     y: { field: yField, type: 'quantitative' },
                     text: { field: yField, type: 'quantitative', format: labelFormat },
                 },
@@ -650,7 +654,7 @@ export function rebuildVegaSpec(
                     fill: '#475569',
                 },
                 encoding: {
-                    x: xField ? { field: xField, type: isTemporal ? 'temporal' : (cType === 'scatter' ? 'quantitative' : 'nominal') } : undefined,
+                    x: xField ? { field: xField, type: useVegaTemporal ? 'temporal' : (cType === 'scatter' ? 'quantitative' : 'nominal') } : undefined,
                     y: { field: yField, type: 'quantitative' },
                     text: { field: yField, type: 'quantitative', format: labelFormat },
                 },
