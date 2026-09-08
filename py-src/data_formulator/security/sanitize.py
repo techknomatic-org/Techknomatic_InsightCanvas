@@ -119,6 +119,9 @@ _LLM_ERROR_PATTERNS: list[tuple[str, str]] = [
     # — Authentication / credentials
     (r"401|unauthorized|invalid.{0,15}api.?key|invalid.{0,15}key|auth\w*.{0,10}fail",
      "Authentication failed — please check your API key"),
+    # — Insufficient credits / balance
+    (r"402|insufficient.?credits?|credit.{0,10}balance|out of credit|billing|add more using https://openrouter",
+     "Insufficient API credits / balance — please top up your provider credits or select another model in Settings"),
     # — Rate limiting
     (r"429|rate.?limit|too many requests|quota",
      "Rate limit exceeded — please wait and try again"),

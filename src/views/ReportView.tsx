@@ -16,10 +16,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/EditOutlined';
 import CheckIcon from '@mui/icons-material/Check';
 import DownloadIcon from '@mui/icons-material/Download';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import ImageIcon from '@mui/icons-material/Image';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import html2canvas from 'html2canvas';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useDispatch, useSelector } from 'react-redux';
 import { DataFormulatorState, dfActions, dfSelectors, GeneratedReport } from '../app/dfSlice';
 import { Message } from './MessageSnackbar';
@@ -148,66 +146,13 @@ export const ReportView: FC = () => {
         return `${sanitizeFileName(getReportTitle())}-${date}.${extension}`;
     };
 
-    const renderReportToCanvas = async (): Promise<HTMLCanvasElement | null> => {
-        const exportClone = createReportExportClone();
-        if (!exportClone) return null;
-
-        const { reportElement, clone } = exportClone;
-        clone.style.position = 'fixed';
-        clone.style.left = '-10000px';
-        clone.style.top = '0';
-        clone.style.width = `${reportElement.scrollWidth}px`;
-        clone.style.maxWidth = `${reportElement.scrollWidth}px`;
-        clone.style.backgroundColor = '#ffffff';
-        clone.style.pointerEvents = 'none';
-        document.body.appendChild(clone);
-
-        try {
-            return await html2canvas(clone, {
-                backgroundColor: '#ffffff',
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                scrollX: 0,
-                scrollY: 0,
-                width: clone.scrollWidth + 4,
-                height: clone.scrollHeight + 4,
-                logging: false
-            });
-        } finally {
-            clone.remove();
-        }
-    };
-
-    const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob | null> => {
-        return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
-    };
-
-    const getClipboardUnavailableMessage = (): string => {
-        if (!window.isSecureContext) {
-            return t('report.clipboardRequiresSecureContext');
-        }
-        return t('report.clipboardNotSupported');
-    };
-
-    const canWriteToClipboard = (): boolean => {
-        return window.isSecureContext
-            && !!navigator.clipboard?.write
-            && typeof ClipboardItem !== 'undefined';
-    };
-
-    const copyReportContent = async () => {
-        if (!canWriteToClipboard()) {
-            showMessage(getClipboardUnavailableMessage(), 'error');
-            return;
-        }
-
+    const exportReportAsDocx = async () => {
         const exportClone = createReportExportClone();
         if (!exportClone) return;
 
         const { reportElement, clone } = exportClone;
         try {
-            // Inline chart images so they survive paste into Word, Google Docs, etc.
+            // Inline chart images as base64 so they render directly inside the Word document
             const imgs = clone.querySelectorAll('img');
             await Promise.all(Array.from(imgs).map(async (img) => {
                 try {
@@ -222,11 +167,11 @@ export const ReportView: FC = () => {
                     ctx.drawImage(src, 0, 0);
                     img.setAttribute('src', canvas.toDataURL('image/png'));
                 } catch {
-                    // Cross-origin or tainted canvas: keep original src.
+                    // Cross-origin or tainted canvas fallback
                 }
             }));
 
-            // Strip editor-only attributes/classes that external apps may misinterpret.
+            // Strip editor-only attributes/classes that external word processors may misinterpret
             clone.querySelectorAll('*').forEach(el => {
                 el.removeAttribute('contenteditable');
                 el.removeAttribute('draggable');
@@ -243,41 +188,128 @@ export const ReportView: FC = () => {
                 }
             });
 
-            await navigator.clipboard.write([
-                new ClipboardItem({
-                    'text/html': new Blob([clone.innerHTML], { type: 'text/html' }),
-                    'text/plain': new Blob([clone.innerText], { type: 'text/plain' }),
-                }),
-            ]);
-            showMessage(t('report.contentCopied'));
-        } catch (e) {
-            console.warn('Failed to copy report content:', e);
-            showMessage(t('report.failedToCopyClipboard'), 'error');
+            const reportTitle = sanitizeFileName(getReportTitle(clone));
+            const wordHtml = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+    <meta charset='utf-8'>
+    <title>${reportTitle}</title>
+    <!--[if gte mso 9]>
+    <xml>
+        <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+        @page {
+            size: A4;
+            margin: 1.0in 1.0in 1.0in 1.0in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
         }
-    };
+        body {
+            font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #ffffff;
+        }
+        h1 {
+            font-size: 18pt;
+            color: #001d52;
+            margin-top: 18pt;
+            margin-bottom: 6pt;
+            border-bottom: 1.5pt solid #e2e8f0;
+            padding-bottom: 4pt;
+            page-break-after: avoid;
+        }
+        h2 {
+            font-size: 14pt;
+            color: #1e293b;
+            margin-top: 16pt;
+            margin-bottom: 6pt;
+            border-left: 3.5pt solid #1B75BB;
+            padding-left: 6pt;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 12pt;
+            color: #334155;
+            margin-top: 12pt;
+            margin-bottom: 4pt;
+            page-break-after: avoid;
+        }
+        p {
+            margin: 0 0 8pt 0;
+            color: #334155;
+        }
+        ul, ol {
+            margin: 0 0 10pt 0;
+            padding-left: 20pt;
+        }
+        li {
+            margin-bottom: 4pt;
+            color: #334155;
+        }
+        blockquote {
+            background-color: #f0f9ff;
+            border-left: 3.5pt solid #0ea5e9;
+            margin: 10pt 0;
+            padding: 8pt 12pt;
+            color: #0369a1;
+            font-size: 10.5pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12pt 0;
+            font-size: 10pt;
+        }
+        th, td {
+            border: 1pt solid #cbd5e1;
+            padding: 6pt 8pt;
+            text-align: left;
+        }
+        th {
+            background-color: #f8fafc;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin: 12pt 0;
+            page-break-inside: avoid;
+        }
+        strong {
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+    ${clone.innerHTML}
+</body>
+</html>`;
 
-    const downloadReportAsPng = async () => {
-        try {
-            const canvas = await renderReportToCanvas();
-            if (!canvas) return;
-            const blob = await canvasToBlob(canvas);
-            if (!blob) {
-                showMessage(t('report.failedToGenerateImage'), 'error');
-                return;
-            }
-
+            const blob = new Blob(['\ufeff', wordHtml], {
+                type: 'application/vnd.ms-word;charset=utf-8',
+            });
+            const fileName = getReportFileName('docx');
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = getReportFileName('png');
+            link.download = fileName;
             document.body.appendChild(link);
             link.click();
             link.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 0);
-            showMessage(t('report.pngDownloaded'));
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showMessage(t('report.wordDownloaded'));
         } catch (error) {
-            console.error('Error downloading report image:', error);
-            showMessage(t('report.failedToDownloadPng'), 'error');
+            console.error('Error downloading Word docx report:', error);
+            showMessage(t('report.failedToExportDocx'), 'error');
         }
     };
 
@@ -694,32 +726,22 @@ ${styles}
                             <MenuItem
                                 onClick={() => {
                                     setDownloadMenuAnchor(null);
-                                    void copyReportContent();
-                                }}
-                                sx={downloadMenuItemSx}
-                            >
-                                <ContentCopyIcon />
-                                {t('report.copyContent')}
-                            </MenuItem>
-                            <MenuItem
-                                onClick={() => {
-                                    setDownloadMenuAnchor(null);
-                                    void downloadReportAsPng();
-                                }}
-                                sx={downloadMenuItemSx}
-                            >
-                                <ImageIcon />
-                                {t('report.saveAsImage')}
-                            </MenuItem>
-                            <MenuItem
-                                onClick={() => {
-                                    setDownloadMenuAnchor(null);
                                     void exportReportAsPdf();
                                 }}
                                 sx={downloadMenuItemSx}
                             >
                                 <PictureAsPdfIcon />
                                 {t('report.downloadPdf')}
+                            </MenuItem>
+                            <MenuItem
+                                onClick={() => {
+                                    setDownloadMenuAnchor(null);
+                                    void exportReportAsDocx();
+                                }}
+                                sx={downloadMenuItemSx}
+                            >
+                                <DescriptionOutlinedIcon />
+                                {t('report.downloadWord')}
                             </MenuItem>
                         </Menu>
                         {currentReportId && (

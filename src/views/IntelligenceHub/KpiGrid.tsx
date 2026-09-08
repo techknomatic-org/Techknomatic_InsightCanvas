@@ -2,13 +2,14 @@
 // Licensed under the MIT License.
 
 import React from 'react';
-import { Box, Card, CardContent, Typography, Chip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Chip, Tooltip } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import MonetizationOnOutlinedIcon from '@mui/icons-material/MonetizationOnOutlined';
 import PercentOutlinedIcon from '@mui/icons-material/PercentOutlined';
 import TagOutlinedIcon from '@mui/icons-material/TagOutlined';
+import FunctionsIcon from '@mui/icons-material/Functions';
 import { KpiSpec } from './intelligenceTypes';
 
 interface KpiGridProps {
@@ -42,13 +43,18 @@ const getKpiIcon = (kpi: KpiSpec) => {
     const title = (kpi.title || '').toLowerCase();
     const format = (kpi.format || '').toLowerCase();
     const col = (kpi.measure_column || '').toLowerCase();
+    const expr = (kpi.expression || kpi.formula || '').toLowerCase();
     const agg = (kpi.aggregation || '').toUpperCase();
     const formattedVal = String(kpi.formatted_value || '');
+
+    if (expr || col.includes('-') || col.includes('+') || col.includes('/') || col.includes('*')) {
+        return <FunctionsIcon sx={{ fontSize: 16 }} />;
+    }
 
     if (
         format === 'currency' ||
         formattedVal.startsWith('$') ||
-        ['salary', 'revenue', 'cost', 'price', 'budget', 'profit', 'expense', 'spend', 'val', 'amt', 'pay', 'income', 'earning', 'sales'].some((k) => title.includes(k) || col.includes(k))
+        ['salary', 'revenue', 'cost', 'price', 'budget', 'profit', 'expense', 'spend', 'val', 'amt', 'pay', 'income', 'earning', 'sales'].some((k) => title.includes(k) || col.includes(k) || expr.includes(k))
     ) {
         return <MonetizationOnOutlinedIcon sx={{ fontSize: 16 }} />;
     }
@@ -56,7 +62,7 @@ const getKpiIcon = (kpi: KpiSpec) => {
     if (
         format === 'percent' ||
         formattedVal.includes('%') ||
-        ['rate', 'percent', 'pct', 'ratio', 'share', 'margin', 'proportion', 'efficiency', 'utilization'].some((k) => title.includes(k) || col.includes(k))
+        ['rate', 'percent', 'pct', 'ratio', 'share', 'margin', 'proportion', 'efficiency', 'utilization'].some((k) => title.includes(k) || col.includes(k) || expr.includes(k))
     ) {
         return <PercentOutlinedIcon sx={{ fontSize: 16 }} />;
     }
@@ -87,6 +93,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
             {items.map((kpi, idx) => {
                 const accent = ACCENTS[idx % ACCENTS.length];
                 const kpiIcon = getKpiIcon(kpi);
+                const formulaText = kpi.expression || kpi.formula || (kpi.measure_column && /[+\-*/]/.test(kpi.measure_column) ? kpi.measure_column : null);
 
                 return (
                     <Card
@@ -155,13 +162,23 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                             </Typography>
 
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                                <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    sx={{ fontSize: '11px', fontWeight: 500 }}
-                                >
-                                    {kpi.subtitle || `${kpi.aggregation || 'Total'} metric`}
-                                </Typography>
+                                <Tooltip title={formulaText ? `Formula: ${formulaText}` : ''} arrow placement="top">
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{
+                                            fontSize: '11px',
+                                            fontWeight: 500,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
+                                            cursor: formulaText ? 'help' : 'default',
+                                        }}
+                                    >
+                                        {formulaText && <FunctionsIcon sx={{ fontSize: 12, color: accent.color }} />}
+                                        {kpi.subtitle || `${kpi.aggregation || 'Total'} metric`}
+                                    </Typography>
+                                </Tooltip>
                                 {kpi.comparison && (
                                     <Chip
                                         size="small"

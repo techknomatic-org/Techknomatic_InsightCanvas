@@ -56,6 +56,8 @@ _LLM_CODE_PATTERNS: list[tuple[str, str, bool]] = [
     # (regex, ErrorCode, retryable?)
     (r"401|unauthorized|invalid.{0,15}api.?key|invalid.{0,15}key|auth\w*.{0,10}fail",
      ErrorCode.LLM_AUTH_FAILED, False),
+    (r"402|insufficient.?credits?|credit.{0,10}balance|out of credit|billing",
+     ErrorCode.LLM_RATE_LIMIT, False),
     (r"429|rate.?limit|too many requests|quota",
      ErrorCode.LLM_RATE_LIMIT, True),
     (r"context.{0,10}length|too many tokens|max.{0,10}tokens|token limit|maximum context",

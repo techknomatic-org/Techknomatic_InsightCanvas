@@ -10,6 +10,9 @@ import {
     Tooltip,
     Button,
     Grow,
+    Dialog,
+    DialogTitle,
+    DialogContent,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -22,6 +25,9 @@ import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { ModelSelectionContent } from '../ModelSelectionDialog';
 import { ChatMessage } from './intelligenceTypes';
 
 interface ChatPanelProps {
@@ -38,6 +44,7 @@ interface ChatPanelProps {
 }
 
 interface ParsedError {
+    category: 'credits' | 'mismatch' | 'ratelimit' | 'model_issue' | 'generic';
     isMismatch: boolean;
     title: string;
     description: string;
@@ -46,11 +53,13 @@ interface ParsedError {
     border: string;
     bgGradient: string;
     shadow: string;
+    actionUrl?: string;
 }
 
 const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
     if (!errorMsg) {
         return {
+            category: 'generic',
             isMismatch: false,
             title: 'Unable to Generate Dashboard',
             description: 'An unexpected issue occurred while synthesizing the dashboard.',
@@ -75,6 +84,7 @@ const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
 
     if (isTopicOrDatasetMismatch) {
         return {
+            category: 'mismatch',
             isMismatch: true,
             title: 'Dataset & Topic Mismatch',
             description: errorMsg,
@@ -88,6 +98,7 @@ const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
 
     if (lower.includes('rate limit') || lower.includes('quota') || lower.includes('429')) {
         return {
+            category: 'ratelimit',
             isMismatch: false,
             title: 'Rate Limit Reached',
             description: 'The AI model service rate limit was reached. Please wait a moment before trying again.',
@@ -99,8 +110,24 @@ const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
         };
     }
 
+    if (lower.includes('credit') || lower.includes('balance') || lower.includes('billing') || lower.includes('openrouter.ai')) {
+        return {
+            category: 'credits',
+            isMismatch: false,
+            title: 'API Credits Exhausted',
+            description: errorMsg || 'Your AI model provider has run out of credits. Please top up your account balance or select another model in Settings.',
+            badgeBg: '#fee2e2',
+            badgeColor: '#dc2626',
+            border: '1.5px solid #fca5a5',
+            bgGradient: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
+            shadow: '0 12px 32px rgba(220, 38, 38, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04)',
+            actionUrl: 'https://openrouter.ai/settings/credits',
+        };
+    }
+
     if (lower.includes('model request failed') || lower.includes('failed to generate') || lower.includes('timeout')) {
         return {
+            category: 'model_issue',
             isMismatch: false,
             title: 'Model Generation Issue',
             description: 'The AI model was unable to process this request. Please try phrasing your prompt with specific metrics or chart types.',
@@ -113,6 +140,7 @@ const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
     }
 
     return {
+        category: 'generic',
         isMismatch: false,
         title: 'Unable to Generate Dashboard',
         description: errorMsg,
@@ -138,6 +166,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const [isListening, setIsListening] = useState(false);
+    const [modelDialogOpen, setModelDialogOpen] = useState(false);
     const recognitionRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -272,52 +301,104 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                                 </Typography>
 
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                    {onChangeTables && (
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<TableChartOutlinedIcon sx={{ fontSize: 15 }} />}
-                                            onClick={onChangeTables}
-                                            sx={{
-                                                textTransform: 'none',
-                                                fontSize: '11.5px',
-                                                fontWeight: 600,
-                                                color: errorDetails.isMismatch ? '#991b1b' : '#1B75BB',
-                                                borderColor: errorDetails.isMismatch ? '#fca5a5' : '#bfdbfe',
-                                                borderRadius: '7px',
-                                                py: 0.4,
-                                                px: 1.3,
-                                                bgcolor: '#ffffff',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                                                '&:hover': {
-                                                    bgcolor: errorDetails.isMismatch ? '#fef2f2' : '#eff6ff',
-                                                    borderColor: errorDetails.isMismatch ? '#ef4444' : '#1B75BB',
-                                                },
-                                            }}
-                                        >
-                                            Change Selected Tables
-                                        </Button>
+                                    {errorDetails.category === 'credits' ? (
+                                        <>
+                                            <Button
+                                                size="small"
+                                                variant="contained"
+                                                startIcon={<SettingsOutlinedIcon sx={{ fontSize: 15 }} />}
+                                                onClick={() => setModelDialogOpen(true)}
+                                                sx={{
+                                                    textTransform: 'none',
+                                                    fontSize: '11.5px',
+                                                    fontWeight: 600,
+                                                    bgcolor: '#dc2626',
+                                                    color: '#ffffff',
+                                                    borderRadius: '7px',
+                                                    py: 0.45,
+                                                    px: 1.3,
+                                                    boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
+                                                    '&:hover': { bgcolor: '#b91c1c' },
+                                                }}
+                                            >
+                                                Configure / Switch Model
+                                            </Button>
+                                            {errorDetails.actionUrl && (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+                                                    href={errorDetails.actionUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    sx={{
+                                                        textTransform: 'none',
+                                                        fontSize: '11.5px',
+                                                        fontWeight: 600,
+                                                        color: '#dc2626',
+                                                        borderColor: '#fca5a5',
+                                                        borderRadius: '7px',
+                                                        py: 0.45,
+                                                        px: 1.2,
+                                                        bgcolor: '#ffffff',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                                        '&:hover': { bgcolor: '#fef2f2', borderColor: '#ef4444' },
+                                                    }}
+                                                >
+                                                    Top Up OpenRouter
+                                                </Button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {onChangeTables && (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={<TableChartOutlinedIcon sx={{ fontSize: 15 }} />}
+                                                    onClick={onChangeTables}
+                                                    sx={{
+                                                        textTransform: 'none',
+                                                        fontSize: '11.5px',
+                                                        fontWeight: 600,
+                                                        color: errorDetails.isMismatch ? '#991b1b' : '#1B75BB',
+                                                        borderColor: errorDetails.isMismatch ? '#fca5a5' : '#bfdbfe',
+                                                        borderRadius: '7px',
+                                                        py: 0.4,
+                                                        px: 1.3,
+                                                        bgcolor: '#ffffff',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                                        '&:hover': {
+                                                            bgcolor: errorDetails.isMismatch ? '#fef2f2' : '#eff6ff',
+                                                            borderColor: errorDetails.isMismatch ? '#ef4444' : '#1B75BB',
+                                                        },
+                                                    }}
+                                                >
+                                                    Change Selected Tables
+                                                </Button>
+                                            )}
+                                            <Button
+                                                size="small"
+                                                variant="text"
+                                                onClick={() => {
+                                                    if (onClearError) onClearError();
+                                                    inputRef.current?.focus();
+                                                }}
+                                                sx={{
+                                                    textTransform: 'none',
+                                                    fontSize: '11.5px',
+                                                    fontWeight: 600,
+                                                    color: '#64748b',
+                                                    borderRadius: '7px',
+                                                    py: 0.4,
+                                                    px: 1,
+                                                    '&:hover': { color: '#0f172a', bgcolor: 'rgba(0,0,0,0.04)' },
+                                                }}
+                                            >
+                                                Edit Prompt
+                                            </Button>
+                                        </>
                                     )}
-                                    <Button
-                                        size="small"
-                                        variant="text"
-                                        onClick={() => {
-                                            if (onClearError) onClearError();
-                                            inputRef.current?.focus();
-                                        }}
-                                        sx={{
-                                            textTransform: 'none',
-                                            fontSize: '11.5px',
-                                            fontWeight: 600,
-                                            color: '#64748b',
-                                            borderRadius: '7px',
-                                            py: 0.4,
-                                            px: 1,
-                                            '&:hover': { color: '#0f172a', bgcolor: 'rgba(0,0,0,0.04)' },
-                                        }}
-                                    >
-                                        Edit Prompt
-                                    </Button>
                                 </Box>
                             </Box>
                         </Paper>
@@ -495,6 +576,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     </Box>
                 </Box>
             </Paper>
+
+            <Dialog
+                maxWidth="lg"
+                open={modelDialogOpen}
+                onClose={() => setModelDialogOpen(false)}
+            >
+                <DialogTitle sx={{ fontWeight: 700, fontSize: '18px', color: '#0f172a', borderBottom: '1px solid #e2e8f0', pb: 1.5 }}>
+                    Select & Configure AI Model
+                </DialogTitle>
+                <DialogContent sx={{ minWidth: { sm: 720 }, p: 0 }}>
+                    <ModelSelectionContent
+                        onClose={() => setModelDialogOpen(false)}
+                        onModelSelected={() => setModelDialogOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }
@@ -703,6 +800,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     <SendIcon fontSize="small" />
                 </IconButton>
             </Box>
+
+            <Dialog
+                maxWidth="lg"
+                open={modelDialogOpen}
+                onClose={() => setModelDialogOpen(false)}
+            >
+                <DialogTitle sx={{ fontWeight: 700, fontSize: '18px', color: '#0f172a', borderBottom: '1px solid #e2e8f0', pb: 1.5 }}>
+                    Select & Configure AI Model
+                </DialogTitle>
+                <DialogContent sx={{ minWidth: { sm: 720 }, p: 0 }}>
+                    <ModelSelectionContent
+                        onClose={() => setModelDialogOpen(false)}
+                        onModelSelected={() => setModelDialogOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
         </Paper>
     );
 };

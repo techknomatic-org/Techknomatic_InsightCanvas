@@ -279,7 +279,43 @@ def _profile_table(workspace: Workspace, table_name: str, identity_id: str | Non
             is_dimension = True
             dimensions.append(col_name)
 
-        sample_vals = [make_json_safe(v) for v in distinct_vals[:5]]
+        sample_vals = [make_json_safe(v) for v in distinct_vals[:8]]
+
+        # ── P0 Accuracy: Compute distribution statistics for richer LLM context ──
+        col_stats: dict[str, Any] = {}
+        if is_measure and len(series.dropna()) > 0:
+            numeric_series = pd.to_numeric(series, errors='coerce').dropna()
+            if len(numeric_series) > 0:
+                col_stats = {
+                    "min": make_json_safe(round(float(numeric_series.min()), 4)),
+                    "max": make_json_safe(round(float(numeric_series.max()), 4)),
+                    "mean": make_json_safe(round(float(numeric_series.mean()), 2)),
+                    "median": make_json_safe(round(float(numeric_series.median()), 2)),
+                    "stddev": make_json_safe(round(float(numeric_series.std()), 2)),
+                }
+        elif is_temporal and len(series.dropna()) > 0:
+            try:
+                temporal_series = pd.to_datetime(series, errors='coerce').dropna()
+                if len(temporal_series) > 0:
+                    col_stats = {
+                        "min_date": str(temporal_series.min().date()),
+                        "max_date": str(temporal_series.max().date()),
+                        "date_range_days": int((temporal_series.max() - temporal_series.min()).days),
+                    }
+            except Exception:
+                pass
+        elif is_dimension and distinct_count <= 50 and len(series.dropna()) > 0:
+            try:
+                value_counts = series.dropna().astype(str).value_counts().head(8)
+                total_non_null = len(series.dropna())
+                col_stats = {
+                    "top_values": {
+                        str(k): {"count": int(v), "pct": round(v / total_non_null * 100, 1)}
+                        for k, v in value_counts.items()
+                    }
+                }
+            except Exception:
+                pass
 
         columns_profile.append({
             "name": col_name,
@@ -292,9 +328,10 @@ def _profile_table(workspace: Workspace, table_name: str, identity_id: str | Non
             "null_percentage": null_pct,
             "distinct_count": distinct_count,
             "sample_values": sample_vals,
+            "statistics": col_stats,
         })
 
-    sample_records = df_to_safe_records(sample_df.head(5))
+    sample_records = df_to_safe_records(sample_df.head(15))
 
     return {
         "table_name": table_name,
@@ -305,6 +342,61 @@ def _profile_table(workspace: Workspace, table_name: str, identity_id: str | Non
         "temporal_columns": temporal_columns,
         "sample_records": sample_records,
     }
+
+
+def _validate_relationship_overlap(
+    workspace: Workspace,
+    t1_name: str,
+    c1_name: str,
+    t2_name: str,
+    c2_name: str,
+) -> dict[str, Any]:
+    """Validate relationship between two tables by checking value overlap percentage and cardinality in DuckDB."""
+    try:
+        p1 = str(workspace.get_parquet_path(t1_name)).replace("\\", "/")
+        p2 = str(workspace.get_parquet_path(t2_name)).replace("\\", "/")
+        con = duckdb.connect(":memory:")
+        try:
+            q_stats = f"""
+            SELECT
+                (SELECT COUNT(DISTINCT "{c1_name}") FROM read_parquet('{p1}') WHERE "{c1_name}" IS NOT NULL) AS d1,
+                (SELECT COUNT("{c1_name}") FROM read_parquet('{p1}') WHERE "{c1_name}" IS NOT NULL) AS cnt1,
+                (SELECT COUNT(DISTINCT "{c2_name}") FROM read_parquet('{p2}') WHERE "{c2_name}" IS NOT NULL) AS d2,
+                (SELECT COUNT("{c2_name}") FROM read_parquet('{p2}') WHERE "{c2_name}" IS NOT NULL) AS cnt2,
+                (SELECT COUNT(DISTINCT t1."{c1_name}") FROM read_parquet('{p1}') t1 INNER JOIN read_parquet('{p2}') t2 ON t1."{c1_name}" = t2."{c2_name}" WHERE t1."{c1_name}" IS NOT NULL) AS overlap_cnt
+            """
+            row = con.execute(q_stats).fetchone()
+            if not row:
+                return {"confidence": "medium", "overlap_percentage": None, "cardinality": "unknown"}
+            d1, cnt1, d2, cnt2, overlap = row[0] or 0, row[1] or 0, row[2] or 0, row[3] or 0, row[4] or 0
+
+            min_d = min(d1, d2) if min(d1, d2) > 0 else 1
+            overlap_pct = round((overlap / min_d) * 100, 1)
+
+            u1 = (d1 == cnt1) and cnt1 > 0
+            u2 = (d2 == cnt2) and cnt2 > 0
+            if u1 and u2:
+                cardinality = "1:1"
+            elif u1 and not u2:
+                cardinality = "1:N"
+            elif not u1 and u2:
+                cardinality = "N:1"
+            else:
+                cardinality = "N:M"
+
+            confidence = "high" if overlap_pct >= 70 else ("medium" if overlap_pct >= 30 else "low")
+            return {
+                "confidence": confidence,
+                "overlap_percentage": overlap_pct,
+                "cardinality": cardinality,
+                "t1_unique": u1,
+                "t2_unique": u2,
+            }
+        finally:
+            con.close()
+    except Exception as exc:
+        logger.debug("Relationship overlap validation fallback: %s", exc)
+        return {"confidence": "high", "overlap_percentage": None, "cardinality": "unknown"}
 
 
 def _build_full_profile(workspace: Workspace, table_names: list[str], identity_id: str | None = None) -> dict[str, Any]:
@@ -320,7 +412,7 @@ def _build_full_profile(workspace: Workspace, table_names: list[str], identity_i
     if not tables_profile:
         raise AppError(ErrorCode.DATA_LOAD_ERROR, f"None of the selected tables ({', '.join(table_names)}) could be profiled")
 
-    # Inferred relationships
+    # Inferred relationships with value overlap & cardinality validation
     relationships = []
     for i in range(len(tables_profile)):
         for j in range(i + 1, len(tables_profile)):
@@ -331,12 +423,19 @@ def _build_full_profile(workspace: Workspace, table_names: list[str], identity_i
             common = set(cols1.keys()).intersection(set(cols2.keys()))
             for c_low in common:
                 if c_low.endswith("_id") or c_low == "id" or "code" in c_low or "key" in c_low or c_low.endswith("_key"):
+                    col1_actual = cols1[c_low]
+                    col2_actual = cols2[c_low]
+                    rel_meta = _validate_relationship_overlap(
+                        workspace, t1["table_name"], col1_actual, t2["table_name"], col2_actual
+                    )
                     relationships.append({
                         "table1": t1["table_name"],
-                        "column1": cols1[c_low],
+                        "column1": col1_actual,
                         "table2": t2["table_name"],
-                        "column2": cols2[c_low],
-                        "confidence": "high",
+                        "column2": col2_actual,
+                        "confidence": rel_meta.get("confidence", "high"),
+                        "cardinality": rel_meta.get("cardinality", "unknown"),
+                        "overlap_percentage": rel_meta.get("overlap_percentage"),
                     })
 
     return {
@@ -366,7 +465,7 @@ def _strip_spec_for_llm(spec: dict[str, Any]) -> dict[str, Any]:
     }
     stripped["kpis"] = []
     for kpi in spec.get("kpis", []):
-        stripped["kpis"].append({
+        kpi_obj = {
             "id": kpi.get("id"),
             "title": kpi.get("title"),
             "table": kpi.get("table"),
@@ -375,10 +474,15 @@ def _strip_spec_for_llm(spec: dict[str, Any]) -> dict[str, Any]:
             "format": kpi.get("format"),
             "subtitle": kpi.get("subtitle"),
             "comparison": kpi.get("comparison"),
-        })
+        }
+        if kpi.get("expression"):
+            kpi_obj["expression"] = kpi.get("expression")
+        if kpi.get("formula"):
+            kpi_obj["formula"] = kpi.get("formula")
+        stripped["kpis"].append(kpi_obj)
     stripped["visualizations"] = []
     for viz in spec.get("visualizations", []):
-        stripped["visualizations"].append({
+        viz_obj = {
             "id": viz.get("id"),
             "title": viz.get("title"),
             "description": viz.get("description"),
@@ -388,7 +492,12 @@ def _strip_spec_for_llm(spec: dict[str, Any]) -> dict[str, Any]:
             "y_field": viz.get("y_field"),
             "color_field": viz.get("color_field"),
             "aggregation": viz.get("aggregation"),
-        })
+        }
+        if viz.get("expression"):
+            viz_obj["expression"] = viz.get("expression")
+        if viz.get("formula"):
+            viz_obj["formula"] = viz.get("formula")
+        stripped["visualizations"].append(viz_obj)
     return stripped
 
 
@@ -409,9 +518,21 @@ def _build_column_inventory(profile: dict[str, Any] | None) -> str:
         lines.append(f"  Temporal: {', '.join(t.get('temporal_columns', [])) or 'none'}")
         lines.append("  Columns:")
         for c in t.get("columns", []):
-            sample = ", ".join(str(v) for v in c.get("sample_values", [])[:3])
+            sample = ", ".join(str(v) for v in c.get("sample_values", [])[:5])
             distinct = c.get("distinct_count", "?")
-            lines.append(f"    - {c['name']}  type={c.get('type','?')}  semantic={c.get('semantic_type','?')}  distinct={distinct}  samples=[{sample}]")
+            null_pct = c.get("null_percentage", 0)
+            stats = c.get("statistics", {})
+            stat_str = ""
+            if stats.get("min") is not None:
+                stat_str = f"  range=[{stats['min']}..{stats['max']}] mean={stats.get('mean','?')} median={stats.get('median','?')} stddev={stats.get('stddev','?')}"
+            elif stats.get("min_date"):
+                stat_str = f"  date_range=[{stats['min_date']}..{stats['max_date']}] span={stats.get('date_range_days','?')}d"
+            elif stats.get("top_values"):
+                top = list(stats["top_values"].items())[:4]
+                top_str = ", ".join(f"{k}={v.get('pct',0)}%" for k, v in top)
+                stat_str = f"  distribution=[{top_str}]"
+            null_str = f"  nulls={null_pct}%" if null_pct > 5 else ""
+            lines.append(f"    - {c['name']}  type={c.get('type','?')}  semantic={c.get('semantic_type','?')}  distinct={distinct}{null_str}{stat_str}  samples=[{sample}]")
     return "\n".join(lines)
 
 
@@ -686,7 +807,22 @@ def _setup_unified_duckdb_views(workspace: Workspace, con: duckdb.DuckDBPyConnec
 
             if join_key:
                 fc, dc = join_key
-                join_clauses.append(f'LEFT JOIN "{dim_table}" ON "{fact_table}"."{fc}" = "{dim_table}"."{dc}"')
+                # ── RELATIONAL JOIN PROTECTION: Guard against row explosion and metric distortion ──
+                is_unique = False
+                try:
+                    uniq_check = con.execute(f'SELECT COUNT("{dc}") = COUNT(DISTINCT "{dc}") FROM "{dim_table}" WHERE "{dc}" IS NOT NULL').fetchone()
+                    is_unique = bool(uniq_check[0]) if uniq_check else False
+                except Exception:
+                    is_unique = False
+
+                if is_unique:
+                    join_clauses.append(f'LEFT JOIN "{dim_table}" ON "{fact_table}"."{fc}" = "{dim_table}"."{dc}"')
+                else:
+                    # Deduplicate dimension table by join key so each fact row matches at most once
+                    logger.info("Join Protection: '%s'.'%s' has duplicates. Using deduplication subquery to preserve fact table row cardinality.", dim_table, dc)
+                    dedup_table = f'(SELECT * EXCLUDE (_rn) FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY "{dc}") AS _rn FROM "{dim_table}") WHERE _rn = 1)'
+                    join_clauses.append(f'LEFT JOIN {dedup_table} AS "{dim_table}" ON "{fact_table}"."{fc}" = "{dim_table}"."{dc}"')
+
                 for c in dim_cols:
                     if c not in unified_columns:
                         select_parts.append(f'"{dim_table}"."{c}" AS "{c}"')
@@ -726,6 +862,99 @@ def _execute_safe_query(con: duckdb.DuckDBPyConnection, sql: str) -> pd.DataFram
             if kw != "SELECT":
                 raise ValueError(f"Forbidden keyword in analytical query: {kw}")
     return con.execute(clean_sql).df()
+
+
+def _parse_and_build_metric_sql(
+    agg: str = "SUM",
+    measure_column: str | None = None,
+    expression: str | None = None,
+    all_known_cols: set[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Build safe DuckDB SQL aggregation expression supporting both standard columns and calculated/derived formulas.
+
+    Returns:
+        (sql_expression, list_of_referenced_columns)
+    """
+    clean_agg = (agg or "SUM").upper().strip()
+    target = (expression or measure_column or "").strip()
+    if not target:
+        return ("COUNT(*)", [])
+
+    known_cols = all_known_cols or set()
+
+    # 1. If explicit SQL aggregate formula is provided (e.g. "SUM(revenue) - SUM(cost)" or "COUNT(DISTINCT x) / COUNT(*)")
+    if any(fn in target.upper() for fn in ("SUM(", "AVG(", "COUNT(", "MIN(", "MAX(", "MEDIAN(")):
+        ref_cols = [c for c in known_cols if re.search(rf'\b{re.escape(c)}\b', target, re.IGNORECASE)]
+        safe_sql = target
+        # Protect division by zero: replace `/ <expr>` with `/ NULLIF(<expr>, 0)` if not already protected
+        parts = re.split(r'(\s*/\s*)', safe_sql)
+        if len(parts) > 1:
+            rebuilt = [parts[0]]
+            for i in range(1, len(parts), 2):
+                slash = parts[i]
+                denom = parts[i + 1] if i + 1 < len(parts) else "1"
+                if "NULLIF" not in denom.upper():
+                    denom = f"NULLIF({denom}, 0)"
+                rebuilt.append(slash + denom)
+            safe_sql = "".join(rebuilt)
+        return (safe_sql, ref_cols)
+
+    # 2. If target is an arithmetic expression with operators +, -, *, / (e.g. "revenue - cost" or "sales / units")
+    if any(op in target for op in ("+", "-", "*", "/")):
+        ref_cols = [c for c in known_cols if re.search(rf'\b{re.escape(c)}\b', target, re.IGNORECASE)]
+        if not ref_cols:
+            ref_cols = [
+                w for w in re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', target)
+                if w.upper() not in ("AND", "OR", "NOT", "AS", "DOUBLE", "CAST", "TRY_CAST", "COALESCE", "NULLIF")
+            ]
+
+        expr_sql = target
+        # Replace each column identifier with COALESCE(TRY_CAST("col" AS DOUBLE), 0)
+        for col in sorted(ref_cols, key=len, reverse=True):
+            pattern = rf'\b{re.escape(col)}\b'
+            expr_sql = re.sub(pattern, f'COALESCE(TRY_CAST("{col}" AS DOUBLE), 0)', expr_sql)
+
+        # Protect division by zero
+        if "/" in expr_sql:
+            parts = re.split(r'(\s*/\s*)', expr_sql)
+            if len(parts) > 1:
+                rebuilt = [parts[0]]
+                for i in range(1, len(parts), 2):
+                    slash = parts[i]
+                    denom = parts[i + 1] if i + 1 < len(parts) else "1"
+                    if "NULLIF" not in denom.upper():
+                        denom = f"NULLIF({denom}, 0)"
+                    rebuilt.append(slash + denom)
+                expr_sql = "".join(rebuilt)
+
+        if clean_agg in ("AVG", "AVERAGE", "MEAN"):
+            return (f"AVG({expr_sql})", ref_cols)
+        elif clean_agg in ("MIN", "MINIMUM"):
+            return (f"MIN({expr_sql})", ref_cols)
+        elif clean_agg in ("MAX", "MAXIMUM"):
+            return (f"MAX({expr_sql})", ref_cols)
+        elif clean_agg in ("COUNT",):
+            return (f"COUNT({expr_sql})", ref_cols)
+        else:
+            return (f"SUM({expr_sql})", ref_cols)
+
+    # 3. Standard single column
+    col = target
+    ref_cols = [col]
+    if "DISTINCT" in clean_agg or "UNIQUE" in clean_agg or (
+        clean_agg == "COUNT" and (col.lower().endswith("_id") or col.lower() == "id" or col.lower().endswith("_key"))
+    ):
+        return (f'COUNT(DISTINCT "{col}")', ref_cols)
+    elif clean_agg == "COUNT":
+        return (f'COUNT("{col}")', ref_cols)
+    elif clean_agg in ("AVG", "AVERAGE", "MEAN"):
+        return (f'AVG(TRY_CAST("{col}" AS DOUBLE))', ref_cols)
+    elif clean_agg in ("MIN", "MINIMUM"):
+        return (f'MIN(TRY_CAST("{col}" AS DOUBLE))', ref_cols)
+    elif clean_agg in ("MAX", "MAXIMUM"):
+        return (f'MAX(TRY_CAST("{col}" AS DOUBLE))', ref_cols)
+    else:
+        return (f'SUM(TRY_CAST("{col}" AS DOUBLE))', ref_cols)
 
 
 def _format_metric_value(val: Any, format_type: str = "number", measure_name: str = "", title: str = "") -> tuple[str, float | int | None]:
@@ -825,6 +1054,42 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
     return f"{num:.2f}", num
 
 
+THEME_PALETTES: dict[str, dict[str, Any]] = {
+    "techknomatic": {
+        "primary": "#1B75BB",
+        "palette": ["#1B75BB", "#00B4D8", "#4F46E5", "#7C3AED", "#EC4899", "#F59E0B", "#10B981", "#06B6D4"],
+    },
+    "emerald": {
+        "primary": "#10B981",
+        "palette": ["#10B981", "#059669", "#34D399", "#6EE7B7", "#047857", "#14B8A6", "#0D9488", "#2DD4BF"],
+    },
+    "violet": {
+        "primary": "#7C3AED",
+        "palette": ["#7C3AED", "#6366F1", "#8B5CF6", "#A78BFA", "#4F46E5", "#C084FC", "#9333EA", "#D8B4FE"],
+    },
+    "sunset": {
+        "primary": "#F43F5E",
+        "palette": ["#F43F5E", "#FB7185", "#E11D48", "#FB923C", "#F59E0B", "#FDA4AF", "#BE123C", "#F97316"],
+    },
+    "amber": {
+        "primary": "#F59E0B",
+        "palette": ["#F59E0B", "#D97706", "#FBBF24", "#FCD34D", "#B45309", "#FB923C", "#EA580C", "#FEF08A"],
+    },
+    "ocean": {
+        "primary": "#06B6D4",
+        "palette": ["#06B6D4", "#0891B2", "#22D3EE", "#67E8F9", "#0E7490", "#38BDF8", "#0284C7", "#A5F3FC"],
+    },
+    "slate": {
+        "primary": "#475569",
+        "palette": ["#475569", "#334155", "#64748b", "#94a3b8", "#1e293b", "#0f172a", "#cbd5e1", "#6b7280"],
+    },
+    "vibrant": {
+        "primary": "#EC4899",
+        "palette": ["#EC4899", "#8B5CF6", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#06B6D4", "#6366F1"],
+    },
+}
+
+
 def _build_vega_lite_spec(
     chart_title: str,
     chart_type: str,
@@ -833,35 +1098,37 @@ def _build_vega_lite_spec(
     color_field: str | None,
     data_records: list[dict[str, Any]],
     is_temporal: bool = False,
+    theme_id: str | None = None,
 ) -> dict[str, Any]:
     """Assemble a modern, visually stunning Vega-Lite specification."""
     c_type = (chart_type or "bar").lower()
 
-    # Premium curated color palette
-    color_range = ["#1B75BB", "#00B4D8", "#4F46E5", "#7C3AED", "#EC4899", "#F59E0B", "#10B981", "#06B6D4"]
+    theme_cfg = THEME_PALETTES.get(theme_id or "techknomatic", THEME_PALETTES["techknomatic"])
+    primary_color = theme_cfg["primary"]
+    color_range = theme_cfg["palette"]
 
     mark: Any = "bar"
     if c_type in ("bar", "column"):
         mark = {
             "type": "bar",
             "cornerRadiusEnd": 6,
-            "color": "#1B75BB",
+            "color": primary_color,
         }
     elif c_type == "line":
         mark = {
             "type": "line",
             "interpolate": "monotone",
             "strokeWidth": 2.5,
-            "color": "#1B75BB",
-            "point": {"filled": True, "size": 36, "fill": "#1B75BB"},
+            "color": primary_color,
+            "point": {"filled": True, "size": 36, "fill": primary_color},
         }
     elif c_type == "area":
         mark = {
             "type": "area",
             "interpolate": "monotone",
             "opacity": 0.28,
-            "color": "#1B75BB",
-            "line": {"color": "#1B75BB", "width": 2.5},
+            "color": primary_color,
+            "line": {"color": primary_color, "width": 2.5},
         }
     elif c_type in ("scatter", "point"):
         mark = {
@@ -869,7 +1136,7 @@ def _build_vega_lite_spec(
             "size": 60,
             "filled": True,
             "opacity": 0.8,
-            "color": "#1B75BB",
+            "color": primary_color,
         }
     elif c_type in ("donut", "pie"):
         mark = {
@@ -1091,6 +1358,12 @@ def _hydrate_dashboard_spec(
         table_column_types = model_info["table_column_types"]
         unified_cols = model_info["unified_columns"]
 
+        # Build a global column inventory lookup from all registered views & tables
+        all_known_cols: set[str] = set()
+        for cols_list in table_columns.values():
+            all_known_cols.update(cols_list)
+        all_known_cols.update(unified_cols)
+
         # Build a global column -> type lookup for temporal detection
         all_col_types: dict[str, str] = {}
         for _t_cols in table_column_types.values():
@@ -1161,16 +1434,17 @@ def _hydrate_dashboard_spec(
 
         filter_active = filter_value and str(filter_value).strip().lower() not in ("all", "", "none")
 
-        # 2. Hydrate Exactly 4 KPIs
+        # 2. Hydrate Exactly 4 KPIs (with Calculated Metrics & Expression Support)
         hydrated_kpis = []
         for kpi in spec.get("kpis", [])[:4]:
             t_name = kpi.get("table")
             measure = kpi.get("measure_column")
+            expr = kpi.get("expression") or kpi.get("formula")
             agg = (kpi.get("aggregation") or "SUM").upper()
             fmt = kpi.get("format") or "number"
 
             # Smart aggregation override based on column semantics
-            if measure:
+            if measure and not expr:
                 m_lower = measure.lower()
                 if any(k in m_lower for k in ("rate", "percent", "ratio", "efficiency", "utilization", "score", "average", "avg", "pct")):
                     if agg == "SUM":
@@ -1183,15 +1457,25 @@ def _hydrate_dashboard_spec(
                 # Auto-fix format based on column name
                 if any(k in m_lower for k in ("rate", "percent", "pct", "ratio")) and fmt not in ("percent",):
                     fmt = "percent"
-                elif any(k in m_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend")) and fmt not in ("currency",):
+                elif any(k in m_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend", "profit", "margin")) and fmt not in ("currency",):
                     fmt = "currency"
 
             val_formatted = "N/A"
             raw_val = None
 
-            if measure:
+            if measure or expr:
+                agg_expr, ref_cols = _parse_and_build_metric_sql(
+                    agg=agg,
+                    measure_column=measure,
+                    expression=expr,
+                    all_known_cols=all_known_cols,
+                )
+
                 # Find appropriate source table/view
-                target_src = _find_query_source([measure, filter_field] if filter_active and filter_field else [measure])
+                needed_cols = list(ref_cols) if ref_cols else ([measure] if measure else [])
+                if filter_active and filter_field:
+                    needed_cols.append(filter_field)
+                target_src = _find_query_source(needed_cols)
 
                 where_clause = ""
                 if filter_active and filter_field:
@@ -1201,17 +1485,12 @@ def _hydrate_dashboard_spec(
                     else:
                         where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
 
-                # Check if measure is ID or distinct count is preferred
-                agg_expr = f"{agg}(\"{measure}\")"
-                if agg in ("COUNT", "DISTINCT_COUNT") or measure.lower().endswith("_id") or measure.lower() == "id" or measure.lower().endswith("_key"):
-                    agg_expr = f"COUNT(DISTINCT \"{measure}\")" if agg != "SUM" else f"COUNT(\"{measure}\")"
-
                 sql = f"SELECT {agg_expr} AS kpi_val FROM {target_src} {where_clause}"
                 try:
                     k_df = _execute_safe_query(con, sql)
                     if not k_df.empty:
                         raw_val = k_df.iloc[0]["kpi_val"]
-                        val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or "", title=kpi.get("title") or "")
+                        val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or expr or "", title=kpi.get("title") or "")
                 except Exception as e:
                     # Fallback without where clause if filter column caused mismatch
                     try:
@@ -1219,7 +1498,7 @@ def _hydrate_dashboard_spec(
                         k_df = _execute_safe_query(con, fallback_sql)
                         if not k_df.empty:
                             raw_val = k_df.iloc[0]["kpi_val"]
-                            val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or "", title=kpi.get("title") or "")
+                            val_formatted, raw_val = _format_metric_value(raw_val, fmt, measure_name=measure or expr or "", title=kpi.get("title") or "")
                     except Exception as fb_err:
                         logger.warning("Error calculating KPI '%s': %s", kpi.get("title"), fb_err)
 
@@ -1228,11 +1507,12 @@ def _hydrate_dashboard_spec(
                 "title": kpi.get("title", "KPI Metric"),
                 "table": t_name,
                 "measure_column": measure,
+                "expression": expr,
                 "aggregation": agg,
                 "format": fmt,
                 "formatted_value": val_formatted,
                 "raw_value": make_json_safe(raw_val),
-                "subtitle": kpi.get("subtitle", f"{agg} of {measure}"),
+                "subtitle": kpi.get("subtitle", f"{agg} of {measure or expr}"),
                 "comparison": kpi.get("comparison", ""),
             })
 
@@ -1247,13 +1527,8 @@ def _hydrate_dashboard_spec(
             })
 
         spec["kpis"] = hydrated_kpis
-        # 3. Hydrate Exactly 6 Visualizations
-        # Build a fast column-existence lookup from registered DuckDB views
-        all_known_cols: set[str] = set()
-        for cols_list in table_columns.values():
-            all_known_cols.update(cols_list)
-        all_known_cols.update(unified_cols)
 
+        # 3. Hydrate Exactly 6 Visualizations (with Calculated Metric Support)
         hydrated_visuals = []
         for viz in spec.get("visualizations", [])[:6]:
             v_title = viz.get("title", "Chart")
@@ -1261,11 +1536,12 @@ def _hydrate_dashboard_spec(
             c_type = viz.get("chart_type", "bar")
             x_col = viz.get("x_field")
             y_col = viz.get("y_field")
+            expr = viz.get("expression") or viz.get("formula")
             color_col = viz.get("color_field")
             agg = (viz.get("aggregation") or "SUM").upper()
 
             # Smart aggregation override for y-axis based on column semantics
-            if y_col:
+            if y_col and not expr:
                 y_lower = y_col.lower()
                 if any(k in y_lower for k in ("rate", "percent", "ratio", "efficiency", "utilization", "score", "average", "avg", "pct")):
                     if agg == "SUM":
@@ -1291,16 +1567,26 @@ def _hydrate_dashboard_spec(
 
             # Pre-flight: check column existence
             missing_cols = []
-            for col_name, col_label in [(x_col, "x_field"), (y_col, "y_field")]:
+            for col_name, col_label in [(x_col, "x_field")]:
                 if col_name and col_name not in all_known_cols:
                     missing_cols.append(f"{col_label}='{col_name}'")
+            if not expr and y_col and y_col not in all_known_cols:
+                missing_cols.append(f"y_field='{y_col}'")
+
             if missing_cols:
                 query_status = "column_not_found"
                 query_error_detail = f"Missing columns: {', '.join(missing_cols)}"
                 logger.warning("Chart '%s': %s", v_title, query_error_detail)
 
-            if x_col and y_col and query_status == "ok":
-                needed_cols = [x_col, y_col]
+            if x_col and (y_col or expr) and query_status == "ok":
+                y_agg_expr, y_ref_cols = _parse_and_build_metric_sql(
+                    agg=agg,
+                    measure_column=y_col,
+                    expression=expr,
+                    all_known_cols=all_known_cols,
+                )
+
+                needed_cols = [x_col] + y_ref_cols
                 if color_col and color_col in all_known_cols:
                     needed_cols.append(color_col)
                 elif color_col and color_col not in all_known_cols:
@@ -1318,26 +1604,9 @@ def _hydrate_dashboard_spec(
                     else:
                         where_clause = f"WHERE \"{filter_field}\" = '{escaped_val}'"
 
-                # Proper aggregation expression
-                clean_agg = agg.upper()
-                is_count_metric = False
-                if "DISTINCT" in clean_agg or "UNIQUE" in clean_agg:
-                    y_agg_expr = f'COUNT(DISTINCT "{y_col}")'
-                    is_count_metric = True
-                elif clean_agg in ("COUNT",):
-                    y_agg_expr = f'COUNT("{y_col}")'
-                    is_count_metric = True
-                elif clean_agg in ("AVG", "AVERAGE", "MEAN"):
-                    y_agg_expr = f'AVG(TRY_CAST("{y_col}" AS DOUBLE))'
-                elif clean_agg in ("MIN", "MINIMUM"):
-                    y_agg_expr = f'MIN(TRY_CAST("{y_col}" AS DOUBLE))'
-                elif clean_agg in ("MAX", "MAXIMUM"):
-                    y_agg_expr = f'MAX(TRY_CAST("{y_col}" AS DOUBLE))'
-                else:
-                    y_agg_expr = f'SUM(TRY_CAST("{y_col}" AS DOUBLE))'
-
+                chart_y_label = y_col or "metric_val"
                 x_valid_cond = f'"{x_col}" IS NOT NULL AND TRIM(CAST("{x_col}" AS VARCHAR)) NOT IN (\'\', \'NaN\', \'None\', \'null\', \'NAT\', \'undefined\')'
-                y_valid_cond = f'"{y_col}" IS NOT NULL' if is_count_metric else f'TRY_CAST("{y_col}" AS DOUBLE) IS NOT NULL'
+                y_valid_cond = f'"{chart_y_label}" IS NOT NULL' if ("COUNT" in y_agg_expr) else f'TRY_CAST("{chart_y_label}" AS DOUBLE) IS NOT NULL' if (chart_y_label in all_known_cols) else "1=1"
 
                 # ── BI Best Practice: Smart query construction per chart type ──
                 if c_type in ("pie", "donut"):
@@ -1489,6 +1758,8 @@ def _hydrate_dashboard_spec(
                 "description": viz.get("description", ""),
                 "table": t_name,
                 "chart_type": c_type,
+                "theme_id": viz.get("theme_id"),
+                "expression": expr,
                 "x_field": x_col,
                 "y_field": y_col,
                 "color_field": color_col,
@@ -1536,7 +1807,7 @@ def _hydrate_dashboard_spec(
                         line_count += 1
                         logger.info("Automated diversity balancer: promoted temporal '%s' from bar to %s (%d points)", hv["title"], hv["chart_type"], rec_count)
 
-        # Build Vega-Lite specifications with finalized diverse chart types
+        # Build Vega-Lite specifications with finalized diverse chart types & theme palettes
         for hv in hydrated_visuals:
             hv["vega_spec"] = _build_vega_lite_spec(
                 hv["title"],
@@ -1546,6 +1817,7 @@ def _hydrate_dashboard_spec(
                 hv["color_field"],
                 hv["data"],
                 is_temporal=hv.get("is_temporal", False),
+                theme_id=hv.get("theme_id"),
             )
             hv.pop("is_temporal", None)
 
@@ -1608,9 +1880,10 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
 
     clean_name = t_name.replace("_", " ").title()
 
-    # Suggestion 1: Executive Overview
+    # Suggestion 1: Executive Overview (Strategic)
     suggestions.append({
         "id": "executive_overview",
+        "category": "Strategic",
         "title": f"{clean_name} Overview",
         "description": f"Comprehensive overview of {clean_name} key performance indicators and metrics.",
         "prompt": f"Create an executive overview dashboard analyzing all key metrics in {t_name}.",
@@ -1618,11 +1891,12 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
         "focus_metrics": measures[:2],
     })
 
-    # Suggestion 2: Breakdown by Dimension
+    # Suggestion 2: Breakdown by Dimension (Operational)
     if dimensions:
         dim = dimensions[0].replace("_", " ").title()
         suggestions.append({
             "id": "dimension_breakdown",
+            "category": "Operational",
             "title": f"{clean_name} by {dim}",
             "description": f"Analyze metrics distribution and performance segmented across {dim.lower()}.",
             "prompt": f"Create a dashboard analyzing {t_name} broken down by {dimensions[0]}.",
@@ -1630,11 +1904,12 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
             "focus_metrics": [dimensions[0]] + measures[:1],
         })
 
-    # Suggestion 3: Temporal Trends (if date column exists) or Secondary Measure Analysis
+    # Suggestion 3: Temporal Trends (Trends)
     if temporal:
         date_col = temporal[0].replace("_", " ").title()
         suggestions.append({
             "id": "temporal_trends",
+            "category": "Trends",
             "title": f"{clean_name} Trends Over Time",
             "description": f"Track temporal dynamics and trajectory across {date_col.lower()}.",
             "prompt": f"Create a timeline dashboard showing {t_name} trends and fluctuations over {temporal[0]}.",
@@ -1645,6 +1920,7 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
         m2 = measures[1].replace("_", " ").title()
         suggestions.append({
             "id": "measure_analysis",
+            "category": "Financial",
             "title": f"{m2} Comparative Analysis",
             "description": f"In-depth analysis focusing on {m2.lower()} performance and variance.",
             "prompt": f"Create a dashboard analyzing {measures[1]} in relation to other factors in {t_name}.",
@@ -1652,11 +1928,12 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
             "focus_metrics": measures[:2],
         })
 
-    # Suggestion 4: Distribution / Summary
+    # Suggestion 4: Distribution / Summary (Risk & Capacity)
     if len(dimensions) >= 2:
         dim2 = dimensions[1].replace("_", " ").title()
         suggestions.append({
             "id": "category_distribution",
+            "category": "Risk",
             "title": f"{dim2} Distribution & Capacity",
             "description": f"Examine distribution patterns and resource allocation across {dim2.lower()}.",
             "prompt": f"Create a summary dashboard examining {t_name} patterns across {dimensions[1]}.",
@@ -1666,6 +1943,7 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
     elif len(suggestions) < 4:
         suggestions.append({
             "id": "summary_analysis",
+            "category": "Operational",
             "title": f"{clean_name} Detailed Analysis",
             "description": f"Multi-dimensional analysis of key metrics across {clean_name}.",
             "prompt": f"Create a detailed multi-chart analytics dashboard for {t_name}.",
@@ -1688,50 +1966,83 @@ def generate_suggestions():
 
     summary_tables = []
     for t in profile.get("tables", []):
+        col_summaries = []
+        for c in t.get("columns", []):
+            info: dict[str, Any] = {
+                "name": c["name"],
+                "type": c["type"],
+                "semantic_type": c["semantic_type"],
+            }
+            if c.get("distinct_count") is not None:
+                info["distinct_count"] = c["distinct_count"]
+            sample_vals = c.get("sample_values", [])
+            if sample_vals:
+                info["sample_values"] = sample_vals[:8]
+            if c.get("statistics"):
+                info["statistics"] = c["statistics"]
+            if c.get("null_percentage", 0) > 5:
+                info["null_percentage"] = c["null_percentage"]
+            col_summaries.append(info)
+
         summary_tables.append({
             "name": t["table_name"],
             "row_count": t["row_count"],
             "measures": t.get("measures", []),
             "dimensions": t.get("dimensions", []),
             "temporal_columns": t.get("temporal_columns", []),
-            "columns": [{"name": c["name"], "type": c["type"], "semantic_type": c["semantic_type"]} for c in t.get("columns", [])],
-            "sample_records": t.get("sample_records", [])[:2],
+            "columns": col_summaries,
+            "sample_records": t.get("sample_records", [])[:3],
         })
+
+    relationships = profile.get("inferred_relationships", [])
 
     try:
         client = _get_client_from_request(model_config)
         lang_inst = build_language_instruction(_get_ui_lang(), mode="full")
 
-        system_prompt = f"""You are an elite business intelligence and data analyst AI for InsightCanvas.
-Your task is to analyze the provided dataset schema and profile, and propose 4 to 5 highly relevant, diverse dashboard concepts tailored specifically to the actual data.
+        system_prompt = f"""You are an elite Chief Analytics Officer and Executive BI Architect for InsightCanvas.
+Your mission is to analyze the provided dataset schema, column sample values, and cross-table relationships, and propose 4 to 5 sharp, domain-tailored, decision-oriented dashboard concepts.
 
-IMPORTANT RULES:
-1. NEVER assume a specific business domain (e.g. do NOT force sales/revenue if the data is HR, logs, operations, or movies).
-2. Look strictly at the actual measures, dimensions, and date fields present in the schema.
-3. Every suggestion must be clearly distinct in analytical focus (e.g., Executive Summary, Trend/Temporal Dynamics, Categorical Breakdown, Performance/KPI Drivers, Anomaly/Distribution).
-4. For each suggestion, provide:
-   - "id": a unique snake_case identifier (e.g. "exec_summary", "regional_performance")
-   - "title": a clear, professional dashboard title (under 5 words)
-   - "description": a 1-sentence summary of what this dashboard reveals
-   - "prompt": the exact natural-language request prompt to build this dashboard
-   - "reason": why this dashboard is valuable given the detected columns/measures
+DECISION-ORIENTED ANALYTICAL ARCHETYPES:
+Craft suggestions representing distinct analytical archetypes to give the user diverse perspectives:
+1. "Strategic": Executive health, top-line performance indicators, high-level scorecard, cross-department/segment health.
+2. "Operational": Workflow throughput, efficiency bottlenecks, machine/human capacity utilization, cycle times, idle rates.
+3. "Financial": Margin performance, unit economics, cost concentration, pricing variance, budget vs actuals.
+4. "Trends": Multi-period trajectory, seasonality, cyclical fluctuations, momentum, pacing over time.
+5. "Risk": Outlier detection, failure rates, threshold breaches, volatility, defect rates, bottom 10% laggards.
+
+CRITICAL INSTRUCTIONS:
+- DOMAIN SENSITIVITY: Inspect the actual column names, sample values, AND statistics (min/max/mean/stddev for numeric, top_values for categorical, date_range for temporal). Use vocabulary authentic to the specific industry.
+- MULTI-TABLE SYNERGY: When multiple tables and relationships exist, propose cross-table dashboards that join fact metrics with dimension attributes (e.g. Product Line Profitability by Customer Region).
+- STATISTICS-AWARE SUGGESTIONS: Use the 'statistics' field to craft smarter suggestions:
+  * For numeric columns with high stddev: suggest variance/outlier analysis dashboards.
+  * For temporal columns with date_range_days > 90: suggest trend analysis over time.
+  * For categorical columns with even distribution in top_values: suggest comparative breakdowns.
+  * Avoid suggesting analysis on columns with null_percentage > 50%%.
+- AVOID GENERIC TITLES: Do NOT output boring titles like "Data Overview" or "Table Analysis". Use vivid, executive-grade titles (e.g., "Factory Capacity & Downtime Intelligence", "Revenue & Margin Compression Analysis", "Customer Acquisition & Churn Dynamics").
+- CONCISE & ACTIONABLE: Every prompt must be ready to feed into the dashboard generator.
 
 Return ONLY valid JSON matching this schema:
 {{
   "suggestions": [
     {{
-      "id": "string",
-      "title": "string",
-      "description": "string",
-      "prompt": "string",
-      "reason": "string",
-      "focus_metrics": ["col1", "col2"]
+      "id": "unique_snake_case_id",
+      "category": "Strategic",
+      "title": "Clear Inspiring Title (3-5 words)",
+      "description": "1 compelling sentence summarizing what operational decisions this dashboard enables.",
+      "prompt": "The natural language instruction to generate this exact dashboard.",
+      "reason": "Why this is critical given the detected columns and sample distributions.",
+      "focus_metrics": ["col_or_measure_1", "col_or_dimension_2"]
     }}
   ]
 }}
 """
         system_prompt = inject_language_instruction(system_prompt, lang_inst)
-        user_query = f"Dataset Profile:\n{json.dumps(summary_tables, ensure_ascii=False, indent=2)}"
+        query_payload = {
+            "tables": summary_tables,
+            "relationships": relationships,
+        }
+        user_query = f"Dataset Profile & Relationships:\n{json.dumps(query_payload, ensure_ascii=False, indent=2)}"
 
         response = client.get_completion(
             messages=[
@@ -1742,11 +2053,35 @@ Return ONLY valid JSON matching this schema:
         )
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
+        raw_suggestions = None
         if json_objs and "suggestions" in json_objs[0] and json_objs[0]["suggestions"]:
-            return json_ok(json_objs[0])
-        parsed = json.loads(content)
-        if "suggestions" in parsed and parsed["suggestions"]:
-            return json_ok(parsed)
+            raw_suggestions = json_objs[0]["suggestions"]
+        else:
+            parsed = json.loads(content)
+            if "suggestions" in parsed and parsed["suggestions"]:
+                raw_suggestions = parsed["suggestions"]
+
+        if raw_suggestions:
+            # Normalize categories
+            valid_categories = {"Strategic", "Operational", "Financial", "Trends", "Risk"}
+            for s in raw_suggestions:
+                cat = s.get("category", "")
+                if cat not in valid_categories:
+                    cat_lower = str(cat).lower()
+                    if "strat" in cat_lower or "exec" in cat_lower:
+                        s["category"] = "Strategic"
+                    elif "oper" in cat_lower or "effic" in cat_lower:
+                        s["category"] = "Operational"
+                    elif "finan" in cat_lower or "cost" in cat_lower or "rev" in cat_lower:
+                        s["category"] = "Financial"
+                    elif "trend" in cat_lower or "time" in cat_lower:
+                        s["category"] = "Trends"
+                    elif "risk" in cat_lower or "outlier" in cat_lower:
+                        s["category"] = "Risk"
+                    else:
+                        s["category"] = "Strategic"
+            return json_ok({"suggestions": raw_suggestions})
+
         return json_ok({"suggestions": _build_heuristic_suggestions(profile)})
     except Exception as exc:
         logger.warning("Error generating LLM suggestions: %s, using heuristic suggestions", exc)
@@ -1782,7 +2117,11 @@ def generate_dashboard():
             }
             sample_vals = c.get("sample_values", [])
             if sample_vals:
-                col_info["sample_values"] = sample_vals[:3]
+                col_info["sample_values"] = sample_vals[:5]
+            if c.get("statistics"):
+                col_info["statistics"] = c["statistics"]
+            if c.get("null_percentage", 0) > 5:
+                col_info["null_percentage"] = c["null_percentage"]
             cols_with_samples.append(col_info)
         tables_summary.append({
             "table_name": t["table_name"],
@@ -1817,32 +2156,61 @@ LAYOUT REQUIREMENTS (STRICT):
 1. **1 Top-Level Filter**: Select the single most useful categorical or date dimension field across the data (e.g. Region, Department, Category, Year, Status).
 2. **Exactly 4 KPI Cards**: Pick the 4 most critical summary metrics. Choose appropriate aggregations (SUM, AVG, COUNT, MIN, MAX) and formatting ('currency', 'number', 'percent', 'integer').
 3. **Exactly 6 Visualizations** (3 in Row 1, 3 in Row 2):
-   - MANDATORY AUTOMATED CHART DIVERSITY RULE:
-     You MUST generate a balanced and diverse mix of chart types across the 6 visual cards:
-     * **1 to 2 Composition / Distribution charts**: ALWAYS include 'donut' or 'pie' for low-cardinality categorical breakdowns (<= 7 categories, e.g. Attendance Status, Work Mode, Gender, Priority, Role, Department).
-     * **1 to 2 Trend / Trajectory charts**: 'line' or 'area' (when temporal/date/time columns exist with multiple time periods).
-     * **2 to 3 Comparison / Ranking / Distribution charts**: 'bar' or 'column' for categorical rankings and leaderboards, or 'scatter' for 2-metric correlations.
-     * NEVER output all 'bar' charts. Ensure at least 3 DISTINCT chart types across the 6 visual cards whenever the dataset supports them!
-   - For ANY time-series, trajectory, or trend over time (e.g. 'Trend of Hours Worked', 'Overtime Trend'): ALWAYS use 'line', 'area', or 'column'. NEVER EVER use 'pie' or 'donut' for date/time/temporal fields!
-   - Use 'pie' or 'donut' ONLY for low-cardinality categorical breakdowns (<= 7 categories, e.g. Attendance Status, Department, Work Model).
-   - If a date column has only 1 or 2 distinct dates (a single point in time / snapshot, e.g. only '2026-01-01'), do NOT use a line chart — use 'bar' or 'donut' broken down by a category (e.g. Department, Performance Rating, Location).
-   - Use 'bar' or 'column' for categorical rankings and comparisons.
+   - CHART TYPE SELECTION GUIDE (10 supported types — use the BEST fit for each data pattern):
+     * 'bar': Vertical bars for categorical comparison with 5-15 categories. Default for ranked lists.
+     * 'horizontal_bar': Horizontal bars for long category labels or leaderboard-style rankings.
+     * 'line': Smooth connected line for temporal trends. Use for time-series with 3+ time periods.
+     * 'step_line': Stepped line for discrete state changes or staged metrics (e.g. pricing tiers, status transitions).
+     * 'area': Filled area under line for volume/cumulative trends over time.
+     * 'donut': Ring chart for proportional breakdowns. Use ONLY when distinct_count <= 7.
+     * 'pie': Slice chart for part-of-whole analysis. Use ONLY when distinct_count <= 7.
+     * 'scatter': Point cloud for 2-variable numeric correlation analysis.
+     * 'dot_plot': Labeled point benchmarks for direct value comparison across categories.
+     * 'boxplot': Box-and-whisker for distribution spread, quartiles, outliers of a numeric measure across groups.
+   - MANDATORY DIVERSITY RULE:
+     * You MUST use at least 4 DISTINCT chart types across the 6 visual cards!
+     * Include 1-2 composition charts (donut/pie) for low-cardinality dimensions (CHECK the 'distinct_count' field — must be <= 7).
+     * Include 1-2 trend charts (line/area/step_line) when temporal columns exist with date_range_days > 30 in statistics.
+     * Include 2-3 comparison/analysis charts (bar/horizontal_bar/scatter/dot_plot/boxplot).
+     * NEVER output all 'bar' charts.
+   - TEMPORAL RULES:
+     * For time-series data: ALWAYS use 'line', 'area', or 'step_line'. NEVER use 'pie' or 'donut' for temporal fields.
+     * If a date column has date_range_days < 7 in statistics (single snapshot), use 'bar' or 'donut' by a category instead.
+   - CARDINALITY RULES (use distinct_count and statistics.top_values):
+     * distinct_count <= 7: ideal for 'donut' or 'pie'
+     * distinct_count 3-15: ideal for 'bar' or 'horizontal_bar'
+     * distinct_count > 15: use 'bar' with top-N grouping, 'scatter', or 'boxplot'
+     * If statistics.top_values shows one category > 80%%, that field is a poor chart axis — choose a different dimension.
    - ALWAYS assign dimension/categorical columns to x_field and numeric/measure columns to y_field.
    - Ensure high analytical value and zero redundancy.
 
 CRITICAL COLUMN RULES:
 - ONLY use table names and column names that ACTUALLY EXIST in the provided schema below.
 - Do NOT invent, guess, or hallucinate column names. Every x_field, y_field, color_field, and measure_column MUST match an exact column name from the schema.
-- Use the 'sample_values' and 'distinct_count' fields to understand data distribution and choose meaningful axes.
+- Use the 'sample_values', 'distinct_count', AND 'statistics' fields to understand data distribution and make optimal decisions.
 - For KPIs: use measure (numeric) columns with SUM/AVG/MAX/MIN aggregation, or use identifier columns with COUNT aggregation.
 - For visualizations: x_field should be a dimension/categorical column, y_field should be a numeric/measure column.
+- Columns with null_percentage > 50%% are poor choices for primary KPIs or chart axes — prefer columns with low null rates.
 
-AGGREGATION ACCURACY RULES:
+STATISTICS-DRIVEN DECISIONS (use the 'statistics' field in each column):
+- For numeric columns: statistics contains min, max, mean, median, stddev. Use these to:
+  * Pick appropriate aggregation: if stddev is low relative to mean, AVG is meaningful; if high, consider using a boxplot.
+  * Choose number formatting based on min/max range (millions → use abbreviations).
+  * Identify if a measure is worth charting (if min == max, it's constant — skip it).
+- For categorical columns: statistics.top_values shows frequency distribution. Use these to:
+  * Decide between donut (<=7 categories) vs bar chart (8+ categories).
+  * Identify if one category dominates (>80%%) — such fields make poor chart axes.
+- For temporal columns: statistics contains min_date, max_date, date_range_days. Use these to:
+  * Choose line/area for long date ranges (30+ days).
+  * Choose bar/donut for single-point snapshots (date_range_days < 7).
+
+AGGREGATION & CALCULATED METRICS RULES:
 - For columns containing rates, percentages, ratios, or averages (e.g. utilization_percentage, defect_rate, efficiency_score): use AVG, never SUM.
 - For columns that are counts or quantities (e.g. total_output, units_produced, quantity): use SUM.
 - For ID or key columns: use COUNT(DISTINCT).
 - For monetary/currency columns (e.g. cost, price, revenue, salary): use SUM for totals, AVG for per-unit metrics.
 - Match the 'format' field to the data semantics: use 'percent' for rate/percentage measures, 'currency' for monetary, 'integer' for counts.
+- CALCULATED & DERIVED METRICS: You may use compound formulas when valuable (e.g. Margin = "revenue - cost", Average Order Value = "sales / orders", Efficiency = "actual_output / target_output"). Specify the formula in "measure_column" (e.g. "revenue - cost") or in "expression" (e.g. "SUM(revenue) - SUM(cost)") and provide an authentic business title.
 
 Return ONLY valid JSON matching this structure:
 {{
@@ -1873,7 +2241,7 @@ Return ONLY valid JSON matching this structure:
       "title": "Chart Title",
       "description": "What this visual shows",
       "table": "table_name",
-      "chart_type": "bar|line|area|scatter|donut|pie",
+      "chart_type": "bar|horizontal_bar|line|step_line|area|scatter|dot_plot|donut|pie|boxplot",
       "x_field": "dimension_column",
       "y_field": "measure_column",
       "color_field": null,

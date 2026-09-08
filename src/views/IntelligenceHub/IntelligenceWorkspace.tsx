@@ -35,6 +35,7 @@ import {
     DataProfile,
     DashboardSuggestion,
     DashboardSpec,
+    VisualizationSpec,
     IntelligenceSession,
     ChatMessage,
 } from './intelligenceTypes';
@@ -60,6 +61,7 @@ import { VisualizationGrid } from './VisualizationGrid';
 import { ChatPanel } from './ChatPanel';
 import { IntelligenceReportDialog } from './IntelligenceReportDialog';
 import { downloadDashboardImage, downloadDashboardPdf } from './dashboardExport';
+import { CHART_THEME_PRESETS, rebuildVegaSpec, normalizeChartType } from './vegaSpecBuilder';
 
 interface IntelligenceWorkspaceProps {
     sourceId: string;
@@ -143,6 +145,23 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         };
     }, [profile, modelConfig]);
 
+    // 1b. Refresh Suggestions on demand
+    const [refreshingSuggestions, setRefreshingSuggestions] = useState<boolean>(false);
+    const handleRefreshSuggestions = async () => {
+        if (!profile || refreshingSuggestions) return;
+        setRefreshingSuggestions(true);
+        try {
+            const freshSuggs = await fetchSuggestions(profile, modelConfig);
+            if (freshSuggs && freshSuggs.length > 0) {
+                setSuggestions(freshSuggs);
+            }
+        } catch (err) {
+            console.warn('Failed to refresh suggestions:', err);
+        } finally {
+            setRefreshingSuggestions(false);
+        }
+    };
+
     // 2. Generate Dashboard from Prompt or Suggestion
     const handleGenerate = async (prompt: string, titleHint?: string) => {
         setError(null);
@@ -208,6 +227,27 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         setFiltering(true);
         try {
             const updated = await queryDashboardFilter(dashboard, val);
+
+            // Preserve visual customizations (theme_id and customized chart_type) from previous dashboard state
+            if (Array.isArray(updated.visualizations) && Array.isArray(dashboard.visualizations)) {
+                updated.visualizations = updated.visualizations.map((newViz, idx) => {
+                    const prevViz = dashboard.visualizations[idx];
+                    if (!prevViz) return newViz;
+
+                    const themeId = prevViz.theme_id || (prevViz as any).theme_id || 'techknomatic';
+                    const chartType = normalizeChartType(prevViz.chart_type || newViz.chart_type);
+                    const theme = CHART_THEME_PRESETS.find((t) => t.id === themeId) || CHART_THEME_PRESETS[0];
+
+                    const mergedViz: VisualizationSpec = {
+                        ...newViz,
+                        chart_type: chartType,
+                        theme_id: themeId,
+                    };
+                    mergedViz.vega_spec = rebuildVegaSpec(mergedViz, chartType, theme);
+                    return mergedViz;
+                });
+            }
+
             setDashboard(updated);
         } catch (err: any) {
             setError(err?.message || 'Failed to apply filter slice');
@@ -482,6 +522,34 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             await downloadDashboardImage(el, `${dashboard.title}-Dashboard`, 'png');
         } catch (err: any) {
             setError(err?.message || 'Failed to export dashboard as PNG');
+        }
+    };
+
+    // 9. Update Individual Visualization (Type / Theme)
+    const handleUpdateVisualization = (index: number, updatedViz: VisualizationSpec) => {
+        if (!dashboard) return;
+        const newVisualizations = [...dashboard.visualizations];
+        newVisualizations[index] = updatedViz;
+        const updatedDashboard: DashboardSpec = {
+            ...dashboard,
+            visualizations: newVisualizations,
+        };
+        setDashboard(updatedDashboard);
+
+        // If an active session exists, persist the updated visualization spec asynchronously
+        if (activeSessionId) {
+            saveSession({
+                id: activeSessionId,
+                title: updatedDashboard.title,
+                source_id: sourceId,
+                database: databaseName,
+                tables: tableNames,
+                profile,
+                dashboard: updatedDashboard,
+                chat_history: chatMessages,
+            }).catch((err) => {
+                console.warn('Failed to auto-save updated visualization:', err);
+            });
         }
     };
 
@@ -890,6 +958,8 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                 suggestions={suggestions}
                                 onSelectSuggestion={(sug) => handleGenerate(sug.prompt, sug.title)}
                                 generating={generatingDashboard}
+                                onRefresh={handleRefreshSuggestions}
+                                refreshLoading={refreshingSuggestions}
                             />
                         )}
 
@@ -955,7 +1025,10 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
 
                         {/* 3. 6 Visualizations */}
                         {dashboard.visualizations && dashboard.visualizations.length > 0 && (
-                            <VisualizationGrid visualizations={dashboard.visualizations} />
+                            <VisualizationGrid
+                                visualizations={dashboard.visualizations}
+                                onUpdateVisualization={handleUpdateVisualization}
+                            />
                         )}
                     </Box>
                 )}

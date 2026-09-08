@@ -46,6 +46,7 @@ export interface DashboardSuggestion {
     prompt: string;
     reason: string;
     focus_metrics?: string[];
+    category?: 'Strategic' | 'Operational' | 'Financial' | 'Trends' | 'Risk' | string;
 }
 
 export interface KpiSpec {
@@ -53,6 +54,8 @@ export interface KpiSpec {
     title: string;
     table?: string;
     measure_column?: string;
+    expression?: string;
+    formula?: string;
     aggregation?: string;
     format?: 'currency' | 'number' | 'percent' | 'integer';
     formatted_value: string;
@@ -66,9 +69,23 @@ export interface VisualizationSpec {
     title: string;
     description?: string;
     table?: string;
-    chart_type: 'bar' | 'line' | 'area' | 'scatter' | 'donut' | 'pie';
+    chart_type:
+        | 'bar'
+        | 'horizontal_bar'
+        | 'line'
+        | 'step_line'
+        | 'area'
+        | 'donut'
+        | 'pie'
+        | 'scatter'
+        | 'dot_plot'
+        | 'boxplot'
+        | string;
+    theme_id?: string;
     x_field?: string | null;
     y_field?: string | null;
+    expression?: string;
+    formula?: string;
     color_field?: string | null;
     aggregation?: string;
     data: Record<string, any>[];
