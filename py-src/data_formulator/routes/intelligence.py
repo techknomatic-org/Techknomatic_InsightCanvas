@@ -713,15 +713,16 @@ def _detect_domain_mismatch(user_prompt: str, profile: dict[str, Any] | None) ->
             if part:
                 schema_tokens.add(part)
         for c in t.get("columns", []):
-            c_name = c.get("name", "").lower()
+            c_name = c.get("name", "").lower() if isinstance(c, dict) else str(c).lower()
             for part in re.split(r"[_\-\s]+", c_name):
                 if part:
                     schema_tokens.add(part)
-            for s in c.get("sample_values", [])[:5]:
-                s_str = str(s).lower()
-                for part in re.split(r"[_\-\s]+", s_str):
-                    if len(part) >= 3:
-                        schema_tokens.add(part)
+            if isinstance(c, dict):
+                for s in c.get("sample_values", [])[:5]:
+                    s_str = str(s).lower()
+                    for part in re.split(r"[_\-\s]+", s_str):
+                        if len(part) >= 3:
+                            schema_tokens.add(part)
 
     schema_text = " ".join(schema_tokens)
 
@@ -981,7 +982,8 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
 
     # 2. Percentage
     if format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text):
-        return f"{num:.1f}%", num
+        pct_val = num * 100.0 if abs(num) <= 1.0 and num != 0 else num
+        return f"{pct_val:.1f}%", num
 
     # 3. Energy Consumption (kWh, MWh, GWh)
     if re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh|power_consumption|electricity_consumption)\b', combined_text) or ("energy" in combined_text and "cost" not in combined_text):
