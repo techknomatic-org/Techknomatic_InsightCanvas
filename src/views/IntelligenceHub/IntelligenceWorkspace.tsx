@@ -30,6 +30,7 @@ import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 
 import {
     DataProfile,
@@ -61,7 +62,7 @@ import { VisualizationGrid } from './VisualizationGrid';
 import { ChatPanel } from './ChatPanel';
 import { IntelligenceReportDialog } from './IntelligenceReportDialog';
 import { downloadDashboardImage, downloadDashboardPdf } from './dashboardExport';
-import { CHART_THEME_PRESETS, rebuildVegaSpec, normalizeChartType } from './vegaSpecBuilder';
+import { CHART_THEME_PRESETS, ChartThemePreset, rebuildVegaSpec, normalizeChartType } from './vegaSpecBuilder';
 
 interface IntelligenceWorkspaceProps {
     sourceId: string;
@@ -222,6 +223,10 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     // Export menu anchor
     const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
     const exportOpen = Boolean(exportAnchorEl);
+
+    // Global Theme menu anchor
+    const [themeAnchorEl, setThemeAnchorEl] = useState<null | HTMLElement>(null);
+    const themeMenuOpen = Boolean(themeAnchorEl);
 
     const [error, setError] = useState<string | null>(null);
     const dashboardCanvasRef = useRef<HTMLDivElement>(null);
@@ -754,6 +759,44 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
         }
     };
 
+    // 10. Apply Global Theme to All Visualizations
+    const handleApplyGlobalTheme = (theme: ChartThemePreset) => {
+        if (!dashboard || !dashboard.visualizations) return;
+        const updatedVisualizations = dashboard.visualizations.map((viz) => {
+            const currentType = normalizeChartType(viz.chart_type);
+            const newVegaSpec = rebuildVegaSpec(viz, currentType, theme);
+            return {
+                ...viz,
+                chart_type: currentType,
+                theme_id: theme.id,
+                vega_spec: newVegaSpec,
+            };
+        });
+        const updatedDashboard: DashboardSpec = {
+            ...dashboard,
+            visualizations: updatedVisualizations,
+            theme_id: theme.id,
+        };
+        setDashboard(updatedDashboard);
+        setThemeAnchorEl(null);
+
+        // Auto-save session if active
+        if (activeSessionId) {
+            saveSession({
+                id: activeSessionId,
+                title: updatedDashboard.title,
+                source_id: sourceId,
+                database: databaseName,
+                tables: tableNames,
+                profile,
+                dashboard: updatedDashboard,
+                chat_history: chatMessages,
+            }).catch((err) => {
+                console.warn('Failed to auto-save updated dashboard theme:', err);
+            });
+        }
+    };
+
     // Handle contextual back navigation:
     // If viewing a dashboard (from generation or recent sessions), return to the recommendations landing view.
     // If already on recommendations view, navigate back to table selection.
@@ -1055,6 +1098,122 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                                         </ListItemIcon>
                                         <ListItemText primary="Download as PNG" primaryTypographyProps={{ fontSize: '13px', fontWeight: 500 }} />
                                     </MenuItem>
+                                </Menu>
+
+                                {/* Global Visual Theme Selector Button in Header */}
+                                <Tooltip title="Change color theme for all visualizations" arrow>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<PaletteOutlinedIcon sx={{ fontSize: 16, color: '#1B75BB' }} />}
+                                        endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 16 }} />}
+                                        onClick={(e) => setThemeAnchorEl(e.currentTarget)}
+                                        sx={{
+                                            textTransform: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '12.5px',
+                                            fontWeight: 600,
+                                            borderColor: '#cbd5e1',
+                                            color: '#334155',
+                                            bgcolor: '#ffffff',
+                                            px: 1.5,
+                                            py: 0.4,
+                                            '&:hover': {
+                                                bgcolor: '#f8fafc',
+                                                borderColor: '#94a3b8',
+                                            },
+                                        }}
+                                    >
+                                        Theme
+                                    </Button>
+                                </Tooltip>
+
+                                <Menu
+                                    anchorEl={themeAnchorEl}
+                                    open={themeMenuOpen}
+                                    onClose={() => setThemeAnchorEl(null)}
+                                    PaperProps={{
+                                        sx: {
+                                            borderRadius: '12px',
+                                            minWidth: 240,
+                                            maxWidth: 290,
+                                            p: 0.5,
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                                            border: '1px solid #e2e8f0',
+                                            mt: 0.8,
+                                        },
+                                    }}
+                                >
+                                    <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid #f1f5f9' }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '10.5px' }}>
+                                            Visuals Color Theme
+                                        </Typography>
+                                    </Box>
+                                    {CHART_THEME_PRESETS.map((t) => {
+                                        const isCurrent =
+                                            dashboard?.visualizations?.every((v) => (v.theme_id || 'techknomatic') === t.id) ||
+                                            (dashboard as any)?.theme_id === t.id;
+                                        return (
+                                            <MenuItem
+                                                key={t.id}
+                                                onClick={() => handleApplyGlobalTheme(t)}
+                                                selected={isCurrent}
+                                                sx={{
+                                                    py: 1,
+                                                    px: 1.5,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 1.5,
+                                                    borderRadius: '8px',
+                                                    my: 0.2,
+                                                    '&.Mui-selected': {
+                                                        bgcolor: 'rgba(27, 117, 187, 0.08)',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(27, 117, 187, 0.12)',
+                                                        },
+                                                    },
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Box
+                                                        sx={{
+                                                            width: 14,
+                                                            height: 14,
+                                                            borderRadius: '50%',
+                                                            bgcolor: t.primaryColor,
+                                                            border: '1.5px solid #ffffff',
+                                                            boxShadow: '0 0 0 1px rgba(0,0,0,0.15)',
+                                                            flexShrink: 0,
+                                                        }}
+                                                    />
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            fontSize: '13px',
+                                                            fontWeight: isCurrent ? 700 : 500,
+                                                            color: isCurrent ? '#1B75BB' : '#1e293b',
+                                                        }}
+                                                    >
+                                                        {t.label}
+                                                    </Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', gap: 0.3, alignItems: 'center' }}>
+                                                    {t.palette.slice(0, 4).map((c, i) => (
+                                                        <Box
+                                                            key={i}
+                                                            sx={{
+                                                                width: 10,
+                                                                height: 10,
+                                                                borderRadius: '2px',
+                                                                bgcolor: c,
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            </MenuItem>
+                                        );
+                                    })}
                                 </Menu>
                             </>
                         )}
