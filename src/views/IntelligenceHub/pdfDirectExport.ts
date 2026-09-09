@@ -23,7 +23,7 @@ export async function downloadElementAsDirectPdf(
         windowWidth: 1024,
     });
 
-    const pdfBlob = await createPdfBlobFromCanvas(canvas);
+    const pdfBlob = await createPdfBlobFromCanvas(canvas, element);
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `${sanitizeFileName(baseName)}-${dateStr}.pdf`;
 
@@ -37,59 +37,180 @@ export async function downloadElementAsDirectPdf(
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+interface PageSlice {
+    sy: number;
+    sh: number;
+}
+
 /**
- * Convert a canvas into a standard multi-page PDF 1.4 binary Blob with embedded JPEG streams
+ * Compute smart, element-aware page break slices to ensure no text line,
+ * paragraph, heading, KPI card, or chart card is sliced horizontally across pages.
  */
-async function createPdfBlobFromCanvas(canvas: HTMLCanvasElement): Promise<Blob> {
+function computeSmartPageSlices(canvas: HTMLCanvasElement, element: HTMLElement): PageSlice[] {
+    // Standard A4 aspect ratio (height / width ≈ 1.4142)
+    const a4Ratio = 841.89 / 595.28;
+    const slicePixelWidth = canvas.width;
+    const idealPageHeightPx = Math.floor(slicePixelWidth * a4Ratio);
+
+    const rootRect = element.getBoundingClientRect();
+    const scaleY = canvas.height / (rootRect.height || element.scrollHeight || 1);
+
+    // Select candidate block elements for break avoidance
+    const breakSelectors = [
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'p',
+        'li',
+        'blockquote',
+        'table',
+        'tr',
+        '.report-kpi-card',
+        '.report-kpi-grid-container',
+        '.report-chart-card',
+        '.report-visuals-grid-container',
+        'hr',
+    ];
+
+    const candidateNodes = Array.from(element.querySelectorAll(breakSelectors.join(','))) as HTMLElement[];
+
+    // Map elements to canvas pixel coordinates
+    const elementBounds = candidateNodes
+        .map((node) => {
+            const rect = node.getBoundingClientRect();
+            const top = (rect.top - rootRect.top) * scaleY;
+            const bottom = (rect.bottom - rootRect.top) * scaleY;
+            const height = bottom - top;
+            const tagName = node.tagName.toLowerCase();
+            const isHeading = tagName.startsWith('h');
+            const isCard =
+                node.classList.contains('report-kpi-card') ||
+                node.classList.contains('report-chart-card') ||
+                tagName === 'tr';
+            return { node, top, bottom, height, tagName, isHeading, isCard };
+        })
+        .filter((item) => item.height > 2 && item.bottom > 0)
+        .sort((a, b) => a.top - b.top);
+
+    const slices: PageSlice[] = [];
+    let currentY = 0;
+    const totalHeight = canvas.height;
+
+    // Safety padding at page bottom so content never touches the bottom edge (approx 40px scaled)
+    const bottomPaddingPx = Math.floor(36 * (slicePixelWidth / 1024));
+    const maxContentHeightPerPage = idealPageHeightPx - bottomPaddingPx;
+
+    while (currentY < totalHeight) {
+        const remainingHeight = totalHeight - currentY;
+
+        // If remaining content fits cleanly on this final page
+        if (remainingHeight <= maxContentHeightPerPage) {
+            slices.push({
+                sy: Math.floor(currentY),
+                sh: Math.min(totalHeight - currentY, idealPageHeightPx),
+            });
+            break;
+        }
+
+        const targetCutY = currentY + maxContentHeightPerPage;
+        let bestCutY = targetCutY;
+
+        // Check if any element is crossed by the targetCutY cut line
+        const crossedElement = elementBounds.find(
+            (el) => el.top < targetCutY && el.bottom > targetCutY
+        );
+
+        if (crossedElement) {
+            const cutBefore = crossedElement.top;
+            // If cutting before this element leaves at least 40% of the page filled, cut cleanly before it
+            if (cutBefore > currentY + maxContentHeightPerPage * 0.4) {
+                bestCutY = cutBefore;
+            } else {
+                // If the element is exceptionally large, look for a nested breakable child within it
+                const nestedChild = elementBounds.find(
+                    (el) => el.top > currentY + maxContentHeightPerPage * 0.5 && el.top < targetCutY
+                );
+                if (nestedChild) {
+                    bestCutY = nestedChild.top;
+                } else {
+                    bestCutY = targetCutY;
+                }
+            }
+        } else {
+            // Avoid leaving an orphan heading alone at the very bottom of a page
+            const orphanHeading = elementBounds.find(
+                (el) => el.isHeading && el.top > targetCutY - Math.floor(60 * (slicePixelWidth / 1024)) && el.top <= targetCutY
+            );
+            if (orphanHeading && orphanHeading.top > currentY + maxContentHeightPerPage * 0.4) {
+                bestCutY = orphanHeading.top;
+            }
+        }
+
+        const sliceHeight = Math.max(120, Math.floor(bestCutY - currentY));
+        slices.push({
+            sy: Math.floor(currentY),
+            sh: sliceHeight,
+        });
+
+        currentY += sliceHeight;
+    }
+
+    return slices;
+}
+
+/**
+ * Convert a canvas into a standard multi-page PDF 1.4 binary Blob with smart element-aware pagination
+ */
+async function createPdfBlobFromCanvas(canvas: HTMLCanvasElement, element: HTMLElement): Promise<Blob> {
     // A4 dimensions in PDF points (72 points/inch)
     const pageWidthPt = 595.28;
     const pageHeightPt = 841.89;
     const a4Ratio = pageHeightPt / pageWidthPt; // ~1.4142
 
     const slicePixelWidth = canvas.width;
-    const slicePixelHeight = Math.floor(slicePixelWidth * a4Ratio);
+    const idealSliceHeight = Math.floor(slicePixelWidth * a4Ratio);
 
-    const totalHeight = canvas.height;
-    const pageCount = Math.max(1, Math.ceil(totalHeight / slicePixelHeight));
-
+    const slices = computeSmartPageSlices(canvas, element);
     const imageBlobs: { width: number; height: number; bytes: Uint8Array }[] = [];
 
-    for (let p = 0; p < pageCount; p++) {
-        const sy = p * slicePixelHeight;
-        const sh = Math.min(slicePixelHeight, totalHeight - sy);
+    for (let p = 0; p < slices.length; p++) {
+        const slice = slices[p];
 
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = slicePixelWidth;
-        pageCanvas.height = slicePixelHeight;
+        pageCanvas.height = idealSliceHeight;
         const pCtx = pageCanvas.getContext('2d');
         if (!pCtx) continue;
 
-        // White background
+        // Solid crisp white background
         pCtx.fillStyle = '#ffffff';
-        pCtx.fillRect(0, 0, slicePixelWidth, slicePixelHeight);
+        pCtx.fillRect(0, 0, slicePixelWidth, idealSliceHeight);
 
-        // Draw slice
+        // Draw the cleanly sliced portion
         pCtx.drawImage(
             canvas,
             0,
-            sy,
+            slice.sy,
             slicePixelWidth,
-            sh,
+            slice.sh,
             0,
             0,
             slicePixelWidth,
-            sh
+            slice.sh
         );
 
         const blob = await new Promise<Blob | null>((res) =>
-            pageCanvas.toBlob((b) => res(b), 'image/jpeg', 0.92)
+            pageCanvas.toBlob((b) => res(b), 'image/jpeg', 0.94)
         );
 
         if (blob) {
             const buf = await blob.arrayBuffer();
             imageBlobs.push({
                 width: slicePixelWidth,
-                height: slicePixelHeight,
+                height: idealSliceHeight,
                 bytes: new Uint8Array(buf),
             });
         }

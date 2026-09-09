@@ -646,6 +646,15 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
                                     breakAfter: 'avoid',
                                     pageBreakAfter: 'avoid',
                                 },
+                                '& h4, & h5, & h6': {
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    color: '#334155',
+                                    mt: 1.5,
+                                    mb: 0.8,
+                                    breakAfter: 'avoid',
+                                    pageBreakAfter: 'avoid',
+                                },
                                 '& p': {
                                     fontSize: '13px',
                                     lineHeight: 1.7,
