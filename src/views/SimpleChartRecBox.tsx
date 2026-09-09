@@ -42,6 +42,8 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import BoltIcon from '@mui/icons-material/Bolt';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import StopIcon from '@mui/icons-material/Stop';
+import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
+import MicRoundedIcon from '@mui/icons-material/MicRounded';
 
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { borderColor, transition, conversationWidth } from '../app/tokens';
@@ -278,6 +280,55 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
     // Subsequent artifacts rely on the "freshly created" highlight + NEW
     // tag for discoverability instead.
     const firstFocusedThisRunRef = useRef(false);
+
+    // ── Speech to Text (Voice Input) ─────────────────────────────────
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch {
+                    // Ignore stop error on unmount
+                }
+            }
+        };
+    }, []);
+
+    const handleVoiceToggle = useCallback(() => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert(t('chartRec.speechNotSupported', { defaultValue: 'Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari over HTTPS or localhost.' }));
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current?.stop();
+            setIsListening(false);
+            return;
+        }
+        try {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognition.onresult = (event: any) => {
+                const transcript = event.results?.[0]?.[0]?.transcript;
+                if (transcript) {
+                    setChatPrompt(prev => prev ? `${prev} ${transcript}` : transcript);
+                }
+                setIsListening(false);
+            };
+            recognition.onerror = () => setIsListening(false);
+            recognition.onend = () => setIsListening(false);
+            recognitionRef.current = recognition;
+            recognition.start();
+            setIsListening(true);
+        } catch (err) {
+            setIsListening(false);
+        }
+    }, [isListening, t]);
 
     useEffect(() => {
         if (!isChatFormulating) {
@@ -2444,6 +2495,34 @@ export const SimpleChartRecBox: FC<{ onInputFocus?: () => void }> = function ({ 
                     <CircularProgress size={18} sx={{ m: 0.5, color: '#1B75BB' }} />
                 ) : (
                     <>
+                        <Tooltip title={isListening ? t('chartRec.stopVoice', { defaultValue: 'Listening... Click to stop' }) : t('chartRec.voiceInput', { defaultValue: 'Voice input' })}>
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleVoiceToggle}
+                                    disabled={workspaceReadOnly || isChatFormulating}
+                                    aria-label={t('chartRec.voiceInput', { defaultValue: 'Voice input' })}
+                                    sx={{
+                                        p: 0.25,
+                                        color: isListening ? '#ef4444' : '#64748b',
+                                        transition: 'all 0.15s ease',
+                                        animation: isListening ? 'pulse 1.5s infinite' : 'none',
+                                        '@keyframes pulse': {
+                                            '0%': { transform: 'scale(1)' },
+                                            '50%': { transform: 'scale(1.15)', color: '#dc2626' },
+                                            '100%': { transform: 'scale(1)' },
+                                        },
+                                        '&:hover': {
+                                            color: isListening ? '#dc2626' : '#1e293b',
+                                            bgcolor: 'transparent',
+                                            transform: 'scale(1.08)',
+                                        },
+                                    }}
+                                >
+                                    {isListening ? <MicRoundedIcon sx={{ fontSize: 22 }} /> : <MicNoneRoundedIcon sx={{ fontSize: 22 }} />}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
                         <Tooltip title={t('chartRec.generateReport')}>
                             <span>
                                 <IconButton
