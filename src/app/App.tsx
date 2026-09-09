@@ -982,6 +982,12 @@ const AppShell: FC = () => {
                                 onClick={handleHomeClick}
                             />
                             <TopNavButton
+                                to="/about"
+                                label={t('appBar.about', { defaultValue: 'About' })}
+                                selected={isAboutPage}
+                                onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))}
+                            />
+                            <TopNavButton
                                 id="tour-nav-hub"
                                 to="/intelligence-hub"
                                 label="BI HUB"
