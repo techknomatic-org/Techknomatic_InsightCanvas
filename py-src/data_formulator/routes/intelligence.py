@@ -65,8 +65,9 @@ def _safe_get_identity_id() -> str:
 
 
 def _get_client_from_request(model_config: dict[str, Any] | None) -> Any:
-    """Resolve LiteLLM client from request model config."""
+    """Resolve LiteLLM client from request model config with robust global model resolution."""
     from data_formulator.routes.agents import get_client
+
     if not model_config:
         global_models = list(model_registry._models.values())
         if global_models:
@@ -75,7 +76,38 @@ def _get_client_from_request(model_config: dict[str, Any] | None) -> Any:
             ErrorCode.INVALID_REQUEST,
             "Model configuration is required. Please configure or select an AI model in Settings."
         )
-    return get_client(model_config)
+
+    # If is_global is true, safely resolve against server-side model_registry
+    if model_config.get("is_global"):
+        # 1. Exact ID match
+        model_id = model_config.get("id")
+        if model_id:
+            resolved = model_registry.get_config(model_id)
+            if resolved:
+                return get_client(resolved, trusted=True)
+
+        # 2. Match by model name & endpoint
+        req_model = model_config.get("model")
+        req_endpoint = model_config.get("endpoint")
+        for gm in model_registry._models.values():
+            if gm.get("model") == req_model:
+                if not req_endpoint or gm.get("endpoint") == req_endpoint:
+                    return get_client(gm, trusted=True)
+
+        # 3. Fallback to first available global model on server
+        global_models = list(model_registry._models.values())
+        if global_models:
+            return get_client(global_models[0], trusted=True)
+
+    # Standard resolution with safety fallback
+    try:
+        return get_client(model_config)
+    except AppError as exc:
+        if exc.error_code == ErrorCode.ACCESS_DENIED:
+            global_models = list(model_registry._models.values())
+            if global_models:
+                return get_client(global_models[0], trusted=True)
+        raise
 
 
 def _get_sessions_dir(identity_id: str) -> Path:

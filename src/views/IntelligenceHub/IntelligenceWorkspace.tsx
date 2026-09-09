@@ -669,7 +669,13 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             setReportMarkdown(res.report);
             if (res.title) setReportTitle(res.title);
         } catch (err: any) {
-            setReportError(err?.message || 'Failed to generate executive report');
+            const msg =
+                err?.apiError?.message ||
+                (err?.message === 'HTTP 403'
+                    ? 'Access denied (403): AI model credentials or permissions issue. Please verify your selected AI Model in Settings.'
+                    : err?.message) ||
+                'Failed to generate executive report';
+            setReportError(msg);
         } finally {
             setReportLoading(false);
         }
@@ -684,7 +690,13 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             setReportMarkdown(res.report);
             if (res.title) setReportTitle(res.title);
         } catch (err: any) {
-            setReportError(err?.message || 'Failed to regenerate executive report');
+            const msg =
+                err?.apiError?.message ||
+                (err?.message === 'HTTP 403'
+                    ? 'Access denied (403): AI model credentials or permissions issue. Please verify your selected AI Model in Settings.'
+                    : err?.message) ||
+                'Failed to regenerate executive report';
+            setReportError(msg);
         } finally {
             setReportLoading(false);
         }
