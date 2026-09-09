@@ -106,6 +106,7 @@ export interface DashboardSpec {
     filter: FilterSpec;
     kpis: KpiSpec[];
     visualizations: VisualizationSpec[];
+    theme_id?: string;
 }
 
 export interface IntelligenceSession {
