@@ -408,7 +408,7 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
                                         <DescriptionOutlinedIcon sx={{ fontSize: 18 }} />
                                     </ListItemIcon>
                                     <ListItemText
-                                        primary="Download as Word (.docx)"
+                                        primary="Download as Word (.doc)"
                                         primaryTypographyProps={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}
                                     />
                                 </MenuItem>

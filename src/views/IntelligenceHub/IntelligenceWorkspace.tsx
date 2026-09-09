@@ -73,6 +73,29 @@ interface IntelligenceWorkspaceProps {
     onChangeTables?: () => void;
     onBack?: () => void;
     modelConfig?: any;
+    initialSessionId?: string | null;
+    initialDashboard?: DashboardSpec | null;
+}
+
+export const ACTIVE_HUB_STATE_KEY = 'ih_active_hub_state';
+
+export function saveActiveHubState(state: {
+    sourceId: string;
+    databaseName: string;
+    tableNames: string[];
+    profile: DataProfile;
+    activeSessionId?: string | null;
+    dashboard?: DashboardSpec | null;
+}) {
+    try {
+        localStorage.setItem(ACTIVE_HUB_STATE_KEY, JSON.stringify(state));
+    } catch {}
+}
+
+export function clearActiveHubState() {
+    try {
+        localStorage.removeItem(ACTIVE_HUB_STATE_KEY);
+    } catch {}
 }
 
 const SESSIONS_STORAGE_KEY = 'ih_recent_sessions_cache';
@@ -193,12 +216,14 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     onChangeTables,
     onBack,
     modelConfig,
+    initialSessionId,
+    initialDashboard,
 }) => {
     // State
     const [suggestions, setSuggestions] = useState<DashboardSuggestion[]>([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
 
-    const [dashboard, setDashboard] = useState<DashboardSpec | null>(null);
+    const [dashboard, setDashboard] = useState<DashboardSpec | null>(initialDashboard || null);
     const [generatingDashboard, setGeneratingDashboard] = useState<boolean>(false);
     const [filtering, setFiltering] = useState<boolean>(false);
 
@@ -211,7 +236,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     // Sessions Sidebar state (closed by default)
     const [sessions, setSessions] = useState<IntelligenceSession[]>([]);
     const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState<boolean>(false);
-    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(initialSessionId || null);
 
     // Executive Report Dialog state
     const [reportDialogOpen, setReportDialogOpen] = useState<boolean>(false);
@@ -357,6 +382,16 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 saveLocalSessionsCache(updated);
                 return updated;
             });
+
+            // Persist active state for page refresh
+            saveActiveHubState({
+                sourceId,
+                databaseName,
+                tableNames,
+                profile,
+                activeSessionId: targetId,
+                dashboard: result,
+            });
         } catch (err: any) {
             const errMsg = err?.message || 'Failed to generate dashboard';
             setError(errMsg);
@@ -400,6 +435,16 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             }
 
             setDashboard(updated);
+
+            // Persist active state with filter change
+            saveActiveHubState({
+                sourceId,
+                databaseName,
+                tableNames,
+                profile,
+                activeSessionId,
+                dashboard: updated,
+            });
         } catch (err: any) {
             setError(err?.message || 'Failed to apply filter slice');
         } finally {
@@ -434,6 +479,16 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             );
 
             setDashboard(updatedDashboard);
+
+            // Persist active state with chat dashboard update
+            saveActiveHubState({
+                sourceId,
+                databaseName,
+                tableNames,
+                profile,
+                activeSessionId,
+                dashboard: updatedDashboard,
+            });
             const assistantMsg: ChatMessage = {
                 id: String(Date.now() + 1),
                 role: 'assistant',
@@ -495,12 +550,28 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             if (sess.chat_history) {
                 setChatMessages(sess.chat_history);
             }
+            saveActiveHubState({
+                sourceId,
+                databaseName,
+                tableNames,
+                profile,
+                activeSessionId: sess.id,
+                dashboard: sess.dashboard,
+            });
         }
 
         try {
             const fullDetail = await loadSessionDetail(sess.id);
             if (fullDetail?.dashboard) {
                 setDashboard(fullDetail.dashboard);
+                saveActiveHubState({
+                    sourceId,
+                    databaseName,
+                    tableNames,
+                    profile,
+                    activeSessionId: sess.id,
+                    dashboard: fullDetail.dashboard,
+                });
             }
             if (fullDetail?.chat_history) {
                 setChatMessages(fullDetail.chat_history);
@@ -753,6 +824,14 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             visualizations: newVisualizations,
         };
         setDashboard(updatedDashboard);
+        saveActiveHubState({
+            sourceId,
+            databaseName,
+            tableNames,
+            profile,
+            activeSessionId,
+            dashboard: updatedDashboard,
+        });
 
         // If an active session exists, persist the updated visualization spec asynchronously
         if (activeSessionId) {
@@ -790,6 +869,14 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             theme_id: theme.id,
         };
         setDashboard(updatedDashboard);
+        saveActiveHubState({
+            sourceId,
+            databaseName,
+            tableNames,
+            profile,
+            activeSessionId,
+            dashboard: updatedDashboard,
+        });
         setThemeAnchorEl(null);
 
         // Auto-save session if active
@@ -817,7 +904,16 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             setDashboard(null);
             setActiveSessionId(null);
             setChatMessages([]);
+            saveActiveHubState({
+                sourceId,
+                databaseName,
+                tableNames,
+                profile,
+                activeSessionId: null,
+                dashboard: null,
+            });
         } else {
+            clearActiveHubState();
             if (onBack) {
                 onBack();
             } else {

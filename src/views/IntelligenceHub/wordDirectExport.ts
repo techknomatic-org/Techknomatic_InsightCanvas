@@ -182,12 +182,12 @@ export function downloadReportAsWordDocx(
     `;
 
     const blob = new Blob(['\ufeff', wordDocumentHtml], {
-        type: 'application/vnd.ms-word;charset=utf-8',
+        type: 'application/msword;charset=utf-8',
     });
 
     const cleanTitle = sanitizeFileName(reportTitle) || 'Executive-Report';
     const dateStrFile = new Date().toISOString().slice(0, 10);
-    const fileName = `${cleanTitle}-${dateStrFile}.docx`;
+    const fileName = `${cleanTitle}-${dateStrFile}.doc`;
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

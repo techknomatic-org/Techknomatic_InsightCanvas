@@ -61,6 +61,8 @@ export const IntelligenceHubView: React.FC = () => {
     const [profile, setProfile] = useState<DataProfile | null>(null);
     const [profiling, setProfiling] = useState<boolean>(false);
     const [profileError, setProfileError] = useState<string | null>(null);
+    const [initialSessionId, setInitialSessionId] = useState<string | null>(null);
+    const [initialDashboard, setInitialDashboard] = useState<any | null>(null);
 
     // Active workspace from Redux state
     const activeWorkspace = useSelector((state: DataFormulatorState) => state.activeWorkspace);
@@ -74,6 +76,38 @@ export const IntelligenceHubView: React.FC = () => {
         const all = [...(models || []), ...(globalModels || [])];
         return all.find((m) => m.id === selectedModelId) || globalModels?.[0] || models?.[0];
     }, [models, globalModels, selectedModelId]);
+
+    // Restore active session state on page refresh
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('ih_active_hub_state');
+            if (raw) {
+                const cached = JSON.parse(raw);
+                if (
+                    cached &&
+                    cached.profile &&
+                    cached.sourceId &&
+                    cached.databaseName &&
+                    Array.isArray(cached.tableNames) &&
+                    cached.tableNames.length > 0
+                ) {
+                    setSelectedConnector(cached.connector || ({ id: cached.sourceId, display_name: cached.sourceId } as any));
+                    setSelectedDatabase(cached.database || ({ id: cached.databaseName, name: cached.databaseName, nodeType: 'database', path: [cached.databaseName] } as any));
+                    setSelectedTableNames(new Set(cached.tableNames));
+                    setProfile(cached.profile);
+                    if (cached.activeSessionId) {
+                        setInitialSessionId(cached.activeSessionId);
+                    }
+                    if (cached.dashboard) {
+                        setInitialDashboard(cached.dashboard);
+                    }
+                    setStep('workspace');
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to restore active BI Hub session from local storage:', err);
+        }
+    }, []);
 
     // 1. Fetch connected data sources
     const loadConnectors = useCallback(async () => {
@@ -286,6 +320,24 @@ export const IntelligenceHubView: React.FC = () => {
             // Profile tables in workspace
             const prof = await profileTables(tablesToLoad, selectedConnector.id, currentWs.id);
             setProfile(prof);
+            
+            // Cache active hub state so refresh persists workspace
+            try {
+                localStorage.setItem(
+                    'ih_active_hub_state',
+                    JSON.stringify({
+                        sourceId: selectedConnector.id,
+                        connector: selectedConnector,
+                        databaseName: selectedDatabase?.name || dbName,
+                        database: selectedDatabase,
+                        tableNames: tablesToLoad,
+                        profile: prof,
+                    })
+                );
+            } catch (storageErr) {
+                console.warn('Could not cache active BI Hub state:', storageErr);
+            }
+
             setStep('workspace');
         } catch (err: any) {
             setProfileError(err?.message || 'Failed to profile selected tables');
@@ -297,6 +349,11 @@ export const IntelligenceHubView: React.FC = () => {
 
     // Reset to start
     const handleReset = () => {
+        try {
+            localStorage.removeItem('ih_active_hub_state');
+        } catch {}
+        setInitialSessionId(null);
+        setInitialDashboard(null);
         setStep('sources');
         setSelectedConnector(null);
         setSelectedDatabase(null);
@@ -417,9 +474,21 @@ export const IntelligenceHubView: React.FC = () => {
                             tableNames={Array.from(selectedTableNames)}
                             profile={profile}
                             onReset={handleReset}
-                            onChangeTables={() => setStep('tables')}
-                            onBack={() => setStep('tables')}
+                            onChangeTables={() => {
+                                try {
+                                    localStorage.removeItem('ih_active_hub_state');
+                                } catch {}
+                                setStep('tables');
+                            }}
+                            onBack={() => {
+                                try {
+                                    localStorage.removeItem('ih_active_hub_state');
+                                } catch {}
+                                setStep('tables');
+                            }}
                             modelConfig={activeModel}
+                            initialSessionId={initialSessionId}
+                            initialDashboard={initialDashboard}
                         />
                     )}
                 </>
