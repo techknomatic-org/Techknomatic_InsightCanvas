@@ -981,8 +981,18 @@ const AppShell: FC = () => {
                                 selected={isLandingView}
                                 onClick={handleHomeClick}
                             />
-                            <TopNavButton to="/about" label={t('appBar.about', { defaultValue: 'About' })} selected={isAboutPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
-                            <TopNavButton id="tour-nav-hub" to="/intelligence-hub" label="BI HUB" selected={isIntelligenceHubPage} onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))} />
+                            <TopNavButton
+                                id="tour-nav-hub"
+                                to="/intelligence-hub"
+                                label="BI HUB"
+                                selected={isIntelligenceHubPage}
+                                onClick={() => {
+                                    try {
+                                        localStorage.removeItem('ih_active_hub_state');
+                                    } catch {}
+                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
+                                }}
+                            />
                             {inSession && <ExitSessionButton />}
                             <AuthButton id="top-nav-account" tooltipPlacement="bottom" />
                         </Box>

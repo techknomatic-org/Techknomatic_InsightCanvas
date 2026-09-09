@@ -469,7 +469,12 @@ export const About: FC<{}> = function About() {
                             tags={["Autonomous Dashboards", "4 KPIs + 6 Visuals", "Embedded DuckDB", "Sub-Second Slicing", "Executive Reports", "Session Pinning"]}
                             accentColor="#8B5CF6"
                             buttonText="Launch BI Hub"
-                            onAction={() => navigate('/intelligence-hub')}
+                            onAction={() => {
+                                try {
+                                    localStorage.removeItem('ih_active_hub_state');
+                                } catch {}
+                                navigate('/intelligence-hub');
+                            }}
                         />
                     </Box>
                 </Box>

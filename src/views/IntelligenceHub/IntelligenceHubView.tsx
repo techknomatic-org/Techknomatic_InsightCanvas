@@ -77,8 +77,37 @@ export const IntelligenceHubView: React.FC = () => {
         return all.find((m) => m.id === selectedModelId) || globalModels?.[0] || models?.[0];
     }, [models, globalModels, selectedModelId]);
 
-    // Restore active session state on page refresh
+    // Restore active session state ONLY on in-place browser page refresh (F5)
     useEffect(() => {
+        const isDirectHubReload = (): boolean => {
+            try {
+                const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+                if (navEntries && navEntries.length > 0) {
+                    const entry = navEntries[0];
+                    const isReload = entry.type === 'reload';
+                    let loadedPath = '';
+                    try {
+                        loadedPath = new URL(entry.name, window.location.origin).pathname;
+                    } catch {
+                        loadedPath = window.location.pathname;
+                    }
+                    return isReload && (loadedPath.includes('/intelligence-hub') || window.location.pathname.includes('/intelligence-hub'));
+                }
+                const isLegacyReload = (performance as any)?.navigation?.type === 1;
+                return isLegacyReload && window.location.pathname.includes('/intelligence-hub');
+            } catch {
+                return false;
+            }
+        };
+
+        if (!isDirectHubReload()) {
+            // Arrived via in-app navigation (e.g. from Landing Page / Top Nav) -> start fresh at step 1
+            try {
+                localStorage.removeItem('ih_active_hub_state');
+            } catch {}
+            return;
+        }
+
         try {
             const raw = localStorage.getItem('ih_active_hub_state');
             if (raw) {

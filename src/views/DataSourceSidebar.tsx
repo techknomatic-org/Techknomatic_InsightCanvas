@@ -417,6 +417,9 @@ export const DataSourceSidebar: React.FC<{
                             id="tour-rail-hub"
                             size="small"
                             onClick={() => {
+                                try {
+                                    localStorage.removeItem('ih_active_hub_state');
+                                } catch {}
                                 dispatch(dfActions.setDataSourceSidebarOpen(false));
                                 navigate('/intelligence-hub');
                             }}
