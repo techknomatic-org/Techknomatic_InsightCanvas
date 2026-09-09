@@ -15,24 +15,45 @@ import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined';
 import DashboardCustomizeOutlinedIcon from '@mui/icons-material/DashboardCustomizeOutlined';
 import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
+import AutoFixHighOutlinedIcon from '@mui/icons-material/AutoFixHighOutlined';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 
 import techknomaticLogo from '../assets/techknomatic-official-logo.svg';
 import techknomaticWhiteLogo from '../assets/techknomatic-white.svg';
 import { useTranslation } from 'react-i18next';
 
-interface FeatureCardProps {
+interface CoreFeatureCardProps {
+    badge: string;
     icon: React.ReactNode;
     title: string;
+    subtitle: string;
     description: string;
+    capabilities: {
+        title: string;
+        desc: string;
+    }[];
     tags: string[];
     accentColor: string;
-    badge?: string;
+    buttonText: string;
+    onAction: () => void;
 }
 
-const FeatureCard: FC<FeatureCardProps> = ({ icon, title, description, tags, accentColor, badge }) => {
+const CoreFeatureCard: FC<CoreFeatureCardProps> = ({
+    badge,
+    icon,
+    title,
+    subtitle,
+    description,
+    capabilities,
+    tags,
+    accentColor,
+    buttonText,
+    onAction,
+}) => {
     return (
         <Card
             variant="outlined"
@@ -40,94 +61,168 @@ const FeatureCard: FC<FeatureCardProps> = ({ icon, title, description, tags, acc
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: '16px',
+                borderRadius: '20px',
                 borderColor: '#e2e8f0',
                 bgcolor: '#ffffff',
-                boxShadow: '0 2px 12px rgba(0, 0, 0, 0.03)',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
+                background: `
+                    linear-gradient(180deg, ${alpha(accentColor, 0.03)} 0%, #ffffff 180px),
+                    #ffffff
+                `,
                 '&:hover': {
                     transform: 'translateY(-4px)',
-                    borderColor: accentColor,
-                    boxShadow: `0 12px 28px ${alpha(accentColor, 0.12)}`,
+                    borderColor: alpha(accentColor, 0.6),
+                    boxShadow: `0 16px 36px ${alpha(accentColor, 0.12)}`,
                 },
             }}
         >
-            {badge && (
-                <Box
-                    sx={{
-                        position: 'absolute',
-                        top: 14,
-                        right: 14,
-                        bgcolor: alpha(accentColor, 0.12),
-                        color: accentColor,
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        letterSpacing: '0.04em',
-                        px: 1.25,
-                        py: 0.35,
-                        borderRadius: '9999px',
-                        textTransform: 'uppercase',
-                        border: `1px solid ${alpha(accentColor, 0.25)}`,
-                    }}
-                >
-                    {badge}
-                </Box>
-            )}
-            <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                    <Box
+            {/* Top Accent Strip */}
+            <Box
+                sx={{
+                    height: 5,
+                    width: '100%',
+                    bgcolor: accentColor,
+                    background: `linear-gradient(90deg, ${accentColor} 0%, ${alpha(accentColor, 0.5)} 100%)`,
+                }}
+            />
+
+            <CardContent sx={{ p: { xs: 3, md: 4 }, flex: 1, display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                {/* Header Badge & Title */}
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+                        <Box
+                            sx={{
+                                width: 52,
+                                height: 52,
+                                borderRadius: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(accentColor, 0.12),
+                                color: accentColor,
+                                border: `1px solid ${alpha(accentColor, 0.2)}`,
+                                flexShrink: 0,
+                            }}
+                        >
+                            {icon}
+                        </Box>
+                        <Box>
+                            <Typography
+                                variant="h5"
+                                sx={{
+                                    fontSize: { xs: '19px', sm: '22px' },
+                                    fontWeight: 800,
+                                    color: '#0f172a',
+                                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                                    lineHeight: 1.25,
+                                }}
+                            >
+                                {title}
+                            </Typography>
+                            <Typography
+                                sx={{
+                                    fontSize: '12.5px',
+                                    fontWeight: 600,
+                                    color: accentColor,
+                                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                                    mt: 0.25,
+                                }}
+                            >
+                                {subtitle}
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    <Chip
+                        label={badge}
+                        size="small"
                         sx={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
                             bgcolor: alpha(accentColor, 0.1),
                             color: accentColor,
-                        }}
-                    >
-                        {icon}
-                    </Box>
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            fontSize: '17px',
                             fontWeight: 700,
-                            color: '#0f172a',
-                            fontFamily: "'Inter', 'Roboto', sans-serif",
-                            pr: badge ? 7 : 0,
+                            fontSize: '11px',
+                            borderRadius: '8px',
+                            border: `1px solid ${alpha(accentColor, 0.25)}`,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            height: 24,
+                            px: 0.5,
+                            flexShrink: 0,
                         }}
-                    >
-                        {title}
-                    </Typography>
+                    />
                 </Box>
 
+                {/* Main Description */}
                 <Typography
                     sx={{
-                        fontSize: '13.5px',
-                        color: '#64748b',
+                        fontSize: '14px',
+                        color: '#475569',
                         lineHeight: 1.65,
-                        flex: 1,
-                        mb: 2.5,
+                        mb: 3,
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                     }}
                 >
                     {description}
                 </Typography>
 
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 'auto' }}>
+                <Divider sx={{ mb: 3, borderColor: '#f1f5f9' }} />
+
+                {/* Key Capabilities Bullet Highlights */}
+                <Typography
+                    sx={{
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: '#64748b',
+                        mb: 1.75,
+                    }}
+                >
+                    Key Capabilities
+                </Typography>
+
+                <Stack spacing={1.75} sx={{ mb: 3.5 }}>
+                    {capabilities.map((cap, idx) => (
+                        <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+                            <CheckCircleRoundedIcon
+                                sx={{
+                                    fontSize: 18,
+                                    color: accentColor,
+                                    mt: 0.2,
+                                    flexShrink: 0,
+                                }}
+                            />
+                            <Typography
+                                sx={{
+                                    fontSize: '13px',
+                                    color: '#334155',
+                                    lineHeight: 1.5,
+                                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                                }}
+                            >
+                                <Box component="span" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                                    {cap.title}:{' '}
+                                </Box>
+                                {cap.desc}
+                            </Typography>
+                        </Box>
+                    ))}
+                </Stack>
+
+                {/* Tags / Pills */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 3.5, mt: 'auto' }}>
                     {tags.map((tag) => (
                         <Chip
                             key={tag}
                             label={tag}
                             size="small"
                             sx={{
-                                fontSize: '11.5px',
+                                fontSize: '11px',
                                 fontWeight: 500,
-                                bgcolor: '#f1f5f9',
+                                bgcolor: '#f8fafc',
                                 color: '#475569',
                                 borderRadius: '6px',
                                 border: '1px solid #e2e8f0',
@@ -135,6 +230,33 @@ const FeatureCard: FC<FeatureCardProps> = ({ icon, title, description, tags, acc
                         />
                     ))}
                 </Box>
+
+                {/* Action Button */}
+                <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={onAction}
+                    endIcon={<ArrowForwardOutlinedIcon sx={{ fontSize: '16px !important' }} />}
+                    sx={{
+                        bgcolor: accentColor,
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '13.5px',
+                        textTransform: 'none',
+                        py: 1.15,
+                        borderRadius: '10px',
+                        boxShadow: `0 4px 14px ${alpha(accentColor, 0.25)}`,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            bgcolor: accentColor,
+                            filter: 'brightness(0.9)',
+                            boxShadow: `0 6px 20px ${alpha(accentColor, 0.35)}`,
+                            transform: 'translateY(-1px)',
+                        },
+                    }}
+                >
+                    {buttonText}
+                </Button>
             </CardContent>
         </Card>
     );
@@ -145,65 +267,49 @@ export const About: FC<{}> = function About() {
     const { t } = useTranslation();
     const navigate = useNavigate();
 
-    const capabilities: FeatureCardProps[] = [
+    const canvasCapabilities = [
         {
-            icon: <DashboardCustomizeOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "BI Hub & Autonomous Dashboards",
-            description: "Autonomous multi-table schema profiling and 1-click dashboard synthesis. Automatically generates 4 Key Performance Indicators (KPIs), interactive categorical slicers, and 6 diverse analytical visualizations with zero manual query coding.",
-            tags: ["Autonomous Dashboards", "4 KPIs + 6 Visuals", "DuckDB Slicers", "Self-Healing AI"],
-            accentColor: "#1B75BB",
-            badge: "Flagship",
+            title: "Conversational Data Transformations",
+            desc: "Filter, aggregate, join, unpivot (melt), and compute complex metrics using plain natural language prompts.",
         },
         {
-            icon: <ArticleOutlinedIcon sx={{ fontSize: 24 }} />,
+            title: "Multi-Engine Visualization Core",
+            desc: "30+ declarative chart types powered by Vega-Lite, Apache ECharts, D3.js, and Chart.js with interactive drag-and-drop shelf bindings.",
+        },
+        {
+            title: "Non-Destructive Data Lineage",
+            desc: "Branching data threads allow you to fork, backtrack, and compare analytical explorations without modifying raw source data.",
+        },
+        {
+            title: "Enterprise Multi-Source Connectors",
+            desc: "Direct connectivity to SQL Server, PostgreSQL, MySQL, Amazon S3, MongoDB, Kusto, and CSV/Excel files with Parquet caching.",
+        },
+        {
+            title: "AI Aesthetic & Style Refinement",
+            desc: "One-click styling agent applies publication-grade color palettes, typography scales, and accessible visual hierarchy.",
+        },
+    ];
+
+    const biHubCapabilities = [
+        {
+            title: "1-Click Executive Dashboard Synthesis",
+            desc: "Instantly generates 4 vital summary KPIs, interactive dimension slicers, and 6 diverse analytical visualizations with zero SQL coding.",
+        },
+        {
+            title: "Sub-Second In-Memory Slicing",
+            desc: "Embedded DuckDB columnar query execution ensures instant, zero-latency interactive filter updates across all metrics.",
+        },
+        {
             title: "Executive Intelligence Reporting",
-            description: "Generate in-depth, C-suite analytical Markdown reports directly from live dashboard KPIs and sliced charts. Features root-cause attribution, multi-dimensional trends, risk evaluation, prioritized strategic roadmaps, and clean borderless PDF exports.",
-            tags: ["Executive Reports", "Root-Cause Attribution", "Clean PDF Export", "Action Roadmap"],
-            accentColor: "#8b5cf6",
-            badge: "New",
+            desc: "Produces in-depth C-suite analytical Markdown and PDF reports featuring root-cause attribution, risk scoring, and strategic action roadmaps.",
         },
         {
-            icon: <ChatOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Conversational AI Analytics Studio",
-            description: "Chat with an intelligent data agent that understands schemas, reasons over complex queries, automatically writes and executes Python/Pandas transformations in isolated sandboxes, and delivers iterative visual derivations.",
-            tags: ["Natural Language", "Pandas Code Gen", "Statistical Insights", "Iterative Derivation"],
-            accentColor: "#0284c7",
+            title: "Automated Diversity & Layout Balancer",
+            desc: "Intelligent schema matching ensures an optimal mix of composition (donut/pie), trend (line/area), and distribution charts.",
         },
         {
-            icon: <StorageOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Enterprise Multi-Source Data Connectors",
-            description: "Connect seamlessly to MySQL, PostgreSQL, Microsoft SQL Server, MongoDB, Cosmos DB, Azure Data Explorer (Kusto), Amazon S3, and local directories with automated Parquet conversion and catalog caching.",
-            tags: ["Relational DBs", "NoSQL & Document", "Cloud Lakes & S3", "Parquet Caching"],
-            accentColor: "#0d9488",
-        },
-        {
-            icon: <BoltOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Embedded DuckDB In-Memory Query Engine",
-            description: "Sub-second slicing, fast aggregations, and high-performance in-memory columnar query execution powered by embedded DuckDB without database round-trip latency or heavy infrastructure overhead.",
-            tags: ["Embedded DuckDB", "Sub-Second Slicers", "Columnar Execution", "Instant Aggregation"],
-            accentColor: "#e11d48",
-            badge: "Engine",
-        },
-        {
-            icon: <BarChartOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Multi-Engine Visualization Studio",
-            description: "Declarative, publication-grade visual rendering powered by Vega, Vega-Lite, Apache ECharts, D3.js, and Chart.js with AI-assisted aesthetic refinement, responsive layouts, and curated enterprise color palettes.",
-            tags: ["Vega-Lite", "Apache ECharts", "D3.js", "Chart.js", "AI Palette Styling"],
-            accentColor: "#f59e0b",
-        },
-        {
-            icon: <SmartToyOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Frontier Multi-Model AI Gateway",
-            description: "Switch seamlessly between world-class frontier models: OpenAI GPT-4o, Anthropic Claude 3.5/3.7, Google Gemini 2.0, DeepSeek, OpenRouter, Azure OpenAI, or private local Ollama instances.",
-            tags: ["OpenAI", "Claude", "Gemini", "DeepSeek", "Ollama", "Azure OpenAI"],
-            accentColor: "#6366f1",
-        },
-        {
-            icon: <SecurityOutlinedIcon sx={{ fontSize: 24 }} />,
-            title: "Enterprise Privacy & Workspace Isolation",
-            description: "Zero raw data egress to external LLMs (only schema definitions and small samples transmitted). Code executes inside isolated Python sandboxes with enterprise SSO/OIDC auth and portable session workspaces.",
-            tags: ["Zero Data Leakage", "Isolated Sandbox", "OIDC / Azure AD", "Workspace Portability"],
-            accentColor: "#10b981",
+            title: "Session Persistence, Pinning & Favorites",
+            desc: "Save, bookmark, and organize mission-critical dashboards for seamless team access across browser sessions.",
         },
     ];
 
@@ -255,7 +361,7 @@ export const About: FC<{}> = function About() {
                 backgroundSize: '100% 100%, 100% 100%, 20px 20px, 20px 20px',
             }}
         >
-            <Box sx={{ margin: '0 auto', py: { xs: 4, md: 6 }, px: { xs: 2.5, md: 5 }, maxWidth: 1180, width: '100%' }}>
+            <Box sx={{ margin: '0 auto', py: { xs: 4, md: 6 }, px: { xs: 2.5, md: 5 }, maxWidth: 1200, width: '100%' }}>
                 
                 {/* ── Hero Section ───────────────────────────────────── */}
                 <Box component="header" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', mb: 5 }}>
@@ -293,96 +399,82 @@ export const About: FC<{}> = function About() {
                         sx={{
                             fontSize: { xs: 15.5, sm: 18 },
                             color: '#64748b',
-                            maxWidth: 760,
+                            maxWidth: 800,
                             mx: 'auto',
                             lineHeight: 1.6,
                             fontFamily: "'Inter', 'Roboto', sans-serif",
-                            mb: 3,
                         }}
                     >
-                        Turn complex enterprise datasets into interactive multi-table dashboards, live reports, and executive business insights with autonomous AI agents.
+                        Transform complex enterprise datasets into interactive multi-table dashboards, live reports, and executive business insights with autonomous AI agents.
                     </Typography>
-
-                    {/* Quick Navigation Action Buttons */}
-                    <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', justifyContent: 'center', gap: 1.5 }}>
-                        <Button
-                            variant="contained"
-                            onClick={() => navigate('/intelligence-hub')}
-                            startIcon={<DashboardCustomizeOutlinedIcon />}
-                            endIcon={<ArrowForwardOutlinedIcon />}
-                            sx={{
-                                bgcolor: '#1B75BB',
-                                color: '#ffffff',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                textTransform: 'none',
-                                px: 3,
-                                py: 1.1,
-                                borderRadius: '10px',
-                                boxShadow: '0 4px 14px rgba(27, 117, 187, 0.3)',
-                                '&:hover': {
-                                    bgcolor: '#135c96',
-                                    boxShadow: '0 6px 20px rgba(27, 117, 187, 0.4)',
-                                },
-                            }}
-                        >
-                            Launch BI Hub
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            onClick={() => navigate('/app')}
-                            startIcon={<ChatOutlinedIcon />}
-                            sx={{
-                                color: '#1e293b',
-                                borderColor: '#cbd5e1',
-                                fontWeight: 600,
-                                fontSize: '14px',
-                                textTransform: 'none',
-                                px: 2.75,
-                                py: 1.1,
-                                borderRadius: '10px',
-                                bgcolor: '#ffffff',
-                                '&:hover': {
-                                    borderColor: '#1B75BB',
-                                    bgcolor: '#f8fafc',
-                                },
-                            }}
-                        >
-                            Open Visual Canvas Studio
-                        </Button>
-                    </Stack>
                 </Box>
 
-                {/* ── Capabilities Grid ───────────────────────────────── */}
+                {/* ── 2 Core Features Section (Two Dedicated Cards) ───── */}
                 <Box sx={{ mb: 6 }}>
-                    <Typography
-                        sx={{
-                            textAlign: 'center',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: '#64748b',
-                            mb: 3,
-                        }}
-                    >
-                        Core Platform Capabilities
-                    </Typography>
+                    <Box sx={{ textAlign: 'center', mb: 4 }}>
+                        <Typography
+                            sx={{
+                                fontSize: '12px',
+                                fontWeight: 800,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: '#1B75BB',
+                                mb: 0.5,
+                            }}
+                        >
+                            Core Platform Pillars
+                        </Typography>
+                        <Typography
+                            variant="h4"
+                            sx={{
+                                fontSize: { xs: '24px', sm: '28px' },
+                                fontWeight: 800,
+                                color: '#0f172a',
+                                fontFamily: "'Inter', 'Roboto', sans-serif",
+                            }}
+                        >
+                            Two Powerful Ways to Explore & Present Data
+                        </Typography>
+                    </Box>
 
                     <Box
                         sx={{
                             display: 'grid',
-                            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-                            gap: 2.5,
+                            gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' },
+                            gap: 3.5,
                         }}
                     >
-                        {capabilities.map((cap) => (
-                            <FeatureCard key={cap.title} {...cap} />
-                        ))}
+                        {/* Core Feature 1: Interactive Data Canvas */}
+                        <CoreFeatureCard
+                            badge="Studio Pillar"
+                            icon={<AutoFixHighOutlinedIcon sx={{ fontSize: 28 }} />}
+                            title="Interactive Data Canvas"
+                            subtitle="Conversational Formulation & Multi-Engine Visual Studio"
+                            description="Bridges data preparation and visual analytics into a unified conversational studio. Transform, clean, reshape, and calculate metrics using plain natural language while an autonomous agent generates and runs secure Python/Pandas code in sandboxed environments with non-destructive lineage."
+                            capabilities={canvasCapabilities}
+                            tags={["Natural Language Transforms", "Pandas Code Gen", "Vega-Lite & ECharts", "30+ Chart Types", "Data Threads", "SQL & Cloud DBs"]}
+                            accentColor="#1B75BB"
+                            buttonText="Open Visual Canvas Studio"
+                            onAction={() => navigate('/app')}
+                        />
+
+                        {/* Core Feature 2: Intelligence Hub */}
+                        <CoreFeatureCard
+                            badge="Autonomous BI"
+                            icon={<DashboardCustomizeOutlinedIcon sx={{ fontSize: 28 }} />}
+                            title="Intelligence Hub"
+                            subtitle="Automated Full-Scale BI Dashboards & Executive Analytics"
+                            description="Turns multi-table databases into complete, production-grade business intelligence dashboards in 1 click. Automatically profiles schemas, computes 4 vital business KPIs, establishes sub-second dimension filters, and generates C-suite analytical reports with root-cause attribution."
+                            capabilities={biHubCapabilities}
+                            tags={["Autonomous Dashboards", "4 KPIs + 6 Visuals", "Embedded DuckDB", "Sub-Second Slicing", "Executive Reports", "Session Pinning"]}
+                            accentColor="#8B5CF6"
+                            buttonText="Launch BI Hub"
+                            onAction={() => navigate('/intelligence-hub')}
+                        />
                     </Box>
                 </Box>
 
-                {/* ── How It Works / Pipeline ─────────────────────────── */}
+                {/* ── How It Works / Workflow Pipeline ────────────────── */}
                 <Box
                     sx={{
                         bgcolor: '#ffffff',
@@ -390,7 +482,7 @@ export const About: FC<{}> = function About() {
                         borderRadius: '20px',
                         p: { xs: 3, md: 4.5 },
                         boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
-                        mb: 6,
+                        mb: 5,
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.25, mb: 3.5 }}>
@@ -403,7 +495,7 @@ export const About: FC<{}> = function About() {
                                 fontFamily: "'Inter', 'Roboto', sans-serif",
                             }}
                         >
-                            The InsightCanvas Workflow Architecture
+                            The InsightCanvas End-to-End Workflow
                         </Typography>
                     </Box>
 
