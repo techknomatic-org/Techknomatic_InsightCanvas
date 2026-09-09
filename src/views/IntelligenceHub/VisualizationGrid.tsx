@@ -1,6 +1,3 @@
-// Copyright (c) Techknomatic Services Pvt Ltd.
-// Licensed under the MIT License.
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Box,
@@ -12,6 +9,12 @@ import {
     Tooltip,
     Divider,
     ButtonBase,
+    IconButton,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
+    CircularProgress,
 } from '@mui/material';
 import embed from 'vega-embed';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -25,6 +28,10 @@ import CheckIcon from '@mui/icons-material/Check';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import ImageIcon from '@mui/icons-material/Image';
+import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import { VisualizationSpec } from './intelligenceTypes';
 import {
     SupportedChartType,
@@ -34,6 +41,7 @@ import {
     rebuildVegaSpec,
     normalizeChartType,
 } from './vegaSpecBuilder';
+import { downloadVisualImage, downloadVisualCsv } from './dashboardExport';
 
 interface ChartCardProps {
     viz: VisualizationSpec;
@@ -66,6 +74,7 @@ const getChartIcon = (type?: string) => {
 };
 
 const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization }) => {
+    const cardRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const hasData =
         (Array.isArray(viz.data) && viz.data.length > 0) ||
@@ -86,6 +95,10 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     // Anchor element for customization popover
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
+    // Anchor & state for download menu
+    const [downloadAnchorEl, setDownloadAnchorEl] = useState<HTMLElement | null>(null);
+    const [downloadingFormat, setDownloadingFormat] = useState<'png' | 'jpg' | 'csv' | null>(null);
+
     const handleOpenMenu = (e: React.MouseEvent<HTMLElement>) => {
         e.stopPropagation();
         setAnchorEl(e.currentTarget);
@@ -93,6 +106,66 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     const handleCloseMenu = () => {
         setAnchorEl(null);
+    };
+
+    const handleOpenDownloadMenu = (e: React.MouseEvent<HTMLElement>) => {
+        e.stopPropagation();
+        setDownloadAnchorEl(e.currentTarget);
+    };
+
+    const handleCloseDownloadMenu = () => {
+        setDownloadAnchorEl(null);
+    };
+
+    const getVisualData = (v: VisualizationSpec): any[] => {
+        if (Array.isArray(v.data) && v.data.length > 0) return v.data;
+        if (Array.isArray(v.vega_spec?.data?.values) && v.vega_spec.data.values.length > 0) {
+            return v.vega_spec.data.values;
+        }
+        if (Array.isArray(v.vega_spec?.layer)) {
+            for (const l of v.vega_spec.layer) {
+                if (Array.isArray(l?.data?.values) && l.data.values.length > 0) {
+                    return l.data.values;
+                }
+            }
+        }
+        return [];
+    };
+
+    const handleDownloadPng = async () => {
+        if (!cardRef.current) return;
+        setDownloadingFormat('png');
+        handleCloseDownloadMenu();
+        try {
+            await downloadVisualImage(cardRef.current, viz.title || `visual-${index + 1}`, 'png');
+        } catch (err) {
+            console.error('Failed to download PNG visual:', err);
+        } finally {
+            setDownloadingFormat(null);
+        }
+    };
+
+    const handleDownloadJpg = async () => {
+        if (!cardRef.current) return;
+        setDownloadingFormat('jpg');
+        handleCloseDownloadMenu();
+        try {
+            await downloadVisualImage(cardRef.current, viz.title || `visual-${index + 1}`, 'jpg');
+        } catch (err) {
+            console.error('Failed to download JPG visual:', err);
+        } finally {
+            setDownloadingFormat(null);
+        }
+    };
+
+    const handleDownloadCsv = () => {
+        handleCloseDownloadMenu();
+        try {
+            const rows = getVisualData(viz);
+            downloadVisualCsv(rows, viz.title || `visual-${index + 1}-data`);
+        } catch (err: any) {
+            console.error('Failed to export visual data CSV:', err);
+        }
     };
 
     const handleSelectChartType = (newType: SupportedChartType) => {
@@ -188,6 +261,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     return (
         <Card
+            ref={cardRef}
             elevation={0}
             sx={{
                 height: '100%',
@@ -206,45 +280,79 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         >
             <CardContent sx={{ p: 2.2, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', fontSize: '13.5px', lineHeight: 1.3 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', fontSize: '13.5px', lineHeight: 1.3, flex: 1 }}>
                         {viz.title}
                     </Typography>
 
-                    {/* Interactive Chart Type & Theme Trigger */}
-                    <Tooltip title="Click to change chart type or color theme" arrow placement="top">
-                        <Chip
-                            size="small"
-                            icon={getChartIcon(viz.chart_type)}
-                            deleteIcon={<KeyboardArrowDownIcon sx={{ fontSize: '14px !important', color: '#1B75BB !important', mr: -0.2 }} />}
-                            onDelete={handleOpenMenu}
-                            onClick={handleOpenMenu}
-                            label={viz.chart_type || 'chart'}
-                            sx={{
-                                height: 22,
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                bgcolor: isMenuOpen ? '#eff6ff' : 'rgba(27, 117, 187, 0.06)',
-                                color: '#1B75BB',
-                                border: '1px solid',
-                                borderColor: isMenuOpen ? '#1B75BB' : 'rgba(27, 117, 187, 0.2)',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                pl: 0.2,
-                                pr: 0.5,
-                                '& .MuiChip-icon': {
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
+                        {/* Interactive Chart Type & Theme Trigger */}
+                        <Tooltip title="Click to change chart type or color theme" arrow placement="top">
+                            <Chip
+                                size="small"
+                                icon={getChartIcon(viz.chart_type)}
+                                deleteIcon={<KeyboardArrowDownIcon sx={{ fontSize: '14px !important', color: '#1B75BB !important', mr: -0.2 }} />}
+                                onDelete={handleOpenMenu}
+                                onClick={handleOpenMenu}
+                                label={viz.chart_type || 'chart'}
+                                sx={{
+                                    height: 22,
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    bgcolor: isMenuOpen ? '#eff6ff' : 'rgba(27, 117, 187, 0.06)',
                                     color: '#1B75BB',
-                                    ml: 0.4,
-                                },
-                                '&:hover': {
-                                    bgcolor: '#eff6ff',
-                                    borderColor: '#1B75BB',
-                                    boxShadow: '0 2px 6px rgba(27, 117, 187, 0.15)',
-                                    transform: 'translateY(-1px)',
-                                },
-                            }}
-                        />
-                    </Tooltip>
+                                    border: '1px solid',
+                                    borderColor: isMenuOpen ? '#1B75BB' : 'rgba(27, 117, 187, 0.2)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    pl: 0.2,
+                                    pr: 0.5,
+                                    '& .MuiChip-icon': {
+                                        color: '#1B75BB',
+                                        ml: 0.4,
+                                    },
+                                    '&:hover': {
+                                        bgcolor: '#eff6ff',
+                                        borderColor: '#1B75BB',
+                                        boxShadow: '0 2px 6px rgba(27, 117, 187, 0.15)',
+                                        transform: 'translateY(-1px)',
+                                    },
+                                }}
+                            />
+                        </Tooltip>
+
+                        {/* Download Visual Button */}
+                        <Tooltip title="Download this visual" arrow placement="top">
+                            <IconButton
+                                size="small"
+                                onClick={handleOpenDownloadMenu}
+                                disabled={Boolean(downloadingFormat)}
+                                sx={{
+                                    width: 22,
+                                    height: 22,
+                                    p: 0,
+                                    color: Boolean(downloadAnchorEl) ? '#1B75BB' : '#64748b',
+                                    bgcolor: Boolean(downloadAnchorEl) ? '#eff6ff' : 'rgba(27, 117, 187, 0.06)',
+                                    border: '1px solid',
+                                    borderColor: Boolean(downloadAnchorEl) ? '#1B75BB' : 'rgba(27, 117, 187, 0.2)',
+                                    borderRadius: '6px',
+                                    transition: 'all 0.15s ease',
+                                    '&:hover': {
+                                        bgcolor: '#eff6ff',
+                                        color: '#1B75BB',
+                                        borderColor: '#1B75BB',
+                                        transform: 'translateY(-1px)',
+                                    },
+                                }}
+                            >
+                                {downloadingFormat ? (
+                                    <CircularProgress size={12} sx={{ color: '#1B75BB' }} />
+                                ) : (
+                                    <DownloadOutlinedIcon sx={{ fontSize: '14px' }} />
+                                )}
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
                 </Box>
 
                 {viz.description && (
@@ -462,6 +570,72 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                     })}
                 </Box>
             </Popover>
+
+            {/* Download Options Menu */}
+            <Menu
+                anchorEl={downloadAnchorEl}
+                open={Boolean(downloadAnchorEl)}
+                onClose={handleCloseDownloadMenu}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                slotProps={{
+                    paper: {
+                        sx: {
+                            mt: 0.5,
+                            borderRadius: '10px',
+                            boxShadow: '0 8px 24px rgba(0, 29, 82, 0.12)',
+                            border: '1px solid #e2e8f0',
+                            py: 0.5,
+                            minWidth: 195,
+                        },
+                    },
+                }}
+            >
+                <MenuItem onClick={handleDownloadPng} sx={{ py: 0.8, px: 1.5, gap: 1.2 }}>
+                    <ListItemIcon sx={{ minWidth: 'auto', color: '#1B75BB' }}>
+                        <ImageIcon sx={{ fontSize: 18 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                        primary="Download as PNG"
+                        secondary="High-resolution image"
+                        primaryTypographyProps={{ fontSize: '12.5px', fontWeight: 600, color: '#0f172a' }}
+                        secondaryTypographyProps={{ fontSize: '10.5px' }}
+                    />
+                </MenuItem>
+                <MenuItem onClick={handleDownloadJpg} sx={{ py: 0.8, px: 1.5, gap: 1.2 }}>
+                    <ListItemIcon sx={{ minWidth: 'auto', color: '#0ea5e9' }}>
+                        <CameraAltOutlinedIcon sx={{ fontSize: 18 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                        primary="Download as JPG"
+                        secondary="Compressed image"
+                        primaryTypographyProps={{ fontSize: '12.5px', fontWeight: 600, color: '#0f172a' }}
+                        secondaryTypographyProps={{ fontSize: '10.5px' }}
+                    />
+                </MenuItem>
+                <Divider sx={{ my: 0.5 }} />
+                <MenuItem
+                    onClick={handleDownloadCsv}
+                    disabled={getVisualData(viz).length === 0}
+                    sx={{ py: 0.8, px: 1.5, gap: 1.2 }}
+                >
+                    <ListItemIcon sx={{ minWidth: 'auto', color: '#10b981' }}>
+                        <TableChartOutlinedIcon sx={{ fontSize: 18 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                        primary="Export Data (CSV)"
+                        secondary={`${getVisualData(viz).length} records`}
+                        primaryTypographyProps={{ fontSize: '12.5px', fontWeight: 600, color: '#0f172a' }}
+                        secondaryTypographyProps={{ fontSize: '10.5px' }}
+                    />
+                </MenuItem>
+            </Menu>
         </Card>
     );
 };

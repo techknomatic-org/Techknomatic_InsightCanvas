@@ -76,3 +76,102 @@ export async function downloadDashboardPdf(
     await downloadElementAsDirectPdf(element, title || 'BI Hub Dashboard');
 }
 
+/**
+ * Capture a single visual card element and download it as PNG or JPG
+ */
+export async function downloadVisualImage(
+    element: HTMLElement,
+    title: string,
+    format: 'png' | 'jpg' = 'png'
+): Promise<void> {
+    const isJpg = format === 'jpg';
+    const mimeType = isJpg ? 'image/jpeg' : 'image/png';
+    const extension = isJpg ? 'jpg' : 'png';
+    const quality = isJpg ? 0.95 : 1.0;
+
+    const canvas = await html2canvas(element, {
+        backgroundColor: '#ffffff',
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+    });
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), mimeType, quality)
+    );
+
+    if (!blob) {
+        throw new Error('Failed to generate image from visual element.');
+    }
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `${sanitizeFileName(title || 'Visual')}-${dateStr}.${extension}`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Export raw visual data records as a downloadable CSV file
+ */
+export function downloadVisualCsv(data: any[], title: string): void {
+    if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('No data available to export for this visual.');
+    }
+
+    // Extract all unique headers across records
+    const headers = Array.from(
+        new Set(
+            data.reduce<string[]>((acc, item) => {
+                if (item && typeof item === 'object') {
+                    acc.push(...Object.keys(item));
+                }
+                return acc;
+            }, [])
+        )
+    );
+
+    if (headers.length === 0) {
+        throw new Error('No structured columns found in visual data.');
+    }
+
+    // Escape CSV cell value
+    const escapeCsv = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
+    const headerLine = headers.map(escapeCsv).join(',');
+    const rows = data.map((item) =>
+        headers.map((h) => escapeCsv(item?.[h])).join(',')
+    );
+
+    const csvContent = [headerLine, ...rows].join('\r\n');
+    const blob = new Blob(['\ufeff', csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `${sanitizeFileName(title || 'Visual-Data')}-${dateStr}.csv`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
