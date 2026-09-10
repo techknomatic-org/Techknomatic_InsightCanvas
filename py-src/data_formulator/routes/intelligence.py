@@ -1011,7 +1011,12 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
 
     combined_text = f"{measure_name} {title}".lower()
 
-    # 1. Currency
+    # 1. Percentage (evaluated before currency so 'Profit Margin', 'Sales Rate', etc. are formatted as %)
+    if format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text):
+        pct_val = num * 100.0 if abs(num) <= 1.0 and num != 0 else num
+        return f"{pct_val:.1f}%", num
+
+    # 2. Currency
     if format_type == "currency" or re.search(r'\b(salary|salaries|revenue|cost|costs|price|prices|budget|profit|expense|expenses|spend|spending|wage|wages|pay|payment|payments|income|sales)\b', combined_text):
         if abs(num) >= 1_000_000_000:
             return f"${num / 1_000_000_000:.2f}B", num
@@ -1020,11 +1025,6 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
         if abs(num) >= 1_000:
             return f"${num / 1_000:.1f}K", num
         return f"${num:,.2f}", num
-
-    # 2. Percentage
-    if format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text):
-        pct_val = num * 100.0 if abs(num) <= 1.0 and num != 0 else num
-        return f"{pct_val:.1f}%", num
 
     # 3. Energy Consumption (kWh, MWh, GWh)
     if re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh|power_consumption|electricity_consumption)\b', combined_text) or ("energy" in combined_text and "cost" not in combined_text):
@@ -1563,10 +1563,16 @@ def _hydrate_dashboard_spec(
                         agg = "COUNT"
                         logger.info("Smart agg override: '%s' changed %s→COUNT (ID/key column)", measure, kpi.get("aggregation"))
                 # Auto-fix format based on column name
-                if any(k in m_lower for k in ("rate", "percent", "pct", "ratio")) and fmt not in ("percent",):
+                if any(k in m_lower for k in ("rate", "percent", "pct", "ratio", "margin")) and fmt not in ("percent",):
                     fmt = "percent"
-                elif any(k in m_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend", "profit", "margin")) and fmt not in ("currency",):
+                elif any(k in m_lower for k in ("cost", "price", "revenue", "salary", "wage", "budget", "spend", "profit")) and fmt not in ("currency",) and not any(k in m_lower for k in ("margin", "rate", "percent", "pct", "ratio")):
                     fmt = "currency"
+
+            # Auto-fix format for expressions containing margin, rate, ratio, or percent
+            if expr and (not measure or fmt == "number"):
+                comb = f"{expr} {kpi.get('title') or ''}".lower()
+                if any(k in comb for k in ("margin", "rate", "percent", "pct", "ratio", "share")):
+                    fmt = "percent"
 
             val_formatted = "N/A"
             raw_val = None

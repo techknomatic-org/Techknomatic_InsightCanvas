@@ -19,6 +19,7 @@ import { profileTables } from './intelligenceService';
 import { DataProfile } from './intelligenceTypes';
 import { DataSourceSidebar } from '../DataSourceSidebar';
 import { UnifiedDataUploadDialog, UploadTabType } from '../UnifiedDataUploadDialog';
+import { IntelligenceErrorAlert } from './intelligenceErrorHelper';
 
 type Step = 'sources' | 'databases' | 'tables' | 'workspace';
 
@@ -413,10 +414,13 @@ export const IntelligenceHubView: React.FC = () => {
                     </Typography>
                 </Box>
             ) : profileError ? (
-                <Box sx={{ p: 4, maxWidth: 600, mx: 'auto' }}>
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        {profileError}
-                    </Alert>
+                <Box sx={{ p: 4, maxWidth: 650, mx: 'auto' }}>
+                    <IntelligenceErrorAlert
+                        error={profileError}
+                        onDismiss={() => setProfileError(null)}
+                        onRetry={handleProceedToAnalysis}
+                        sx={{ mb: 2 }}
+                    />
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                         <Typography
                             component="span"

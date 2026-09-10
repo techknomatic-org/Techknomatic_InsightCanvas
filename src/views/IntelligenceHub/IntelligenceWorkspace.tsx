@@ -63,6 +63,7 @@ import { ChatPanel } from './ChatPanel';
 import { IntelligenceReportDialog } from './IntelligenceReportDialog';
 import { downloadDashboardImage, downloadDashboardPdf } from './dashboardExport';
 import { CHART_THEME_PRESETS, ChartThemePreset, rebuildVegaSpec, normalizeChartType } from './vegaSpecBuilder';
+import { IntelligenceErrorAlert, parseUserFriendlyError } from './intelligenceErrorHelper';
 
 interface IntelligenceWorkspaceProps {
     sourceId: string;
@@ -393,12 +394,12 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 dashboard: result,
             });
         } catch (err: any) {
-            const errMsg = err?.message || 'Failed to generate dashboard';
-            setError(errMsg);
+            const friendly = parseUserFriendlyError(err);
+            setError(err);
             const assistantErrMsg: ChatMessage = {
                 id: String(Date.now() + 1),
                 role: 'assistant',
-                content: `I cannot generate this dashboard: ${errMsg}`,
+                content: `⚠️ **${friendly.title}**\n\n${friendly.reason}\n\n💡 *${friendly.suggestion}*`,
                 timestamp: new Date().toISOString(),
             };
             setChatMessages([...updatedChat, assistantErrMsg]);
@@ -523,12 +524,12 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                 });
             }
         } catch (err: any) {
-            const errMsg = err?.message || 'Model request failed';
-            setError(errMsg);
+            const friendly = parseUserFriendlyError(err);
+            setError(err);
             const assistantErrMsg: ChatMessage = {
                 id: String(Date.now() + 1),
                 role: 'assistant',
-                content: `I encountered an issue updating the dashboard: ${errMsg}. Please try phrasing your request with specific chart or metric names (e.g. "change visual 2 to a pie chart").`,
+                content: `⚠️ **${friendly.title}**\n\n${friendly.reason}\n\n💡 *${friendly.suggestion}*`,
                 timestamp: new Date().toISOString(),
             };
             setChatMessages([...updatedChat, assistantErrMsg]);
@@ -1368,10 +1369,13 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
                         minHeight: 0,
                     }}
                 >
-                    {dashboard && error && (
-                        <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>
-                            {error}
-                        </Alert>
+                    {error && (
+                        <IntelligenceErrorAlert
+                            error={error}
+                            onDismiss={() => setError(null)}
+                            onRetry={!dashboard ? () => handleGenerate('Generate a comprehensive executive dashboard for this dataset') : undefined}
+                            sx={{ mb: 2 }}
+                        />
                     )}
 
                 {/* ============================================================ */}

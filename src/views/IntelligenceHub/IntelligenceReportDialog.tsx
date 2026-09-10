@@ -38,6 +38,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DashboardSpec, VisualizationSpec, KpiSpec } from './intelligenceTypes';
 import { sanitizeFileName } from './dashboardExport';
+import { IntelligenceErrorAlert } from './intelligenceErrorHelper';
 
 interface IntelligenceReportDialogProps {
     open: boolean;
@@ -464,19 +465,11 @@ export const IntelligenceReportDialog: React.FC<IntelligenceReportDialogProps> =
                 )}
 
                 {error && (
-                    <Alert
-                        severity="error"
-                        action={
-                            onRegenerate && (
-                                <Button color="inherit" size="small" onClick={onRegenerate}>
-                                    Retry
-                                </Button>
-                            )
-                        }
+                    <IntelligenceErrorAlert
+                        error={error}
+                        onRetry={onRegenerate}
                         sx={{ my: 2 }}
-                    >
-                        {error}
-                    </Alert>
+                    />
                 )}
 
                 {!loading && reportMarkdown && (

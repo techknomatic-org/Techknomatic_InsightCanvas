@@ -117,28 +117,28 @@ export function rebuildVegaSpec(
 ): any {
     // Deep-extract data from various Vega-Lite spec structures (flat, layered, concatenated)
     let records: Record<string, any>[] = [];
-    if (Array.isArray(viz.data)) {
+    if (Array.isArray(viz.data) && viz.data.length > 0) {
         records = viz.data;
-    } else if (Array.isArray(viz.vega_spec?.data?.values)) {
+    } else if (Array.isArray(viz.vega_spec?.data?.values) && viz.vega_spec.data.values.length > 0) {
         records = viz.vega_spec.data.values;
     } else if (Array.isArray(viz.vega_spec?.layer)) {
         // Layered specs: data may be at the layer level or in individual layers
         for (const layer of viz.vega_spec.layer) {
-            if (Array.isArray(layer?.data?.values)) {
+            if (Array.isArray(layer?.data?.values) && layer.data.values.length > 0) {
                 records = layer.data.values;
                 break;
             }
         }
     } else if (Array.isArray(viz.vega_spec?.hconcat)) {
         for (const sub of viz.vega_spec.hconcat) {
-            if (Array.isArray(sub?.data?.values)) {
+            if (Array.isArray(sub?.data?.values) && sub.data.values.length > 0) {
                 records = sub.data.values;
                 break;
             }
         }
     } else if (Array.isArray(viz.vega_spec?.vconcat)) {
         for (const sub of viz.vega_spec.vconcat) {
-            if (Array.isArray(sub?.data?.values)) {
+            if (Array.isArray(sub?.data?.values) && sub.data.values.length > 0) {
                 records = sub.data.values;
                 break;
             }
