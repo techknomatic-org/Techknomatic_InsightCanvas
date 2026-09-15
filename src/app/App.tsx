@@ -985,18 +985,29 @@ const AppShell: FC = () => {
                                 to="/about"
                                 label={t('appBar.about', { defaultValue: 'About' })}
                                 selected={isAboutPage}
-                                onClick={() => dispatch(dfActions.setDataSourceSidebarOpen(false))}
+                                onClick={(e) => {
+                                    dispatch(dfActions.setDataSourceSidebarOpen(false));
+                                    if (isAboutPage) {
+                                        e.preventDefault();
+                                        navigate('/');
+                                    }
+                                }}
                             />
                             <TopNavButton
                                 id="tour-nav-hub"
                                 to="/intelligence-hub"
                                 label="BI HUB"
                                 selected={isIntelligenceHubPage}
-                                onClick={() => {
-                                    try {
-                                        localStorage.removeItem('ih_active_hub_state');
-                                    } catch {}
+                                onClick={(e) => {
                                     dispatch(dfActions.setDataSourceSidebarOpen(false));
+                                    if (isIntelligenceHubPage) {
+                                        e.preventDefault();
+                                        navigate('/');
+                                    } else {
+                                        try {
+                                            localStorage.removeItem('ih_active_hub_state');
+                                        } catch {}
+                                    }
                                 }}
                             />
                             {inSession && <ExitSessionButton />}
@@ -1007,10 +1018,18 @@ const AppShell: FC = () => {
                 <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', '& > div': { height: '100%' } }}>
                     <ToolbarActionsContext.Provider value={{
                         openSettings: (tab?: SettingsTabType) => {
-                            navigate(tab ? `/settings?tab=${tab}` : '/settings');
+                            if (location.pathname.startsWith('/settings')) {
+                                navigate('/');
+                            } else {
+                                navigate(tab ? `/settings?tab=${tab}` : '/settings');
+                            }
                         },
                         openLogs: () => {
-                            navigate('/settings?tab=logs');
+                            if (location.pathname.startsWith('/settings') && location.search.includes('tab=logs')) {
+                                navigate('/');
+                            } else {
+                                navigate('/settings?tab=logs');
+                            }
                         },
                         isLocalMode: serverConfig.IS_LOCAL_MODE,
                         openGuide: () => setGuideOpen(true),

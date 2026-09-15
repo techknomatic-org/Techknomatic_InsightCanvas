@@ -1241,6 +1241,18 @@ def _build_vega_lite_spec(
         else:
             text_format = "~s" if max_val >= 1000 else ",.0f"
 
+        top_encoding: dict[str, Any] = {
+            "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
+            "color": {
+                "field": x_field,
+                "type": "nominal",
+                "scale": {"range": color_range},
+                "legend": {"orient": "bottom", "columns": 3, "labelFontSize": 11, "title": None},
+            } if x_field else None,
+            "tooltip": tooltip if tooltip else None,
+        }
+        top_encoding = {k: v for k, v in top_encoding.items() if v is not None}
+
         arc_layer: dict[str, Any] = {
             "mark": {
                 "type": "arc",
@@ -1249,30 +1261,17 @@ def _build_vega_lite_spec(
                 "padAngle": 0.03,
                 "cornerRadius": 4,
             },
-            "encoding": {
-                "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
-                "color": {
-                    "field": x_field,
-                    "type": "nominal",
-                    "scale": {"range": color_range},
-                    "legend": {"orient": "bottom", "columns": 3, "labelFontSize": 11, "title": None},
-                } if x_field else None,
-                "tooltip": tooltip if tooltip else None,
-            },
         }
-        arc_layer["encoding"] = {k: v for k, v in arc_layer["encoding"].items() if v is not None}
 
         text_layer: dict[str, Any] = {
             "mark": {
                 "type": "text",
-                "radius": 63 if c_type == "donut" else 52,
+                "radius": 62 if c_type == "donut" else 52,
                 "fontSize": 11,
                 "fontWeight": 700,
                 "fill": "#ffffff",
             },
             "encoding": {
-                "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
-                "detail": {"field": x_field, "type": "nominal"} if x_field else None,
                 "text": {"field": y_field, "type": "quantitative", "format": text_format} if y_field else None,
             },
         }
@@ -1290,6 +1289,7 @@ def _build_vega_lite_spec(
             "width": "container",
             "height": 220,
             "data": {"values": data_records},
+            "encoding": top_encoding,
             "layer": [arc_layer, text_layer],
             "config": {
                 "view": {"stroke": "transparent"},
@@ -1320,6 +1320,7 @@ def _build_vega_lite_spec(
             encoding["x"] = {
                 "field": x_field,
                 "type": "nominal" if c_type in ("bar", "column") else "ordinal",
+                "sort": None,  # Preserve original data order from DuckDB query
                 "axis": {
                     "labelAngle": -25 if len(data_records) > 5 else 0,
                     "labelLimit": 110,
@@ -1386,6 +1387,137 @@ def _build_vega_lite_spec(
             "axis": {"domainColor": "#e2e8f0", "tickColor": "#e2e8f0"},
         },
     }
+
+
+def _compute_kpi_sparkline(
+    con: duckdb.DuckDBPyConnection,
+    agg_expr: str | None,
+    target_src: str | None,
+    table_column_types: dict[str, dict[str, str]],
+    table_name: str | None,
+    all_col_types: dict[str, str],
+) -> list[float] | None:
+    """Compute sparkline trend data for a KPI by querying the last 7 time periods.
+
+    Auto-detects the best temporal column and adapts granularity based on data span.
+    Returns a list of numeric values (oldest first) or None if no temporal data available.
+    """
+    if not agg_expr or not target_src:
+        return None
+
+    # Find the best temporal column from the KPI's table or global columns
+    temporal_col = None
+    temporal_types = ("DATE", "TIMESTAMP", "TIME")
+    # First: check columns in the KPI's specific table
+    if table_name and table_name in table_column_types:
+        for col, dtype in table_column_types[table_name].items():
+            if any(t in str(dtype).upper() for t in temporal_types):
+                temporal_col = col
+                break
+    # Fallback: check all columns globally
+    if not temporal_col:
+        for col, dtype in all_col_types.items():
+            if any(t in str(dtype).upper() for t in temporal_types):
+                temporal_col = col
+                break
+    if not temporal_col:
+        return None
+
+    try:
+        # Auto-detect granularity: check data span
+        span_sql = f"""
+        SELECT DATEDIFF('day',
+            MIN("{temporal_col}"::TIMESTAMP),
+            MAX("{temporal_col}"::TIMESTAMP)
+        ) AS span_days
+        FROM {target_src}
+        WHERE "{temporal_col}" IS NOT NULL
+        """
+        span_df = con.execute(span_sql).df()
+        span_days = int(span_df.iloc[0]["span_days"]) if not span_df.empty else 365
+
+        # Choose granularity: daily (<60 days), weekly (<180 days), monthly (default)
+        if span_days < 60:
+            trunc_unit = "day"
+            fmt_str = "%Y-%m-%d"
+        elif span_days < 180:
+            trunc_unit = "week"
+            fmt_str = "%Y-W%W"
+        else:
+            trunc_unit = "month"
+            fmt_str = "%Y-%m"
+
+        sparkline_sql = f"""
+        SELECT {agg_expr} AS val
+        FROM {target_src}
+        WHERE "{temporal_col}" IS NOT NULL
+        GROUP BY DATE_TRUNC('{trunc_unit}', "{temporal_col}"::TIMESTAMP)
+        ORDER BY DATE_TRUNC('{trunc_unit}', "{temporal_col}"::TIMESTAMP) DESC
+        LIMIT 7
+        """
+        sp_df = con.execute(sparkline_sql).df()
+        if sp_df.empty or len(sp_df) < 2:
+            return None
+
+        # Reverse to oldest-first and extract numeric values
+        values = sp_df["val"].tolist()[::-1]
+        result = []
+        for v in values:
+            try:
+                fv = float(v)
+                if math.isnan(fv) or math.isinf(fv):
+                    fv = 0.0
+                result.append(round(fv, 2))
+            except (ValueError, TypeError):
+                result.append(0.0)
+        return result if len(result) >= 2 else None
+    except Exception as e:
+        logger.debug("Sparkline query failed for %s: %s", target_src, e)
+        return None
+
+
+def _compute_kpi_distribution(
+    con: duckdb.DuckDBPyConnection,
+    agg_expr: str | None,
+    target_src: str | None,
+) -> tuple[float | None, float | None]:
+    """Compute AVG and STDDEV of the KPI's underlying measure for conditional formatting.
+
+    Returns (distribution_avg, distribution_stddev) or (None, None) on failure.
+    """
+    if not agg_expr or not target_src:
+        return (None, None)
+
+    # Extract the inner column from agg_expr (e.g., 'SUM(TRY_CAST("col" AS DOUBLE))' -> "col")
+    # For distribution, we want the raw column stats, not the aggregated value
+    col_match = re.search(r'"([^"]+)"', agg_expr)
+    if not col_match:
+        return (None, None)
+
+    raw_col = col_match.group(1)
+    try:
+        dist_sql = f"""
+        SELECT
+            AVG(TRY_CAST("{raw_col}" AS DOUBLE)) AS avg_val,
+            STDDEV(TRY_CAST("{raw_col}" AS DOUBLE)) AS std_val
+        FROM {target_src}
+        WHERE TRY_CAST("{raw_col}" AS DOUBLE) IS NOT NULL
+        """
+        dist_df = con.execute(dist_sql).df()
+        if dist_df.empty:
+            return (None, None)
+
+        avg_val = dist_df.iloc[0]["avg_val"]
+        std_val = dist_df.iloc[0]["std_val"]
+
+        avg_f = float(avg_val) if avg_val is not None and not (isinstance(avg_val, float) and math.isnan(avg_val)) else None
+        std_f = float(std_val) if std_val is not None and not (isinstance(std_val, float) and math.isnan(std_val)) else None
+
+        return (round(avg_f, 4) if avg_f is not None else None, round(std_f, 4) if std_f is not None else None)
+    except Exception as e:
+        logger.debug("Distribution query failed for %s: %s", target_src, e)
+        return (None, None)
+
 
 
 def _hydrate_dashboard_spec(
@@ -1610,6 +1742,14 @@ def _hydrate_dashboard_spec(
                     except Exception as fb_err:
                         logger.warning("Error calculating fallback KPI '%s': %s", kpi.get("title"), fb_err)
 
+            # Compute sparkline trend and statistical distribution for this KPI
+            _kpi_agg = agg_expr if (measure or expr) else None
+            _kpi_src = target_src if (measure or expr) else None
+            _sparkline = _compute_kpi_sparkline(
+                con, _kpi_agg, _kpi_src, table_column_types, t_name, all_col_types
+            )
+            _dist_avg, _dist_std = _compute_kpi_distribution(con, _kpi_agg, _kpi_src)
+
             hydrated_kpis.append({
                 "id": kpi.get("id", str(uuid.uuid4())),
                 "title": kpi.get("title", "KPI Metric"),
@@ -1622,6 +1762,9 @@ def _hydrate_dashboard_spec(
                 "raw_value": make_json_safe(raw_val),
                 "subtitle": kpi.get("subtitle", f"{agg} of {measure or expr}"),
                 "comparison": kpi.get("comparison", ""),
+                "sparkline_data": _sparkline,
+                "distribution_avg": make_json_safe(_dist_avg),
+                "distribution_stddev": make_json_safe(_dist_std),
             })
 
         while len(hydrated_kpis) < 4:

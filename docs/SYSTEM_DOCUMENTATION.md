@@ -75,7 +75,7 @@ graph TB
 | **API Framework** | Python 3.11+ & Flask | Lightweight RESTful services and Server-Sent Events (SSE) streaming |
 | **Embedded OLAP DB** | **DuckDB** | Columnar in-memory analytical query processing and SQL execution |
 | **Data Processing** | Pandas, NumPy, PyArrow, Scikit-learn | In-memory data structures, data wrangling, and ML utilities |
-| **LLM Orchestration** | **LiteLLM** & OpenAI SDK | Unified interface across OpenAI, Azure OpenAI, Anthropic Claude, Ollama, Gemini, Groq |
+| **LLM Orchestration** | **LiteLLM** & OpenAI SDK | Unified interface across OpenAI (GPT-4o, o3-mini, GPT-6 Astra), OrcaRouter (`api.orcarouter.ai/v1`), OpenRouter, Anthropic Claude (3.7/3.5 Sonnet), Gemini (`gemini-3.6-flash`), DeepSeek, Ollama |
 | **Web Scraping & Browser**| Playwright & BeautifulSoup4 | Headless browser execution for scraping dynamic tables from URLs |
 | **Security & Sandboxing** | Python `sys.addaudithook` & Docker | Hardened code execution isolation to prevent malicious operations |
 | **Authentication & Session**| PyJWT, MSAL Browser, Flask-Session (Cachelib) | OIDC, Entra ID SSO, and server-side encrypted session tokens |
@@ -244,7 +244,7 @@ InsightCanvas/
 │   ├── app/                      # Redux Store, Tokens, Layout Providers
 │   ├── components/               # Reusable UI Widgets & Catalog Trees
 │   ├── views/                    # Core UI Views
-│   │   ├── IntelligenceHub/      # Intelligence Workspace, Reports & Visuals
+│   │   ├── IntelligenceHub/      # Automated BI Hub, Error Helper & Vega Spec Builders
 │   │   ├── DataThread/           # Interactive DAG Transformation Canvas
 │   │   ├── VisualizationView/    # Chart Encoding Shelf & Multi-Engine Canvas
 │   │   └── ReportView/           # Rich-Text Dynamic Document Editor

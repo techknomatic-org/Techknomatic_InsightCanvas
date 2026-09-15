@@ -161,7 +161,7 @@ interface DataFormulatorState {
 ### 4.2 Multi-Provider LLM Gateway (`model_registry.py`)
 The `ModelRegistry` abstracts all LLM communications through a unified interface:
 - **Automatic Fallbacks**: Gracefully switches to text-only prompts if vision capabilities are unsupported by the active model.
-- **Provider Adapters**: OpenAI, Azure OpenAI, OpenRouter, Anthropic, Google Gemini, DeepSeek, and Ollama.
+- **Provider Adapters**: OpenAI (GPT-4o, o3-mini, GPT-6 Astra), OrcaRouter (`api.orcarouter.ai/v1` with MoA Fusion & Auto), OpenRouter (Claude 3.7/3.5, DeepSeek), Anthropic Claude, Google Gemini (`gemini-3.6-flash`), DeepSeek, and Ollama.
 - **Model Parameters**: Temperature, top_p, max_tokens, and token streaming hooks.
 
 ### 4.3 Agent Orchestration Pipeline
@@ -295,6 +295,12 @@ Each transformation step creates a new immutable node in the DAG:
 2. **Rate Limit Handling**: Exponential backoff with jitter on LLM API calls.
 3. **Session Reconnection**: Frontend automatically buffers unsent prompts and resumes SSE streams on transient network drops.
 
+### 8.2 User-Facing Error Translation (`intelligenceErrorHelper.tsx`)
+Rather than surfacing raw Python stack traces, LiteLLM exceptions, or upstream cloud JSON dumps to end-users, the platform employs a client-side interpretation layer:
+- **Categorization**: Parses error messages and status codes into canonical categories (Authentication 401, Forbidden/Path 403, Deprecated Model 404, Quota/Rate Limit 429, Context Length Exceeded, Network Timeout).
+- **Contextual Guidance**: Provides end-user root causes and actionable suggestions (💡) (e.g. recommending `gemini-3.6-flash` on 404, or removing custom API base on Gemini 403).
+- **Progressive Disclosure**: Keeps the UI clean with simple, high-contrast alert banners while offering expandable technical details for developer inspection and one-click retries.
+
 ---
 
 ## 9. Build, Packaging & Distribution Architecture
@@ -351,6 +357,8 @@ Each transformation step creates a new immutable node in the DAG:
 ### 10.1 Key Engine Safeguards & Features
 - **Domain Relevance Verification**: Strict validation prevents cross-domain hallucinations (e.g. asking for "patients" on HR employee data returns a clear explanatory message).
 - **Domain-Aware Unit Abbreviation**: Automatically formats metrics with precise units (e.g. `kWh`, `kW`, `tCO₂`, `mins`, `hrs`, `$`, `%`).
+- **Percentage Precedence Formatting**: Smart regex and schema scanners prioritize `margin`, `rate`, `ratio`, and `pct` keywords over general currency terms, guaranteeing metrics like "Profit Margin" render as percentages (e.g. `19.7%`) rather than `$0.00`.
+- **Robust Multi-Layer Vega Spec Extraction**: `rebuildVegaSpec` validates record array lengths so empty root data objects never mask populated values inside nested layers or concatenated specs.
 - **Standardized Navigation & Clean Typography**: Unified top navbar (`Home`, `Intelligence Hub`, `About`) with responsive active indicators and clean regular font weights across sidebar session lists.
 
 ---

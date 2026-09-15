@@ -108,4 +108,26 @@ InsightCanvas uses a **DAG (Directed Acyclic Graph)** model for data manipulatio
 
 ---
 
+## 7. Model Configuration Cheat Sheet
+
+| Provider Target | Dialog Provider | Model String | API Base | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Google Gemini** | `gemini` | `gemini-3.6-flash` | *(Leave Empty)* | Do NOT enter a URL in API Base. |
+| **OrcaRouter** | `openai` | `orcarouter/fusion` | `https://api.orcarouter.ai/v1` | MoA multi-model accuracy routing. |
+| **OrcaRouter (Claude)** | `openai` | `anthropic/claude-3.5-sonnet` | `https://api.orcarouter.ai/v1` | Direct frontier model via OrcaRouter. |
+| **OpenRouter** | `openai` | `anthropic/claude-3.7-sonnet` | `https://openrouter.ai/api/v1` | Top-tier reasoning & Vega-Lite accuracy. |
+| **OpenAI** | `openai` | `gpt-4o` or `o3-mini` | *(Leave Empty)* | Standard official OpenAI endpoint. |
+
+---
+
+## 8. Common Error Diagnostics & Self-Healing Tips
+
+- **HTTP 404 on Gemini**: If you see `"This model models/gemini-2.0-flash is no longer available"`, update the model name to `gemini-3.6-flash`.
+- **HTTP 403 Forbidden**: If using Gemini, clear the `API Base` field. If using OrcaRouter or OpenRouter, ensure `API Base` is set to their `/v1` endpoint.
+- **HTTP 401 Unauthorized**: Ensure your API key has no leading or trailing whitespace.
+- **HTTP 429 Quota Exceeded**: You have reached the provider's free or per-minute rate limit. Wait 30 seconds or switch to an alternate model.
+- **Blank Trendline or $0.00 Metric**: If a percentage or margin displays as `$0.00`, ensure the metric is named with `margin`, `rate`, or `pct`; the engine will automatically format it as `%`.
+
+---
+
 *Copyright © Techknomatic Services Pvt. Ltd. All rights reserved.*

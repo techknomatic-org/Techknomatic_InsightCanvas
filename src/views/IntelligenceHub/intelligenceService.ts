@@ -70,7 +70,7 @@ export async function generateDashboard(
 
 export async function queryDashboardFilter(
     dashboard: DashboardSpec,
-    filterValue: string | number
+    filterValue: string | number,
 ): Promise<DashboardSpec> {
     const res = await apiRequest<{ dashboard: DashboardSpec }>(
         INTELLIGENCE_URLS.QUERY_FILTER,

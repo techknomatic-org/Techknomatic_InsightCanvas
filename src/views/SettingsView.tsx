@@ -15,7 +15,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Box,
     Button,
@@ -23,6 +23,7 @@ import {
     CardContent,
     Divider,
     FormControl,
+    IconButton,
     InputLabel,
     ListItemText,
     MenuItem,
@@ -30,6 +31,7 @@ import {
     Tab,
     Tabs,
     TextField,
+    Tooltip,
     Typography,
     alpha,
     useTheme,
@@ -39,6 +41,7 @@ import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import TerminalOutlinedIcon from '@mui/icons-material/TerminalOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import ClearIcon from '@mui/icons-material/Clear';
 
 import {
@@ -60,6 +63,7 @@ export const SettingsView: React.FC = () => {
     const theme = useTheme();
     const { t } = useTranslation();
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Upload dialog state for the Navigation Rail
@@ -74,6 +78,17 @@ export const SettingsView: React.FC = () => {
             ? tabParam
             : 'models'
     );
+
+    // Support closing settings view with the Escape key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                navigate('/');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [navigate]);
 
     useEffect(() => {
         dispatch(dfActions.setDataSourceSidebarOpen(false));
@@ -226,6 +241,29 @@ export const SettingsView: React.FC = () => {
                                 </Typography>
                             </Box>
                         </Box>
+                        <Tooltip title={t('common.close', { defaultValue: 'Close Settings (Esc)' })}>
+                            <IconButton
+                                onClick={() => navigate('/')}
+                                sx={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: '10px',
+                                    color: '#64748b',
+                                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                                    border: '1px solid #e2e8f0',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                                    transition: 'all 0.15s ease',
+                                    '&:hover': {
+                                        bgcolor: '#f1f5f9',
+                                        color: '#0f172a',
+                                        borderColor: '#cbd5e1',
+                                        transform: 'scale(1.05)',
+                                    },
+                                }}
+                            >
+                                <CloseIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
+                        </Tooltip>
                     </Box>
 
                     {/* ── Two-Card Layout: Left Sidebar Card & Right Detail Content Card ── */}

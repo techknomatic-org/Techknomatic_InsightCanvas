@@ -262,7 +262,70 @@ Metrics are automatically formatted with their domain units:
 - **Financials**: e.g. `$27.47M`, `$1.5K`.
 - **Time**: e.g. `24.5 hrs`, `45 mins`.
 - **Emissions**: e.g. `1.2M tCO₂`.
-- **Ratios & Rates**: e.g. `40.0%`.
+- **Ratios & Margins**: e.g. `19.7%`, `40.0%` (profit margins, conversion rates, and turnover ratios format as percentages).
+
+---
+
+## 12. Multi-Provider LLM Configuration Guide
+
+Access the **Model Settings** dialog via the gear icon (⚙) in the top toolbar to configure your preferred AI provider.
+
+### 12.1 Google Gemini Setup
+- **Provider**: Select `gemini`
+- **Model**: `gemini-3.6-flash` *(or `gemini/gemini-3.6-flash`)*
+- **API Key**: Paste your Google AI Studio key (`AIzaSy...`)
+- **API Base**: **Leave completely blank** (entering a URL triggers HTTP 403 errors)
+
+### 12.2 OrcaRouter Gateway Setup (`https://api.orcarouter.ai/v1`)
+OrcaRouter exposes a unified OpenAI-compatible endpoint with intelligent multi-model routing:
+- **Provider**: Select `openai` *(required because OrcaRouter uses OpenAI's `/v1/chat/completions` schema)*
+- **API Base**: `https://api.orcarouter.ai/v1`
+- **API Key**: Your OrcaRouter API Key
+- **Model Options**:
+  - `orcarouter/fusion` — Mixture-of-Agents (MoA) combining outputs from Claude, GPT-4o, and Gemini for maximum accuracy.
+  - `orcarouter/auto` — Automatically selects the optimal model based on prompt complexity.
+  - `anthropic/claude-3.5-sonnet` — Targets Claude 3.5 Sonnet directly via OrcaRouter.
+
+### 12.3 OpenRouter Setup (`https://openrouter.ai/v1`)
+- **Provider**: Select `openai` (or `openrouter` if available)
+- **API Base**: `https://openrouter.ai/api/v1`
+- **API Key**: Your OpenRouter key (`sk-or-v1-...`)
+- **Model**: `anthropic/claude-3.7-sonnet`, `anthropic/claude-3.5-sonnet`, `openai/gpt-4o`, or `deepseek/deepseek-chat`
+
+### 12.4 OpenAI & GPT-6 Astra Setup
+- **Provider**: Select `openai`
+- **Model**: `gpt-4o`, `o3-mini`, or `gpt-6-astra`
+- **API Key**: `sk-...`
+- **API Base**: *(Leave blank for official OpenAI)*
+
+---
+
+## 13. User-Friendly Error Notifications & Recovery
+
+InsightCanvas includes an intelligent error interpretation engine (`intelligenceErrorHelper`) designed to translate cryptic cloud exceptions into clear business language:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ⚠️  Model Rate Limit Exceeded                                     [Retry ↺] │
+│                                                                             │
+│ The AI provider's temporary usage limit has been reached for this minute.   │
+│                                                                             │
+│ 💡 Suggestion: Wait 15-30 seconds before retrying, or switch to an          │
+│ alternative model in Model Settings.                                       │
+│                                                                             │
+│ ▸ Technical Details (Click to expand)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Common Error Categories & Self-Service Resolutions:
+| Error Category | Detected Cause | Built-in Suggestion |
+| :--- | :--- | :--- |
+| **Authentication Error (401)** | Missing, expired, or invalid API key | Check your key in Model Settings. Ensure there are no leading/trailing spaces. |
+| **Access Denied (403)** | Forbidden endpoint or proxy path conflict | Remove any custom `API Base` URL when using native Google Gemini. |
+| **Model Unavailable (404)** | Deprecated model name (e.g. `gemini-2.0-flash`) | Update your model string to `gemini-3.6-flash` in Model Settings. |
+| **Rate Limit / Quota (429)** | Exceeded provider RPM/TPM or zero credits | Wait briefly to retry, top up credits, or switch models. |
+| **Context Window Exceeded** | Prompt and table samples exceeded token limit | Narrow the table selection or reduce requested dimensions. |
+| **Server Timeout** | Heavy aggregation or slow upstream connection | Click **Retry** — subsequent requests leverage cached schema profiles. |
 
 ---
 

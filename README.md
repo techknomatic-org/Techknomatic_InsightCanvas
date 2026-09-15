@@ -47,7 +47,8 @@ By combining autonomous AI agents with a declarative grammar-of-graphics visual 
 | 📥 **Pixel-Perfect PDF & Image Export** | Export upright, high-resolution dashboards and multi-page executive reports to PDF, JPG, and PNG with zero browser artifacts. |
 | 🎨 **One-Click Style Refinement** | AI aesthetic polish agent adjusts typography, curated color palettes, mark opacity, grid contrast, and legends for executive presentations. |
 | 🔒 **Enterprise Sandboxing & Privacy** | Full datasets stay private in local storage or your database; Python code execution is isolated in secure subprocess/Docker sandboxes. |
-| 🌐 **Multi-Model LLM Gateway** | Works seamlessly with OpenAI (GPT-4o), Azure OpenAI, Anthropic Claude, Google Gemini, DeepSeek, OpenRouter, and local Ollama models. |
+| 🌐 **Multi-Model LLM Gateway** | Works seamlessly with OpenAI (GPT-4o, o3-mini, GPT-6 Astra), OrcaRouter (`api.orcarouter.ai/v1` with MoA Fusion), OpenRouter, Anthropic Claude (3.7/3.5 Sonnet), Google Gemini (`gemini-3.6-flash`), DeepSeek, and local Ollama models. |
+| 💡 **Intelligent Error Experience** | Automatic translation of cryptic cloud exceptions (401, 403, 404, 429, timeouts) into clear, actionable business suggestions with 1-click retries. |
 
 ---
 

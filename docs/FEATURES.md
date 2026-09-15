@@ -94,7 +94,11 @@
 
 ### 2.6 Multi-Model LLM Gateway & Security
 - **Supported Providers**:
-  - OpenAI (GPT-4o, GPT-4o-mini), OpenRouter, Azure OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Ollama / Local LLMs.
+  - OpenAI (GPT-4o, GPT-4o-mini, o3-mini, o1, GPT-6 Astra).
+  - OpenRouter (Claude 3.7 Sonnet, Claude 3.5 Sonnet, DeepSeek V3/R1, Llama 3.3 70B).
+  - OrcaRouter (`api.orcarouter.ai/v1`) with Mixture-of-Agents (`orcarouter/fusion`), adaptive routing (`orcarouter/auto`), and direct frontier models (`anthropic/claude-3.5-sonnet`).
+  - Google Gemini (`gemini-3.6-flash`, `gemini-1.5-pro` with automatic prefix routing and native endpoint resolution).
+  - Azure OpenAI, Anthropic Claude, DeepSeek, and Ollama / Local LLMs.
 - **Enterprise Security**:
   - API Key Masking & server-side encryption via `TokenStore`.
   - Configurable server policies (`DISABLE_DISPLAY_KEYS`, `DISABLE_CUSTOM_MODELS`, `DISABLE_DATA_CONNECTORS`) for hardened public and multi-user deployments.
@@ -108,19 +112,24 @@
   - Generates domain-tailored titles, subtitles, and domain icons (Healthcare, Manufacturing, HR, Sales, Finance, Education, Logistics, Gaming, Media, Analytics).
 - **Executive KPI Performance Scorecard**:
   - Computes 4 high-level strategic KPI metric cards with proper aggregation rules (Sum, Avg, Count, Min, Max), currency/percentage formatting, and baseline performance comparison badges.
+  - **Intelligent Percentage Precedence**: Automatically prioritizes rate, ratio, margin, and percentage metrics over generic currency keywords (e.g. "Profit Margin" formats as `19.7%` instead of `$0.00`).
 - **6 Multi-Dimensional Visual Analytics Grid**:
   - Renders 6 distinct interactive Vega-Lite visual charts per dashboard:
     - Temporal timeline trajectories with ascending chronological ordering (`%b %Y`).
     - Categorical ranking breakdowns (Top 15 bar charts).
     - Composition and distribution visuals (Top 7 donut/pie charts with `"Other"` grouping).
     - Multi-variable scatter correlations and density heatmaps.
+  - **Robust Deep Data Extraction**: Verifies non-empty records across layered and concatenated specs so empty root arrays never shadow valid visualization data.
 - **Dynamic Slicer & In-Memory DuckDB Cross-Filtering**:
   - Auto-detects optimal dimension columns for global slice filtering (e.g. Department, Store, Region, Category).
   - Instantly updates all 4 KPIs and 6 visualization charts across tables via in-memory DuckDB query execution (`_unified_analytics` view).
 
 ---
 
-### 2.8 Self-Healing Agent Accuracy Engine & BI Guardrails
+### 2.8 Self-Healing Agent Accuracy Engine, BI Guardrails & Error Experience
+- **User-Friendly Error Translation & Actionable Suggestions**:
+  - Built-in `intelligenceErrorHelper` categorizes complex backend, LiteLLM, and cloud API errors into clear, non-technical explanations.
+  - Identifies root causes (invalid API keys, deprecated models like 404, rate limits 429, proxy connection issues) and provides actionable guidance (💡) with collapsible technical diagnostics and 1-click retry.
 - **Column Inventory & Fuzzy Schema Matching**:
   - Builds an explicit dictionary of verified column names, physical data types, and distinct sample values before passing to LLMs.
   - Corrects casing discrepancies and hallucinated field names using case-insensitive and `difflib` fuzzy matching.

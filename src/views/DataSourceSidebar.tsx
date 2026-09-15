@@ -417,11 +417,15 @@ export const DataSourceSidebar: React.FC<{
                             id="tour-rail-hub"
                             size="small"
                             onClick={() => {
-                                try {
-                                    localStorage.removeItem('ih_active_hub_state');
-                                } catch {}
                                 dispatch(dfActions.setDataSourceSidebarOpen(false));
-                                navigate('/intelligence-hub');
+                                if (location.pathname.startsWith('/intelligence-hub')) {
+                                    navigate('/');
+                                } else {
+                                    try {
+                                        localStorage.removeItem('ih_active_hub_state');
+                                    } catch {}
+                                    navigate('/intelligence-hub');
+                                }
                             }}
                             sx={{
                                 width: 32,
@@ -444,7 +448,11 @@ export const DataSourceSidebar: React.FC<{
                             size="small"
                             onClick={() => {
                                 dispatch(dfActions.setDataSourceSidebarOpen(false));
-                                navigate('/settings');
+                                if (location.pathname.startsWith('/settings')) {
+                                    navigate('/');
+                                } else {
+                                    navigate('/settings');
+                                }
                             }}
                             sx={{
                                 width: 32,

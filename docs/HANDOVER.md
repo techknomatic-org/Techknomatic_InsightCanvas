@@ -27,7 +27,7 @@ This handover document provides all necessary technical knowledge, operational i
 - **Runtime**: Python 3.11+ (Managed via `uv` or `pip`).
 - **Web Framework**: Flask with SSE (Server-Sent Events) streaming.
 - **Data Processing**: Pandas, NumPy, PyArrow (Parquet engine), DuckDB.
-- **LLM Gateway**: LiteLLM / Custom ModelRegistry supporting OpenAI, Azure, OpenRouter, Anthropic, Gemini, DeepSeek, and local Ollama models.
+- **LLM Gateway**: LiteLLM / Custom ModelRegistry supporting OpenAI (GPT-4o, o3-mini, GPT-6 Astra), OrcaRouter (`https://api.orcarouter.ai/v1`), OpenRouter, Anthropic Claude (3.7/3.5 Sonnet), Google Gemini (`gemini-3.6-flash`), DeepSeek, and local Ollama models.
 - **Database Connectors**: `psycopg2-binary`, `pymysql`, `pyodbc`, `pymongo`, `azure-cosmos`, `azure-kusto-data`, `boto3`.
 
 ---
@@ -142,6 +142,13 @@ Before committing code or deploying to production, execute the following test su
 
 ### Q3: How to reset workspace state or clear corrupted data?
 - Delete or archive the user's workspace folder in `$DATA_FORMULATOR_HOME/users/<user_id>/workspaces/`.
+
+### Q4: Google Gemini returns HTTP 404 or HTTP 403 error.
+- **HTTP 404 Resolution**: Google deprecated `gemini-2.0-flash`. Update the model string to `gemini-3.6-flash`.
+- **HTTP 403 Resolution**: Ensure the `API Base` field is left completely empty. Native Gemini routes directly to Google; adding a URL creates path duplication.
+
+### Q5: How to configure OrcaRouter?
+- In Model Settings, set **Provider** to `openai`, **API Base** to `https://api.orcarouter.ai/v1`, and **Model** to `orcarouter/fusion` (MoA accuracy) or `anthropic/claude-3.5-sonnet`.
 
 ---
 

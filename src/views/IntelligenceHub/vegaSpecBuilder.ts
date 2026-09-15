@@ -173,11 +173,38 @@ export function rebuildVegaSpec(
     const primaryColor = themePreset.primaryColor;
     const colorPalette = themePreset.palette;
 
-    // Detect if x-axis is temporal from existing spec or field name
+    // Dynamically detect if x-axis values are genuinely parseable as calendar dates.
+    // We sample actual data values instead of relying on hardcoded column-name patterns,
+    // so columns named "Month" with values like "January" are correctly treated as nominal
+    // while columns with genuine ISO dates like "2024-01-15" remain temporal.
+    const isTemporalValue = (val: any): boolean => {
+        if (val == null || val === '') return false;
+        if (val instanceof Date) return !isNaN(val.getTime());
+        if (typeof val === 'number') return val >= 1e9; // Unix epoch threshold
+        if (typeof val === 'string') {
+            const trimmed = val.trim();
+            // Pure small numbers (1, 2, 12, 100) are indices/categories, not dates
+            if (/^\d{1,3}$/.test(trimmed)) return false;
+            return !isNaN(Date.parse(trimmed));
+        }
+        return false;
+    };
+
     const existingXType = viz.vega_spec?.encoding?.x?.type;
-    const isTemporal =
-        existingXType === 'temporal' ||
-        Boolean(xField && /date|time|timestamp|created_at|updated_at|month|year/i.test(xField));
+    // Sample up to 3 data values from the x-field to verify temporal parseability
+    let dataIsTemporal = false;
+    if (xField && records.length > 0) {
+        const sampleSize = Math.min(records.length, 3);
+        let validTemporalCount = 0;
+        for (let i = 0; i < sampleSize; i++) {
+            if (isTemporalValue(records[i]?.[xField])) {
+                validTemporalCount++;
+            }
+        }
+        // Consider temporal only if a majority of sampled values parse as valid dates
+        dataIsTemporal = validTemporalCount > sampleSize / 2;
+    }
+    const isTemporal = existingXType === 'temporal' ? dataIsTemporal : dataIsTemporal;
 
     const formatTitle = (str: string) =>
         str.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
@@ -221,6 +248,19 @@ export function rebuildVegaSpec(
 
     // Pie / Donut Charts (Arc with Layered Text)
     if (cType === 'donut' || cType === 'pie') {
+        const topEncoding: any = {
+            theta: yField ? { field: yField, type: 'quantitative', stack: true } : undefined,
+            color: xField
+                ? {
+                      field: xField,
+                      type: 'nominal',
+                      scale: { range: colorPalette },
+                      legend: { orient: 'bottom', columns: 3, labelFontSize: 11, title: null },
+                  }
+                : { value: primaryColor },
+            tooltip: tooltip.length > 0 ? tooltip : undefined,
+        };
+
         const arcLayer: any = {
             mark: {
                 type: 'arc',
@@ -229,31 +269,17 @@ export function rebuildVegaSpec(
                 padAngle: 0.03,
                 cornerRadius: 4,
             },
-            encoding: {
-                theta: yField ? { field: yField, type: 'quantitative', stack: true } : undefined,
-                color: xField
-                    ? {
-                          field: xField,
-                          type: 'nominal',
-                          scale: { range: colorPalette },
-                          legend: { orient: 'bottom', columns: 3, labelFontSize: 11, title: null },
-                      }
-                    : { value: primaryColor },
-                tooltip: tooltip.length > 0 ? tooltip : undefined,
-            },
         };
 
         const textLayer: any = {
             mark: {
                 type: 'text',
-                radius: cType === 'donut' ? 63 : 52,
+                radius: cType === 'donut' ? 62 : 52,
                 fontSize: 11,
                 fontWeight: 700,
                 fill: '#ffffff',
             },
             encoding: {
-                theta: yField ? { field: yField, type: 'quantitative', stack: true } : undefined,
-                detail: xField ? { field: xField, type: 'nominal' } : undefined,
                 text: yField ? { field: yField, type: 'quantitative', format: '~s' } : undefined,
             },
         };
@@ -270,6 +296,7 @@ export function rebuildVegaSpec(
             width: 'container',
             height: 220,
             data: { values: records },
+            encoding: topEncoding,
             layer: [arcLayer, textLayer],
             config: {
                 view: { stroke: 'transparent' },
@@ -456,6 +483,7 @@ export function rebuildVegaSpec(
             encoding.x = {
                 field: xField,
                 type: 'nominal',
+                sort: null, // Preserve original data order from backend query
                 axis: {
                     labelAngle: records.length > 6 ? -30 : 0,
                     labelLimit: 90,
