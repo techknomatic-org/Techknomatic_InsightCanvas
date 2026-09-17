@@ -38,7 +38,7 @@ interface ChatPanelProps {
     variant?: 'central' | 'floating';
     onClose?: () => void;
     placeholder?: string;
-    error?: string | null;
+    error?: any;
     onClearError?: () => void;
     onChangeTables?: () => void;
 }
@@ -56,7 +56,19 @@ interface ParsedError {
     actionUrl?: string;
 }
 
-const parseErrorDetails = (errorMsg?: string | null): ParsedError => {
+const parseErrorDetails = (rawError?: any): ParsedError => {
+    let errorMsg = '';
+    if (typeof rawError === 'string') {
+        errorMsg = rawError;
+    } else if (rawError && typeof rawError === 'object') {
+        errorMsg = rawError.reason || rawError.message || rawError.detail || rawError.apiError?.message || '';
+        if (!errorMsg && rawError.toString && rawError.toString() !== '[object Object]') {
+            errorMsg = rawError.toString();
+        }
+    }
+
+    errorMsg = (errorMsg || '').trim();
+
     if (!errorMsg) {
         return {
             category: 'generic',

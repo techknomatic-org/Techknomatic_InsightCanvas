@@ -258,6 +258,8 @@
     "pngDownloaded": "PNG downloaded",
     "wordDownloaded": "Word document (.docx) downloaded",
     "failedToDownloadPng": "Failed to download PNG. Please try again.",
+    "pdfDownloaded": "PDF report downloaded",
+    "generatingPdf": "Generating PDF...",
     "pdfPrintOpened": "Print dialog opened. Choose Save as PDF.",
     "failedToExportPdf": "Failed to export PDF. Please try again.",
     "failedToExportDocx": "Failed to export Word document. Please try again.",

@@ -310,14 +310,25 @@ export interface DataFormulatorState {
     starterQuestionsStatus: { [tableId: string]: 'idle' | 'loading' | 'error' };
 }
 
+const getInitialModels = (): ModelConfig[] => {
+    try {
+        const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('df_user_models') : null;
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch { /* ignore */ }
+    return [];
+};
+
 // Define the initial state using that type
 const initialState: DataFormulatorState = {
 
 
     identity: { type: 'browser', id: getBrowserId() },
     globalModels: [],
-    models: [],
-    selectedModelId: localStorage.getItem('df_selected_model') || undefined,
+    models: getInitialModels(),
+    selectedModelId: (typeof localStorage !== 'undefined' ? localStorage.getItem('df_selected_model') : null) || undefined,
     testedModels: [],
 
     inputTables: [],
@@ -845,6 +856,27 @@ export const fetchAvailableModels = createAsyncThunk(
     }
 );
 
+/** Fetch user-configured models and active selection from backend */
+export const fetchUserModels = createAsyncThunk(
+    "dataFormulatorSlice/fetchUserModels",
+    async (_, { dispatch }) => {
+        try {
+            const { data } = await apiRequest<{ models: ModelConfig[]; selected_model_id?: string | null }>(getUrls().USER_MODELS);
+            if (data && Array.isArray(data.models)) {
+                dispatch(dfActions.setUserModels(data.models));
+                if (data.selected_model_id) {
+                    dispatch(dfActions.selectModel(data.selected_model_id));
+                } else if (data.models.length > 0) {
+                    dispatch(dfActions.selectModel(data.models[0].id));
+                }
+            }
+            return data;
+        } catch {
+            return null;
+        }
+    }
+);
+
 // No server round-trip needed - identity is determined client-side:
 // - User ID from auth provider (if logged in)
 // - Browser ID from localStorage (shared across all tabs)
@@ -1087,6 +1119,20 @@ export const dataFormulatorSlice = createSlice({
         setViewMode: (state, action: PayloadAction<'editor' | 'report'>) => {
             state.viewMode = action.payload;
         },
+        setUserModels: (state, action: PayloadAction<ModelConfig[]>) => {
+            state.models = action.payload;
+            try {
+                localStorage.setItem('df_user_models', JSON.stringify(action.payload));
+                if (action.payload.length > 0) {
+                    localStorage.setItem('df_model_configured', 'true');
+                }
+            } catch { /* ignore */ }
+            const userModelIds = new Set(action.payload.map(m => m.id));
+            state.testedModels = [
+                ...state.testedModels.filter(t => !userModelIds.has(t.id)),
+                ...action.payload.map(m => ({ id: m.id, status: 'ok' as const, message: '' })),
+            ];
+        },
         selectModel: (state, action: PayloadAction<string | undefined>) => {
             state.selectedModelId = action.payload;
             try {
@@ -1098,21 +1144,70 @@ export const dataFormulatorSlice = createSlice({
                     localStorage.removeItem('df_model_configured');
                 }
             } catch { /* localStorage unavailable */ }
+            if (action.payload) {
+                apiRequest(getUrls().USER_MODELS_SELECT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selected_model_id: action.payload }),
+                }).catch(() => undefined);
+            }
         },
         addModel: (state, action: PayloadAction<ModelConfig>) => {
-            state.models = [...state.models, action.payload];
+            state.models = [...state.models.filter(m => m.id !== action.payload.id), action.payload];
+            const shouldSelect = !state.selectedModelId;
+            if (shouldSelect) {
+                state.selectedModelId = action.payload.id;
+                try {
+                    localStorage.setItem('df_selected_model', action.payload.id);
+                } catch { /* ignore */ }
+            }
+            try {
+                localStorage.setItem('df_user_models', JSON.stringify(state.models));
+                localStorage.setItem('df_model_configured', 'true');
+            } catch { /* ignore */ }
+            apiRequest(getUrls().USER_MODELS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: action.payload,
+                    ...(shouldSelect ? { selected_model_id: action.payload.id } : {}),
+                }),
+            }).catch(() => undefined);
         },
         updateModel: (state, action: PayloadAction<ModelConfig>) => {
             state.models = state.models.map(model =>
                 model.id === action.payload.id ? action.payload : model
             );
+            try {
+                localStorage.setItem('df_user_models', JSON.stringify(state.models));
+            } catch { /* ignore */ }
+            apiRequest(getUrls().USER_MODELS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: action.payload }),
+            }).catch(() => undefined);
         },
         removeModel: (state, action: PayloadAction<string>) => {
             state.models = state.models.filter(model => model.id != action.payload);
+            try {
+                localStorage.setItem('df_user_models', JSON.stringify(state.models));
+            } catch { /* ignore */ }
             if (state.selectedModelId == action.payload) {
-                state.selectedModelId = undefined;
-                try { localStorage.removeItem('df_selected_model'); } catch { /* */ }
+                const nextModel = state.models[0]?.id || state.globalModels[0]?.id || undefined;
+                state.selectedModelId = nextModel;
+                try {
+                    if (nextModel) {
+                        localStorage.setItem('df_selected_model', nextModel);
+                    } else {
+                        localStorage.removeItem('df_selected_model');
+                    }
+                } catch { /* */ }
             }
+            apiRequest(getUrls().USER_MODELS_DELETE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: action.payload }),
+            }).catch(() => undefined);
         },
         updateModelStatus: (state, action: PayloadAction<{id: string, status: 'ok' | 'error' | 'testing' | 'unknown', message: string}>) => {
             let id = action.payload.id;

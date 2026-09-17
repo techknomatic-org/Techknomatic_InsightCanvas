@@ -72,7 +72,6 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { KnowledgePanel } from './KnowledgePanel';
 
-import { AuthButton } from '../app/AuthButton';
 import { DataFormulatorState, dfActions, dfSelectors } from '../app/dfSlice';
 import { AppDispatch } from '../app/store';
 import { CONNECTOR_URLS, CONNECTOR_ACTION_URLS, SourceTableRef, translateBackend } from '../app/utils';
@@ -472,15 +471,6 @@ export const DataSourceSidebar: React.FC<{
 
                     {/* Spacer fills the remaining bottom space */}
                     <Box sx={{ flex: 1 }} />
-
-                    {/* Profile / Account button at bottom of sidebar rail */}
-                    <AuthButton
-                        id="tour-rail-account"
-                        tooltipPlacement="right"
-                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                        buttonSx={{ ml: 0, mb: 1 }}
-                    />
                 </Box>
 
                 {/* The expanded panel overlays the workspace instead of changing

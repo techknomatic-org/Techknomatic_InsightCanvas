@@ -1049,6 +1049,127 @@ class AnalystAgent:
 
             chart_encodings = chart_spec.get("encodings", {})
 
+            # Normalize column names in encodings against full_df.columns (case/whitespace tolerance)
+            col_lookup = {str(c).strip().lower(): c for c in full_df.columns}
+            for ch, f in list(chart_encodings.items()):
+                if isinstance(f, str) and f not in full_df.columns:
+                    norm = f.strip().lower()
+                    if norm in col_lookup:
+                        chart_encodings[ch] = col_lookup[norm]
+                elif isinstance(f, dict) and isinstance(f.get("field"), str) and f["field"] not in full_df.columns:
+                    norm = f["field"].strip().lower()
+                    if norm in col_lookup:
+                        f["field"] = col_lookup[norm]
+
+            # Auto-repair missing required channels across all chart categories so charts render properly
+            chart_type = chart_spec.get("chart_type") or chart_spec.get("type", "")
+            two_axis_standard = {
+                "Line Chart", "Area Chart", "Bar Chart", "Scatter Plot", "Regression",
+                "Boxplot", "Lollipop Chart", "Waterfall Chart", "Grouped Bar Chart",
+                "Stacked Bar Chart", "Range Area Chart", "Violin Plot", "Strip Plot",
+                "Bump Chart", "Connected Scatter Plot", "Ranged Dot Plot", "Pyramid Chart",
+                "Sparkline", "Slope Chart", "Streamgraph", "Rose Chart", "Radar Chart",
+                "Heatmap",
+            }
+            inverted_bar_charts = {"Bar Table", "Bullet Chart", "Gantt Chart"}
+            circular_charts = {"Pie Chart", "Donut Chart"}
+            distribution_1axis = {"Histogram", "Density Plot", "ECDF Plot"}
+
+            if not full_df.empty:
+                import pandas as pd
+                used_cols = {
+                    f if isinstance(f, str) else (f.get("field") if isinstance(f, dict) else "")
+                    for f in chart_encodings.values()
+                }
+                def _find_numeric():
+                    for c in full_df.columns:
+                        if c not in used_cols and pd.api.types.is_numeric_dtype(full_df[c]):
+                            return c
+                    return None
+
+                def _find_categorical_or_any():
+                    for c in full_df.columns:
+                        if c not in used_cols:
+                            return c
+                    return None
+
+                if chart_type in two_axis_standard:
+                    y_field = chart_encodings.get("y")
+                    if isinstance(y_field, dict): y_field = y_field.get("field")
+                    if not y_field:
+                        num = _find_numeric()
+                        if num:
+                            chart_encodings["y"] = num
+                            used_cols.add(num)
+                            logger.info(f"[AnalystAgent] Auto-assigned missing 'y' for {chart_type} to '{num}'")
+                    x_field = chart_encodings.get("x")
+                    if isinstance(x_field, dict): x_field = x_field.get("field")
+                    if not x_field:
+                        cat = _find_categorical_or_any()
+                        if cat:
+                            chart_encodings["x"] = cat
+                            used_cols.add(cat)
+                            logger.info(f"[AnalystAgent] Auto-assigned missing 'x' for {chart_type} to '{cat}'")
+
+                elif chart_type in inverted_bar_charts:
+                    x_field = chart_encodings.get("x")
+                    if isinstance(x_field, dict): x_field = x_field.get("field")
+                    if not x_field:
+                        num = _find_numeric()
+                        if num:
+                            chart_encodings["x"] = num
+                            used_cols.add(num)
+                    y_field = chart_encodings.get("y")
+                    if isinstance(y_field, dict): y_field = y_field.get("field")
+                    if not y_field:
+                        cat = _find_categorical_or_any()
+                        if cat:
+                            chart_encodings["y"] = cat
+                            used_cols.add(cat)
+
+                elif chart_type in circular_charts:
+                    size_field = chart_encodings.get("size")
+                    if isinstance(size_field, dict): size_field = size_field.get("field")
+                    if not size_field:
+                        num = _find_numeric()
+                        if num:
+                            chart_encodings["size"] = num
+                            used_cols.add(num)
+                    color_field = chart_encodings.get("color")
+                    if isinstance(color_field, dict): color_field = color_field.get("field")
+                    if not color_field:
+                        cat = _find_categorical_or_any()
+                        if cat:
+                            chart_encodings["color"] = cat
+                            used_cols.add(cat)
+
+                elif chart_type in distribution_1axis:
+                    x_field = chart_encodings.get("x")
+                    if isinstance(x_field, dict): x_field = x_field.get("field")
+                    if not x_field:
+                        num = _find_numeric() or _find_categorical_or_any()
+                        if num:
+                            chart_encodings["x"] = num
+                            used_cols.add(num)
+
+                elif chart_type == "KPI Card":
+                    val_field = chart_encodings.get("value")
+                    if isinstance(val_field, dict): val_field = val_field.get("field")
+                    if not val_field:
+                        num = _find_numeric()
+                        if num:
+                            chart_encodings["value"] = num
+                            used_cols.add(num)
+                    met_field = chart_encodings.get("metric")
+                    if isinstance(met_field, dict): met_field = met_field.get("field")
+                    if not met_field:
+                        cat = _find_categorical_or_any()
+                        if cat:
+                            chart_encodings["metric"] = cat
+                            used_cols.add(cat)
+
+            chart_spec["encodings"] = chart_encodings
+
             def _missing_encoding(field: Any) -> bool:
                 # field is normally a column-name string. Weak models sometimes
                 # emit a dict ({"field": "col"}), a list, or other non-string;

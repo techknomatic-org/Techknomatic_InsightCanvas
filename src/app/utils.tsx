@@ -72,6 +72,9 @@ export function getUrls() {
         LOGS_TAIL: `/api/logs/tail`,
         LOGS_DOWNLOAD: `/api/logs/download`,
         MODEL_ENDPOINTS: `/api/model-endpoints`,
+        USER_MODELS: `/api/user-models`,
+        USER_MODELS_SELECT: `/api/user-models/select`,
+        USER_MODELS_DELETE: `/api/user-models/delete`,
 
         // Session management
         SESSION_SAVE: `/api/sessions/save`,
@@ -563,6 +566,104 @@ export const assembleVegaChart = (
         };
     }
 
+    // Auto-resolve missing required channels across all chart categories
+    // so every chart type properly populates and never collapses into an empty/squashed artifact.
+    const twoAxisStandard = new Set([
+        'Line Chart', 'Area Chart', 'Bar Chart', 'Scatter Plot', 'Regression',
+        'Boxplot', 'Lollipop Chart', 'Waterfall Chart', 'Grouped Bar Chart',
+        'Stacked Bar Chart', 'Range Area Chart', 'Violin Plot', 'Strip Plot',
+        'Bump Chart', 'Connected Scatter Plot', 'Ranged Dot Plot', 'Pyramid Chart',
+        'Sparkline', 'Slope Chart', 'Streamgraph', 'Rose Chart', 'Radar Chart',
+        'Heatmap',
+    ]);
+    const invertedBarCharts = new Set(['Bar Table', 'Bullet Chart', 'Gantt Chart']);
+    const circularCharts = new Set(['Pie Chart', 'Donut Chart']);
+    const distribution1Axis = new Set(['Histogram', 'Density Plot', 'ECDF Plot']);
+
+    if (workingTable && workingTable.length > 0) {
+        const assignedFields = new Set(
+            Object.values(encodings).map(e => e.field).filter((f): f is string => Boolean(f))
+        );
+        const row = workingTable[0];
+        const findNumeric = () => Object.keys(row).find(col => {
+            if (assignedFields.has(col)) return false;
+            const val = row[col];
+            return typeof val === 'number' || (!isNaN(Number(val)) && val !== null && val !== '');
+        });
+        const findCategoricalOrAny = () => Object.keys(row).find(col => !assignedFields.has(col));
+
+        if (twoAxisStandard.has(chartType)) {
+            if (!encodings.y?.field) {
+                const numCol = findNumeric();
+                if (numCol) {
+                    encodings.y = { field: numCol, type: 'quantitative' };
+                    assignedFields.add(numCol);
+                }
+            }
+            if (!encodings.x?.field) {
+                const catCol = findCategoricalOrAny();
+                if (catCol) {
+                    encodings.x = { field: catCol, type: 'nominal' };
+                    assignedFields.add(catCol);
+                }
+            }
+        } else if (invertedBarCharts.has(chartType)) {
+            // Inverted: x is quantitative measure, y is categorical row
+            if (!encodings.x?.field) {
+                const numCol = findNumeric();
+                if (numCol) {
+                    encodings.x = { field: numCol, type: 'quantitative' };
+                    assignedFields.add(numCol);
+                }
+            }
+            if (!encodings.y?.field) {
+                const catCol = findCategoricalOrAny();
+                if (catCol) {
+                    encodings.y = { field: catCol, type: 'nominal' };
+                    assignedFields.add(catCol);
+                }
+            }
+        } else if (circularCharts.has(chartType)) {
+            if (!encodings.size?.field) {
+                const numCol = findNumeric();
+                if (numCol) {
+                    encodings.size = { field: numCol, type: 'quantitative' };
+                    assignedFields.add(numCol);
+                }
+            }
+            if (!encodings.color?.field) {
+                const catCol = findCategoricalOrAny();
+                if (catCol) {
+                    encodings.color = { field: catCol, type: 'nominal' };
+                    assignedFields.add(catCol);
+                }
+            }
+        } else if (distribution1Axis.has(chartType)) {
+            if (!encodings.x?.field) {
+                const numCol = findNumeric() || findCategoricalOrAny();
+                if (numCol) {
+                    encodings.x = { field: numCol, type: 'quantitative' };
+                    assignedFields.add(numCol);
+                }
+            }
+        } else if (chartType === 'KPI Card') {
+            if (!encodings.value?.field) {
+                const numCol = findNumeric();
+                if (numCol) {
+                    encodings.value = { field: numCol, type: 'quantitative' };
+                    assignedFields.add(numCol);
+                }
+            }
+            if (!encodings.metric?.field) {
+                const catCol = findCategoricalOrAny();
+                if (catCol) {
+                    encodings.metric = { field: catCol, type: 'nominal' };
+                    assignedFields.add(catCol);
+                }
+            }
+        }
+    }
+
     const semanticTypes: Record<string, string | any> = {};
     for (const [fieldName, info] of Object.entries(fieldSemantics ?? {})) {
         if (info.semanticType) {
@@ -614,6 +715,18 @@ export const assembleVegaChart = (
         ...(themeId ? { theme_spec: themeId } : {}),
         ...(Object.keys(fieldDisplayNames).length > 0 ? { field_display_names: fieldDisplayNames } : {}),
     });
+
+    // Enforce a minimum readable height floor so continuous-scale charts never
+    // collapse into an unreadable horizontal slit.
+    if (spec && typeof spec === 'object') {
+        const MIN_CHART_HEIGHT = 200;
+        if (spec.config?.view?.continuousHeight != null && spec.config.view.continuousHeight < MIN_CHART_HEIGHT) {
+            spec.config.view.continuousHeight = MIN_CHART_HEIGHT;
+        }
+        if (typeof spec.height === 'number' && spec.height < MIN_CHART_HEIGHT) {
+            spec.height = MIN_CHART_HEIGHT;
+        }
+    }
 
     // Published flint-chart 0.4.1 ignores chart-level title/subtitle fields;
     // live Flint consumes them above and owns fitting. Keep this fallback until

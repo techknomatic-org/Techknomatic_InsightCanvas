@@ -46,6 +46,7 @@ import { downloadVisualImage, downloadVisualCsv } from './dashboardExport';
 interface ChartCardProps {
     viz: VisualizationSpec;
     index: number;
+    allVisuals?: VisualizationSpec[];
     onUpdateVisualization?: (index: number, updatedViz: VisualizationSpec) => void;
 }
 
@@ -73,24 +74,80 @@ const getChartIcon = (type?: string) => {
     }
 };
 
-const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization }) => {
+const ChartCard: React.FC<ChartCardProps> = ({ viz, index, allVisuals, onUpdateVisualization }) => {
     const cardRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const hasData =
+
+    const hasOriginalData =
         (Array.isArray(viz.data) && viz.data.length > 0) ||
         (Array.isArray(viz.vega_spec?.data?.values) && viz.vega_spec.data.values.length > 0) ||
         (Array.isArray(viz.vega_spec?.layer) && viz.vega_spec.layer.some((l: any) => Array.isArray(l?.data?.values) && l.data.values.length > 0));
 
-    const currentThemeId = viz.theme_id || (viz as any).theme_id || 'techknomatic';
+    // Find alternative data from sibling visuals if this visual has no records
+    const donorViz = !hasOriginalData
+        ? allVisuals?.find((v, i) => i !== index && (
+            (Array.isArray(v.data) && v.data.length > 0) ||
+            (Array.isArray(v.vega_spec?.data?.values) && v.vega_spec.data.values.length > 0)
+        ))
+        : null;
+
+    const donorData = donorViz
+        ? (Array.isArray(donorViz.data) && donorViz.data.length > 0
+            ? donorViz.data
+            : (donorViz.vega_spec?.data?.values || []))
+        : [];
+
+    const effectiveChartType = normalizeChartType(viz.chart_type || 'donut');
+    const effectiveThemeId = viz.theme_id || (viz as any).theme_id || 'techknomatic';
+
+    // Build adapted visual if original has no records but sibling has data
+    const effectiveViz: VisualizationSpec = React.useMemo(() => {
+        if (hasOriginalData || !donorViz || donorData.length === 0) {
+            return viz;
+        }
+        const firstRow = donorData[0] || {};
+        const keys = Object.keys(firstRow);
+        const xField = donorViz.x_field && keys.includes(donorViz.x_field) ? donorViz.x_field : (keys[0] || 'category');
+        const yField = donorViz.y_field && keys.includes(donorViz.y_field) ? donorViz.y_field : (keys[1] || 'value');
+        const sliceCount = (effectiveChartType === 'donut' || effectiveChartType === 'pie') ? 7 : 12;
+        const adaptedData = donorData.slice(0, sliceCount);
+
+        const baseClean = (viz.title || 'Alternative View').replace(/\s*(?:Breakdown|Distribution|Overview|Analysis|Summary)/gi, '').trim();
+        const adaptedTitle = baseClean ? `${baseClean} Overview` : `${xField} Breakdown`;
+
+        const adapted: VisualizationSpec = {
+            ...viz,
+            title: adaptedTitle,
+            description: `Distribution of records segmented by ${xField} (Alternative view)`,
+            chart_type: effectiveChartType,
+            x_field: xField,
+            y_field: yField,
+            data: adaptedData,
+        };
+        const themeObj = CHART_THEME_PRESETS.find((t) => t.id === effectiveThemeId) || CHART_THEME_PRESETS[0];
+        adapted.vega_spec = rebuildVegaSpec(adapted, effectiveChartType, themeObj);
+        return adapted;
+    }, [viz, hasOriginalData, donorViz, donorData, effectiveChartType, effectiveThemeId]);
+
+    const hasData = hasOriginalData || (Array.isArray(effectiveViz.data) && effectiveViz.data.length > 0);
+
+    // Synchronize parent state if adapted
+    useEffect(() => {
+        if (!hasOriginalData && donorViz && effectiveViz.data && effectiveViz.data.length > 0 && onUpdateVisualization) {
+            onUpdateVisualization(index, effectiveViz);
+        }
+    }, [hasOriginalData, donorViz, index]);
+
+    const currentThemeId = effectiveViz.theme_id || (effectiveViz as any).theme_id || 'techknomatic';
     const [selectedThemeId, setSelectedThemeId] = useState<string>(currentThemeId);
 
     // Synchronize local theme state if parent passes down a theme_id
     useEffect(() => {
-        const tid = viz.theme_id || (viz as any).theme_id;
+        const tid = effectiveViz.theme_id || (effectiveViz as any).theme_id;
         if (tid) {
             setSelectedThemeId(tid);
         }
-    }, [viz.theme_id, (viz as any).theme_id]);
+    }, [effectiveViz.theme_id, (effectiveViz as any).theme_id]);
 
     // Anchor element for customization popover
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -150,7 +207,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
         setDownloadingFormat('jpg');
         handleCloseDownloadMenu();
         try {
-            await downloadVisualImage(cardRef.current, viz.title || `visual-${index + 1}`, 'jpg');
+            await downloadVisualImage(cardRef.current, effectiveViz.title || `visual-${index + 1}`, 'jpg');
         } catch (err) {
             console.error('Failed to download JPG visual:', err);
         } finally {
@@ -161,8 +218,8 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     const handleDownloadCsv = () => {
         handleCloseDownloadMenu();
         try {
-            const rows = getVisualData(viz);
-            downloadVisualCsv(rows, viz.title || `visual-${index + 1}-data`);
+            const rows = getVisualData(effectiveViz);
+            downloadVisualCsv(rows, effectiveViz.title || `visual-${index + 1}-data`);
         } catch (err: any) {
             console.error('Failed to export visual data CSV:', err);
         }
@@ -171,9 +228,9 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
     const handleSelectChartType = (newType: SupportedChartType) => {
         const theme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
         const normalized = normalizeChartType(newType);
-        const newVegaSpec = rebuildVegaSpec(viz, normalized, theme);
+        const newVegaSpec = rebuildVegaSpec(effectiveViz, normalized, theme);
         const updatedViz: VisualizationSpec = {
-            ...viz,
+            ...effectiveViz,
             chart_type: normalized,
             theme_id: theme.id,
             vega_spec: newVegaSpec,
@@ -185,10 +242,10 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
     const handleSelectTheme = (theme: ChartThemePreset) => {
         setSelectedThemeId(theme.id);
-        const currentType = normalizeChartType(viz.chart_type);
-        const newVegaSpec = rebuildVegaSpec(viz, currentType, theme);
+        const currentType = normalizeChartType(effectiveViz.chart_type);
+        const newVegaSpec = rebuildVegaSpec(effectiveViz, currentType, theme);
         const updatedViz: VisualizationSpec = {
-            ...viz,
+            ...effectiveViz,
             chart_type: currentType,
             theme_id: theme.id,
             vega_spec: newVegaSpec,
@@ -211,19 +268,20 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
 
         // Determine active theme preset
         const activeTheme = CHART_THEME_PRESETS.find((t) => t.id === selectedThemeId) || CHART_THEME_PRESETS[0];
-        const activeType = normalizeChartType(viz.chart_type);
+        const activeType = normalizeChartType(effectiveViz.chart_type);
 
         // Always compile a verified Vega spec matching active data records and theme
-        const baseSpec = rebuildVegaSpec(viz, activeType, activeTheme);
+        const baseSpec = rebuildVegaSpec(effectiveViz, activeType, activeTheme);
 
         // Strip duplicate internal Vega title so only the single styled card header is shown
         const { title: _internalTitle, ...vegaSpecWithoutTitle } = baseSpec;
 
-        // Inject rich responsive config
+        // Inject rich responsive config with explicit top padding and safe height
         const specToRender: any = {
             ...vegaSpecWithoutTitle,
             width: 'container',
-            height: 200,
+            height: 220,
+            padding: { top: 16, bottom: 8, left: 10, right: 10 },
             autosize: { type: 'fit', contains: 'padding' },
             config: {
                 ...(baseSpec.config || {}),
@@ -244,7 +302,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
             renderer: 'svg',
         }).catch((err) => {
             if (isMounted) {
-                console.warn('Vega embed warning for:', viz.title, err);
+                console.warn('Vega embed warning for:', effectiveViz.title, err);
                 // Fallback attempt with canvas renderer
                 embed(target, specToRender, { actions: false, renderer: 'canvas' }).catch(() => {});
             }
@@ -254,10 +312,10 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
             isMounted = false;
             if (target) target.innerHTML = '';
         };
-    }, [viz.vega_spec, viz.data, viz.chart_type, selectedThemeId, hasData]);
+    }, [effectiveViz.vega_spec, effectiveViz.data, effectiveViz.chart_type, selectedThemeId, hasData]);
 
     const isMenuOpen = Boolean(anchorEl);
-    const activeType = (viz.chart_type || 'bar').toLowerCase();
+    const activeType = (effectiveViz.chart_type || 'bar').toLowerCase();
 
     return (
         <Card
@@ -281,7 +339,7 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
             <CardContent sx={{ p: 2.2, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', fontSize: '13.5px', lineHeight: 1.3, flex: 1 }}>
-                        {viz.title}
+                        {effectiveViz.title}
                     </Typography>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
@@ -289,11 +347,11 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                         <Tooltip title="Click to change chart type or color theme" arrow placement="top">
                             <Chip
                                 size="small"
-                                icon={getChartIcon(viz.chart_type)}
+                                icon={getChartIcon(effectiveViz.chart_type)}
                                 deleteIcon={<KeyboardArrowDownIcon sx={{ fontSize: '14px !important', color: '#1B75BB !important', mr: -0.2 }} />}
                                 onDelete={handleOpenMenu}
                                 onClick={handleOpenMenu}
-                                label={viz.chart_type || 'chart'}
+                                label={effectiveViz.chart_type || 'chart'}
                                 sx={{
                                     height: 22,
                                     fontSize: '10px',
@@ -355,9 +413,9 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                     </Box>
                 </Box>
 
-                {viz.description && (
+                {effectiveViz.description && (
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', fontSize: '11px', lineHeight: 1.4 }}>
-                        {viz.description}
+                        {effectiveViz.description}
                     </Typography>
                 )}
 
@@ -368,12 +426,13 @@ const ChartCard: React.FC<ChartCardProps> = ({ viz, index, onUpdateVisualization
                         sx={{
                             flex: 1,
                             width: '100%',
-                            minHeight: 200,
+                            minHeight: 220,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             mt: 'auto',
-                            '& svg': { maxWidth: '100% !important' },
+                            overflow: 'visible',
+                            '& svg': { maxWidth: '100% !important', overflow: 'visible' },
                         }}
                     />
                 ) : (
@@ -668,6 +727,7 @@ export const VisualizationGrid: React.FC<VisualizationGridProps> = ({
                     key={viz.id || `viz-${idx}`}
                     viz={viz}
                     index={idx}
+                    allVisuals={items}
                     onUpdateVisualization={onUpdateVisualization}
                 />
             ))}

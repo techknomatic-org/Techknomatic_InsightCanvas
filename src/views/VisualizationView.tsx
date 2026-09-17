@@ -92,7 +92,7 @@ import { EncodingShelfCard } from './EncodingShelfCard';
 import { ChartQuickConfig } from './ChartQuickConfig';
 import { ChartVariantStrip } from './ChartVariantStrip';
 import { CustomReactTable } from './ReactTable';
-import { getConnectorIcon, InsightIcon } from '../icons';
+import { getConnectorIcon, InsightIcon, TableIcon } from '../icons';
 import { FreeDataViewFC } from './DataView';
 import { formatCellValue } from './ViewUtils';
 
@@ -437,7 +437,25 @@ export let checkChartAvailabilityOnPreparedData = (chart: Chart, conceptShelfIte
                 }
                 return undefined;
             }).filter((f): f is string => f != undefined);
-    return visFieldsFinalNames.length > 0 && visTableRows.length > 0 && visFieldsFinalNames.every(name => Object.keys(visTableRows[0]).includes(name));
+    if (visFieldsFinalNames.length === 0 || visTableRows.length === 0 || !visFieldsFinalNames.every(name => Object.keys(visTableRows[0]).includes(name))) {
+        return false;
+    }
+    const twoAxisCharts = [
+        'Line Chart', 'Area Chart', 'Bar Chart', 'Scatter Plot', 'Regression',
+        'Boxplot', 'Lollipop Chart', 'Waterfall Chart', 'Grouped Bar Chart',
+        'Stacked Bar Chart', 'Range Area Chart', 'Violin Plot', 'Strip Plot',
+        'Bump Chart', 'Connected Scatter Plot', 'Ranged Dot Plot', 'Pyramid Chart',
+        'Sparkline', 'Slope Chart', 'Streamgraph', 'Rose Chart', 'Radar Chart',
+        'Heatmap',
+    ];
+    if (twoAxisCharts.includes(chart.chartType)) {
+        const hasY = chart.encodingMap.y?.fieldID != null;
+        const hasNumericCandidate = Object.values(visTableRows[0]).some(
+            v => typeof v === 'number' || (!isNaN(Number(v)) && v !== null && v !== '')
+        );
+        if (!hasY && !hasNumericCandidate) return false;
+    }
+    return true;
 }
 
 export let SampleSizeEditor: FC<{
@@ -620,6 +638,7 @@ const VegaChartRenderer: FC<{
 }> = React.memo(({ chart, conceptShelfItems, visTableRows, tableMetadata, chartWidth, chartHeight, scaleFactor, displayScale = 1, maxStretchFactor, chartUnavailable, insightTitle, insightSubtitle, themePreview, fieldSemantics, onSpecReady }) => {
 
     const dispatch = useDispatch();
+    const { t } = useTranslation();
     const elementId = `focused-chart-element-${chart.id}`;
     // Bumped when a render lands, so the display-scale effect can re-apply.
     const [renderTick, setRenderTick] = useState(0);
@@ -776,9 +795,23 @@ const VegaChartRenderer: FC<{
     }, [displayScale, renderTick, elementId]);
 
     if (chart.chartType === "Auto") {
-        return <Box sx={{ position: "relative", display: "flex", flexDirection: "column", margin: 'auto', color: 'darkgray' }}>
-            <InsightIcon fontSize="large"/>
-        </Box>
+        return (
+            <Box sx={{ minHeight: 240, width: '100%', display: "flex", flexDirection: "column", alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.secondary', p: 3 }}>
+                <Box sx={{
+                    width: 60, height: 60, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'rgba(27, 117, 187, 0.08)', color: 'primary.main'
+                }}>
+                    <InsightIcon sx={{ fontSize: 32 }} />
+                </Box>
+                <Typography sx={{ fontSize: textVar.md, fontWeight: 600, color: 'text.primary' }}>
+                    {t('chart.msgAuto', { defaultValue: 'Automated Insight Chart' })}
+                </Typography>
+                <Typography sx={{ fontSize: textVar.sm, color: 'text.secondary', maxWidth: 420, textAlign: 'center' }}>
+                    {t('chart.selectChartTypeHint', { defaultValue: 'Choose a chart type or configure channels to visualize this data.' })}
+                </Typography>
+            </Box>
+        );
     }
 
     if (chart.chartType === "Table") {
@@ -788,36 +821,77 @@ const VegaChartRenderer: FC<{
                 if ((v as any)?.displayName) displayNames[k] = (v as any).displayName;
             }
         }
-        return visTableRows.length > 0 ? renderTableChart(chart, conceptShelfItems, visTableRows, 120, 120, Object.keys(displayNames).length > 0 ? displayNames : undefined) : <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} >
-            <InsightIcon fontSize="large"/>
-        </Box>;
+        return visTableRows.length > 0 ? (
+            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', overflow: 'auto' }}>
+                {renderTableChart(chart, conceptShelfItems, visTableRows, 120, 120, Object.keys(displayNames).length > 0 ? displayNames : undefined)}
+            </Box>
+        ) : (
+            <Box sx={{ minHeight: 240, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.secondary', p: 3 }}>
+                <Box sx={{
+                    width: 60, height: 60, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)', color: 'text.secondary'
+                }}>
+                    <TableIcon sx={{ fontSize: 32 }} />
+                </Box>
+                <Typography sx={{ fontSize: textVar.md, fontWeight: 600, color: 'text.primary' }}>
+                    {t('chart.msgTable', { defaultValue: 'Table View' })}
+                </Typography>
+                <Typography sx={{ fontSize: textVar.sm, color: 'text.secondary', maxWidth: 360, textAlign: 'center' }}>
+                    {t('chart.noRecords', { defaultValue: 'No records available to display in table view.' })}
+                </Typography>
+            </Box>
+        );
     }
 
     const chartTemplate = getChartTemplate(chart.chartType);
     if (!checkChartAvailabilityOnPreparedData(chart, conceptShelfItems, visTableRows)) {
-        return <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} >
-            {generateChartSkeleton(chartTemplate?.icon, 48, 48)}
-        </Box>
+        return (
+            <Box sx={{
+                minHeight: 260, width: '100%',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 1.5, p: 3, my: 'auto',
+            }}>
+                <Box sx={{
+                    width: 64, height: 64, borderRadius: '14px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+                    border: '1px dashed rgba(0, 0, 0, 0.18)',
+                }}>
+                    {generateChartSkeleton(chartTemplate?.icon, 36, 36, 0.65)}
+                </Box>
+                <Box sx={{ textAlign: 'center', maxWidth: 460 }}>
+                    <Typography sx={{ fontSize: textVar.md, fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
+                        {chart.chartType} {t('chart.unavailableTitle', { defaultValue: 'Needs Channel Configuration' })}
+                    </Typography>
+                    <Typography sx={{ fontSize: textVar.sm, color: 'text.secondary', lineHeight: 1.5 }}>
+                        {t('chart.unavailableDesc', { defaultValue: 'This chart requires specific data fields that are not yet assigned. Open the chart editor to map channels or switch to a compatible chart type.' })}
+                    </Typography>
+                </Box>
+            </Box>
+        );
     }
 
     return (
-        <Box sx={{ mx: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '100%', overflow: 'visible' }}>
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '100%', overflow: 'visible' }}>
             <Box
                 id={elementId}
                 sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                     maxWidth: '100%',
                     overflow: 'hidden',
-                    // vega-embed adds its `.vega-embed` class to THIS element (the
-                    // div we pass to embed()) and renders the <canvas>/<svg> as a
-                    // direct child. Vega writes explicit inline width/height (in CSS
-                    // px) on that canvas/svg, so we must override them with
-                    // !important to let the chart shrink to the panel width while
-                    // keeping its aspect ratio (height: auto). A descendant
-                    // `.vega-embed` selector would NOT match — the class is on this
-                    // element itself, not a child.
+                    '& .vega-embed': {
+                        display: 'flex !important',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        maxWidth: '100%',
+                    },
                     '& > canvas, & > svg': {
                         maxWidth: '100%',
                         height: 'auto !important',
+                        margin: '0 auto',
                     },
                 }}
             />
@@ -1301,23 +1375,29 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
 
     let focusedElement = <Fade key={`fade-${focusedChart.id}-${dataVersion}-${focusedChart.chartType}-${JSON.stringify(focusedChart.encodingMap)}`}
                             in={!isDataStale} timeout={600}>
-                            <Box sx={{display: "flex", flexDirection: "column", flexShrink: 0, justifyContent: 'center', justifyItems: 'center', maxWidth: '100%', mt: 'max(120px, 4vh)', mb: 'max(120px, 4vh)'}} className="chart-box">
-                                {/*
-                                  Chart container chrome
-                                  ──────────────────────
-                                  - pt: 40  → reserves a strip at the top so the absolutely
-                                    positioned zoom-slider overlay (chartResizer, ~32px tall
-                                    anchored top-left) never covers chart content. Without this,
-                                    full-width charts like KPI grids run right up under the slider.
-                                  - pr: 28  → reserves a strip on the right for the floating
-                                    "edit chart" button overlay (see the focused-box in `content`).
-                                  - minHeight: 280 → guarantees the chart has vertical room to
-                                    render even when a chart's intrinsic height is very small
-                                    (e.g. one row of compact cards).
-                                  These are view-level concerns and intentionally NOT solved per
-                                  chart template.
-                                */}
-                                <Box sx={{minHeight: 280, maxWidth: '100%', overflow: 'hidden', pt: '40px', pr: '28px'}}>
+                            <Box sx={{
+                                display: "flex",
+                                flexDirection: "column",
+                                flexShrink: 0,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '100%',
+                                maxWidth: '100%',
+                                overflow: 'visible',
+                                pt: { xs: 2, sm: 3 },
+                                pb: { xs: 1.5, sm: 2 },
+                            }} className="chart-box">
+                                <Box sx={{
+                                    minHeight: 280,
+                                    width: '100%',
+                                    maxWidth: '100%',
+                                    overflow: 'visible',
+                                    px: { xs: 2, sm: 3.5 },
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
                                     <VegaChartRenderer
                                         key={focusedChart.id}
                                         chart={focusedChart}
@@ -1357,11 +1437,8 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
                         </Fade>;
 
     focusedComponent = [
-        <Box key="chart-focused-element" className="chart-focused-box"  sx={{ minHeight: chartMinHeight, width: "100%", display: "flex", flexDirection: "column", flexShrink: 0}}>
-            {/* Style-variant switcher now lives in the floating top toolbar
-                (see vis-view-canvas return) so it stays pinned alongside the
-                zoom resizer instead of scrolling with the chart content. */}
-            <Box sx={{ my: 'auto' }}>
+        <Box key="chart-focused-element" className="chart-focused-box" sx={{ width: "100%", display: "flex", flexDirection: "column", flexShrink: 0, position: 'relative', overflow: 'visible' }}>
+            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {focusedElement}
             </Box>
         </Box>,
@@ -1464,7 +1541,7 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
     ]
     
     let content = [
-        <Box key='focused-box' className="vega-focused vis-scroll" sx={{ display: "flex", overflowY: 'auto', overflowX: 'hidden', flexDirection: 'column', position: 'relative', flex: 1 }}>
+        <Box key='focused-box' className="vega-focused vis-scroll" sx={{ display: "flex", overflowY: 'auto', overflowX: 'hidden', flexDirection: 'column', position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
             {focusedComponent}
         </Box>,
         /* Encoding shelf popover, anchored to the floating "edit chart" button.
@@ -1581,20 +1658,29 @@ export const ChartEditorFC: FC<{}> = function ChartEditorFC({}) {
         </Tooltip>
     </Stack>, [sizeStopIndex, setSizeStop, t]);
 
-    return <Box ref={componentRef} id="vis-view-canvas" sx={{overflow: "hidden", display: 'flex', flex: 1, position: 'relative'}}>
-        {/* No full-screen block while the agent works: the previous chart
-            stays visible, and progress is signaled non-intrusively on the
-            chat box + encoding shelf (see EncodingShelfCard). */}
-        {/* Floating top toolbar: zoom resizer + style-variant strip live
-            together here (NOT inside the scrolling chart content), so every
-            control stays pinned to the top of the panel instead of some
-            floating and some scrolling away. pointerEvents are disabled on the
-            empty bar area so it never blocks chart interaction underneath. */}
+    return <Box ref={componentRef} id="vis-view-canvas" sx={{
+        overflow: "hidden",
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        height: '100%',
+        width: '100%',
+        position: 'relative',
+        backgroundColor: '#fff',
+    }}>
+        {/* Pinned top toolbar: zoom resizer + style-variant strip + actions pinned cleanly above scrolling content */}
         <Box sx={{
-            position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: '8px',
+            flexShrink: 0,
+            minHeight: 44,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1.5,
+            py: '6px',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
             backgroundColor: '#fff',
-            pointerEvents: 'none', '& > *': { pointerEvents: 'auto' },
+            zIndex: 10,
         }}>
             {chartResizer}
             {focusedChart && focusedChart.chartType !== 'Table' && focusedChart.chartType !== 'Auto' && (

@@ -122,25 +122,24 @@ $accelerate-ease: cubic-bezier(0.4, 0.0, 1, 1);
 .visualization-carousel {
     display: flex;
     flex-grow: 1;
-    height: calc(100%);
+    height: 100%;
 
     .vega-focused {
         flex: 1;
-        height: 100%;
         display: flex;
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         
         .chart-box {
-            width: calc(100% - 48px);
-            overflow: auto;
+            width: 100%;
+            overflow: visible;
             display: flex;
-            color: #fff;
             border-radius: 3px;
         }
       
         .chart-box-animation {
             transform-origin: bottom left;
-            animation: appear 0.5s ease-out
+            animation: appear 0.5s ease-out;
         }
     }
 
@@ -156,9 +155,6 @@ $accelerate-ease: cubic-bezier(0.4, 0.0, 1, 1);
         direction: rtl;
         padding-bottom: 6px;
     }
-
-    
-
 }
 
 .data-thread {
@@ -228,46 +224,4 @@ $accelerate-ease: cubic-bezier(0.4, 0.0, 1, 1);
 .hover-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 0 3px rgba(33,33,33,.2);
-}
-
-.visualization-carousel {
-    display: flex;
-    flex-grow: 1;
-    height: calc(100%);
-
-    .vega-focused {
-        flex: 1;
-        height: 100%;
-        display: flex;
-        overflow: auto;
-        
-        .chart-box {
-            display: flex;
-            color: #fff;
-            padding: 5px;
-            border-radius: 3px;
-            margin: auto;
-        }
-      
-        .chart-box-animation {
-            transform-origin: bottom left;
-            animation: appear 0.5s ease-out
-        }
-    }
-
-    .vega-container {
-        width: 200px;
-        min-width: 200px;
-        display: flex;
-        flex-wrap: wrap;
-        overflow-y: scroll;
-        border-right: 1px lightgray solid;
-        align-content: flex-start;
-        padding-top: 0px;
-        direction: rtl;
-        padding-bottom: 6px;
-    }
-
-    
-
-}
+}

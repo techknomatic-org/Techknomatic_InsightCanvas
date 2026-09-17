@@ -102,9 +102,90 @@ export const resolveChartFields = (
             key = 'column';
         }
 
-        const field = allFields.find(c => c.name === value);
+        const normalizedValue = typeof value === 'string' ? value.trim().toLowerCase() : '';
+        const field = allFields.find(c => c.name === value)
+            || allFields.find(c => c.name.trim().toLowerCase() === normalizedValue);
         if (field) {
             chart.encodingMap[key as Channel] = { fieldID: field.id };
+        }
+    }
+
+    // Auto-repair missing required positional channels across all chart categories
+    const twoAxisStandard = new Set([
+        'Line Chart', 'Area Chart', 'Bar Chart', 'Scatter Plot', 'Regression',
+        'Boxplot', 'Lollipop Chart', 'Waterfall Chart', 'Grouped Bar Chart',
+        'Stacked Bar Chart', 'Range Area Chart', 'Violin Plot', 'Strip Plot',
+        'Bump Chart', 'Connected Scatter Plot', 'Ranged Dot Plot', 'Pyramid Chart',
+        'Sparkline', 'Slope Chart', 'Streamgraph', 'Rose Chart', 'Radar Chart',
+        'Heatmap',
+    ]);
+    const invertedBarCharts = new Set(['Bar Table', 'Bullet Chart', 'Gantt Chart']);
+    const circularCharts = new Set(['Pie Chart', 'Donut Chart']);
+    const distribution1Axis = new Set(['Histogram', 'Density Plot', 'ECDF Plot']);
+
+    if (table?.rows && table.rows.length > 0 && table.names) {
+        const assignedIds = new Set(
+            Object.values(chart.encodingMap).map(enc => enc?.fieldID).filter((id): id is string => Boolean(id))
+        );
+        const firstRow = table.rows[0];
+        const findNumericField = () => {
+            const numericCol = table.names.find(col => {
+                const f = allFields.find(c => c.name === col);
+                if (!f || assignedIds.has(f.id)) return false;
+                const val = firstRow[col];
+                return typeof val === 'number' || (!isNaN(Number(val)) && val !== null && val !== '');
+            });
+            return numericCol ? allFields.find(c => c.name === numericCol) : undefined;
+        };
+        const findCategoricalOrAnyField = () => {
+            const col = table.names.find(c => {
+                const f = allFields.find(item => item.name === c);
+                return f && !assignedIds.has(f.id);
+            });
+            return col ? allFields.find(c => c.name === col) : undefined;
+        };
+
+        if (twoAxisStandard.has(chart.chartType)) {
+            if (!chart.encodingMap.y?.fieldID) {
+                const f = findNumericField();
+                if (f) { chart.encodingMap.y = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+            if (!chart.encodingMap.x?.fieldID) {
+                const f = findCategoricalOrAnyField();
+                if (f) { chart.encodingMap.x = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+        } else if (invertedBarCharts.has(chart.chartType)) {
+            if (!chart.encodingMap.x?.fieldID) {
+                const f = findNumericField();
+                if (f) { chart.encodingMap.x = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+            if (!chart.encodingMap.y?.fieldID) {
+                const f = findCategoricalOrAnyField();
+                if (f) { chart.encodingMap.y = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+        } else if (circularCharts.has(chart.chartType)) {
+            if (!chart.encodingMap.size?.fieldID) {
+                const f = findNumericField();
+                if (f) { chart.encodingMap.size = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+            if (!chart.encodingMap.color?.fieldID) {
+                const f = findCategoricalOrAnyField();
+                if (f) { chart.encodingMap.color = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+        } else if (distribution1Axis.has(chart.chartType)) {
+            if (!chart.encodingMap.x?.fieldID) {
+                const f = findNumericField() || findCategoricalOrAnyField();
+                if (f) { chart.encodingMap.x = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+        } else if (chart.chartType === 'KPI Card') {
+            if (!chart.encodingMap.value?.fieldID) {
+                const f = findNumericField();
+                if (f) { chart.encodingMap.value = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
+            if (!chart.encodingMap.metric?.fieldID) {
+                const f = findCategoricalOrAnyField();
+                if (f) { chart.encodingMap.metric = { fieldID: f.id }; assignedIds.add(f.id); }
+            }
         }
     }
 

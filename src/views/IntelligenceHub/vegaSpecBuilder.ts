@@ -1,7 +1,7 @@
 // Copyright (c) Techknomatic Services Pvt Ltd.
 // Licensed under the MIT License.
 
-import { VisualizationSpec } from './intelligenceTypes';
+import { VisualizationSpec, DashboardSpec } from './intelligenceTypes';
 
 export interface ChartThemePreset {
     id: string;
@@ -221,10 +221,10 @@ export function rebuildVegaSpec(
     if (yField) {
         const yTitle = formatTitle(yField);
         const yLower = yField.toLowerCase();
-        let format = '~s';
+        let format = ',.2~f'; // Default: comma-separated value with up to 2 decimals on hover (e.g. 72.41 or 1,250)
         if (/\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/.test(yLower)) {
-            format = '.1%';
-        } else if (/\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b/.test(yLower)) {
+            format = '.2%';
+        } else if (/\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b/.test(yLower)) {
             format = '$,.2f';
         } else if (/\b(minutes?|duration_min|duration_minutes|wait_time|response_time)\b/.test(yLower)) {
             format = ',.0f';
@@ -248,6 +248,20 @@ export function rebuildVegaSpec(
 
     // Pie / Donut Charts (Arc with Layered Text)
     if (cType === 'donut' || cType === 'pie') {
+        const safeField = (yField || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const isCurrency = /\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b/i.test(yField || '');
+        const isPercent = /\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/i.test(yField || '');
+
+        const compactExpr = !yField
+            ? "''"
+            : isPercent
+            ? `format(datum['${safeField}'], '.1%')`
+            : isCurrency
+            ? `!isValid(datum['${safeField}']) ? '—' : abs(datum['${safeField}']) >= 1e9 ? '$' + format(datum['${safeField}'] / 1e9, '.2f') + 'B' : abs(datum['${safeField}']) >= 1e6 ? '$' + format(datum['${safeField}'] / 1e6, '.2f') + 'M' : abs(datum['${safeField}']) >= 1e3 ? '$' + format(datum['${safeField}'] / 1e3, '.2~f') + 'K' : '$' + format(datum['${safeField}'], ',.2~f')`
+            : `!isValid(datum['${safeField}']) ? '—' : abs(datum['${safeField}']) >= 1e9 ? format(datum['${safeField}'] / 1e9, '.2f') + 'B' : abs(datum['${safeField}']) >= 1e6 ? format(datum['${safeField}'] / 1e6, '.2f') + 'M' : abs(datum['${safeField}']) >= 1e3 ? format(datum['${safeField}'] / 1e3, '.2~f') + 'K' : format(datum['${safeField}'], ',.2~f')`;
+
+        const transform = yField ? [{ calculate: compactExpr, as: `${yField}_compact_label` }] : undefined;
+
         const topEncoding: any = {
             theta: yField ? { field: yField, type: 'quantitative', stack: true } : undefined,
             color: xField
@@ -264,23 +278,24 @@ export function rebuildVegaSpec(
         const arcLayer: any = {
             mark: {
                 type: 'arc',
-                innerRadius: cType === 'donut' ? 45 : 0,
-                outerRadius: 80,
+                innerRadius: cType === 'donut' ? 38 : 0,
+                outerRadius: 68,
                 padAngle: 0.03,
                 cornerRadius: 4,
             },
+            encoding: topEncoding,
         };
 
         const textLayer: any = {
             mark: {
                 type: 'text',
-                radius: cType === 'donut' ? 62 : 52,
-                fontSize: 11,
+                radius: cType === 'donut' ? 53 : 45,
+                fontSize: 10.5,
                 fontWeight: 700,
                 fill: '#ffffff',
             },
             encoding: {
-                text: yField ? { field: yField, type: 'quantitative', format: '~s' } : undefined,
+                text: yField ? { field: `${yField}_compact_label`, type: 'nominal' } : undefined,
             },
         };
 
@@ -295,7 +310,10 @@ export function rebuildVegaSpec(
             },
             width: 'container',
             height: 220,
+            padding: { top: 16, bottom: 8, left: 10, right: 10 },
+            autosize: { type: 'fit', contains: 'padding' },
             data: { values: records },
+            transform,
             encoding: topEncoding,
             layer: [arcLayer, textLayer],
             config: {
@@ -345,6 +363,11 @@ export function rebuildVegaSpec(
                           field: yField,
                           type: 'quantitative',
                           axis: {
+                              format: /\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/i.test(yField)
+                                  ? '.1%'
+                                  : /\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b/i.test(yField)
+                                  ? '$.2s'
+                                  : '.2s',
                               grid: true,
                               gridColor: '#f1f5f9',
                               gridDash: [3, 3],
@@ -502,6 +525,11 @@ export function rebuildVegaSpec(
             field: yField,
             type: 'quantitative',
             axis: {
+                format: /\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b/i.test(yField)
+                    ? '.1%'
+                    : /\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b/i.test(yField)
+                    ? '$.2s'
+                    : '.2s',
                 grid: true,
                 gridColor: '#f1f5f9',
                 gridDash: [3, 3],
@@ -554,3 +582,57 @@ export function rebuildVegaSpec(
         },
     };
 }
+
+/**
+ * Ensures no visual in a dashboard has empty records.
+ * If any visual has no data, automatically changes it to an active visual using available data.
+ */
+export function sanitizeDashboardVisuals(d: DashboardSpec | null): DashboardSpec | null {
+    if (!d || !Array.isArray(d.visualizations) || d.visualizations.length === 0) return d;
+    const donor = d.visualizations.find(
+        (v) => (Array.isArray(v.data) && v.data.length > 0) ||
+               (Array.isArray(v.vega_spec?.data?.values) && v.vega_spec.data.values.length > 0)
+    );
+    if (!donor) return d;
+    const donorData = (Array.isArray(donor.data) && donor.data.length > 0)
+        ? donor.data
+        : (donor.vega_spec?.data?.values || []);
+    if (donorData.length === 0) return d;
+
+    const firstRow = donorData[0] || {};
+    const keys = Object.keys(firstRow);
+    const donorX = donor.x_field && keys.includes(donor.x_field) ? donor.x_field : (keys[0] || 'category');
+    const donorY = donor.y_field && keys.includes(donor.y_field) ? donor.y_field : (keys[1] || 'value');
+
+    const updatedVisuals = d.visualizations.map((viz) => {
+        const hasData = (Array.isArray(viz.data) && viz.data.length > 0) ||
+                        (Array.isArray(viz.vega_spec?.data?.values) && viz.vega_spec.data.values.length > 0);
+        if (hasData) return viz;
+
+        const chartType = normalizeChartType(viz.chart_type || 'donut');
+        const theme = CHART_THEME_PRESETS.find((t) => t.id === (viz.theme_id || 'techknomatic')) || CHART_THEME_PRESETS[0];
+        const sliceCount = (chartType === 'donut' || chartType === 'pie') ? 7 : 12;
+        const adaptedData = donorData.slice(0, sliceCount);
+
+        const baseClean = (viz.title || 'Alternative Visual').replace(/\s*(?:Breakdown|Distribution|Overview|Analysis|Summary)/gi, '').trim();
+        const newTitle = baseClean ? `${baseClean} Overview` : `${donorX} Breakdown`;
+
+        const adaptedViz: VisualizationSpec = {
+            ...viz,
+            title: newTitle,
+            description: `Distribution of records segmented by ${donorX}`,
+            chart_type: chartType,
+            x_field: donorX,
+            y_field: donorY,
+            data: adaptedData,
+        };
+        adaptedViz.vega_spec = rebuildVegaSpec(adaptedViz, chartType, theme);
+        return adaptedViz;
+    });
+
+    return {
+        ...d,
+        visualizations: updatedVisuals,
+    };
+}
+

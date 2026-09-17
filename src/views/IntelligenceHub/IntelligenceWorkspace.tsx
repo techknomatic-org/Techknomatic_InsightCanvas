@@ -62,8 +62,9 @@ import { VisualizationGrid } from './VisualizationGrid';
 import { ChatPanel } from './ChatPanel';
 import { IntelligenceReportDialog } from './IntelligenceReportDialog';
 import { downloadDashboardImage, downloadDashboardPdf } from './dashboardExport';
-import { CHART_THEME_PRESETS, ChartThemePreset, rebuildVegaSpec, normalizeChartType } from './vegaSpecBuilder';
+import { CHART_THEME_PRESETS, ChartThemePreset, rebuildVegaSpec, normalizeChartType, sanitizeDashboardVisuals } from './vegaSpecBuilder';
 import { IntelligenceErrorAlert, parseUserFriendlyError } from './intelligenceErrorHelper';
+export { sanitizeDashboardVisuals };
 
 interface IntelligenceWorkspaceProps {
     sourceId: string;
@@ -224,7 +225,10 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
     const [suggestions, setSuggestions] = useState<DashboardSuggestion[]>([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
 
-    const [dashboard, setDashboard] = useState<DashboardSpec | null>(initialDashboard || null);
+    const [dashboard, setDashboardState] = useState<DashboardSpec | null>(initialDashboard ? sanitizeDashboardVisuals(initialDashboard) : null);
+    const setDashboard = (d: DashboardSpec | null) => {
+        setDashboardState(sanitizeDashboardVisuals(d));
+    };
     const [generatingDashboard, setGeneratingDashboard] = useState<boolean>(false);
     const [filtering, setFiltering] = useState<boolean>(false);
 
@@ -395,7 +399,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             });
         } catch (err: any) {
             const friendly = parseUserFriendlyError(err);
-            setError(err);
+            setError(friendly.reason || friendly.title || err?.message || String(err));
             const assistantErrMsg: ChatMessage = {
                 id: String(Date.now() + 1),
                 role: 'assistant',
@@ -525,7 +529,7 @@ export const IntelligenceWorkspace: React.FC<IntelligenceWorkspaceProps> = ({
             }
         } catch (err: any) {
             const friendly = parseUserFriendlyError(err);
-            setError(err);
+            setError(friendly.reason || friendly.title || err?.message || String(err));
             const assistantErrMsg: ChatMessage = {
                 id: String(Date.now() + 1),
                 role: 'assistant',

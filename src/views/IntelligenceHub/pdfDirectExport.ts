@@ -7,10 +7,22 @@ import { sanitizeFileName } from './dashboardExport';
 /**
  * Generate and download a standard multi-page PDF directly (no print popups/dialogs)
  */
+export interface DirectPdfExportOptions {
+    ignoreSelectors?: string[];
+    onBeforeCapture?: (clonedElement: HTMLElement) => void;
+}
+
+/**
+ * Generate and download a standard multi-page PDF directly (no print popups/dialogs)
+ */
 export async function downloadElementAsDirectPdf(
     element: HTMLElement,
-    baseName: string
+    baseName: string,
+    options?: DirectPdfExportOptions
 ): Promise<void> {
+    const totalElementHeight = Math.max(element.scrollHeight, element.offsetHeight, Math.round(element.getBoundingClientRect().height));
+    const totalElementWidth = Math.max(element.scrollWidth, element.offsetWidth, 816);
+
     // 1. Capture high-resolution raster of the target element
     const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
@@ -20,7 +32,34 @@ export async function downloadElementAsDirectPdf(
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: 1024,
+        width: totalElementWidth,
+        height: totalElementHeight,
+        windowWidth: Math.max(totalElementWidth, 1024),
+        windowHeight: Math.max(totalElementHeight, 768),
+        ignoreElements: (el) => {
+            if (el.hasAttribute('data-report-toolbar')) return true;
+            if (el.classList.contains('resize-handle')) return true;
+            if (options?.ignoreSelectors?.some((sel) => el.matches(sel))) return true;
+            return false;
+        },
+        onclone: (_clonedDoc, clonedElement) => {
+            let parent = clonedElement.parentElement;
+            while (parent && parent !== _clonedDoc.body) {
+                parent.scrollTop = 0;
+                parent.scrollLeft = 0;
+                parent = parent.parentElement;
+            }
+            clonedElement.querySelectorAll('[data-report-toolbar]').forEach((el) => el.remove());
+            clonedElement.querySelectorAll('.resize-handle').forEach((el) => el.remove());
+            clonedElement.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+            const tiptap = clonedElement.querySelector('.tiptap');
+            if (tiptap instanceof HTMLElement) {
+                tiptap.style.outline = 'none';
+            }
+            if (options?.onBeforeCapture) {
+                options.onBeforeCapture(clonedElement);
+            }
+        },
     });
 
     const pdfBlob = await createPdfBlobFromCanvas(canvas, element);
@@ -53,7 +92,7 @@ function computeSmartPageSlices(canvas: HTMLCanvasElement, element: HTMLElement)
     const idealPageHeightPx = Math.floor(slicePixelWidth * a4Ratio);
 
     const rootRect = element.getBoundingClientRect();
-    const scaleY = canvas.height / (rootRect.height || element.scrollHeight || 1);
+    const scaleY = canvas.height / (element.scrollHeight || rootRect.height || 1);
 
     // Select candidate block elements for break avoidance
     const breakSelectors = [
@@ -68,11 +107,15 @@ function computeSmartPageSlices(canvas: HTMLCanvasElement, element: HTMLElement)
         'blockquote',
         'table',
         'tr',
+        'pre',
+        'hr',
+        'img',
+        'figure',
+        '[data-node-view-wrapper]',
         '.report-kpi-card',
         '.report-kpi-grid-container',
         '.report-chart-card',
         '.report-visuals-grid-container',
-        'hr',
     ];
 
     const candidateNodes = Array.from(element.querySelectorAll(breakSelectors.join(','))) as HTMLElement[];
@@ -89,7 +132,12 @@ function computeSmartPageSlices(canvas: HTMLCanvasElement, element: HTMLElement)
             const isCard =
                 node.classList.contains('report-kpi-card') ||
                 node.classList.contains('report-chart-card') ||
-                tagName === 'tr';
+                node.hasAttribute('data-node-view-wrapper') ||
+                tagName === 'tr' ||
+                tagName === 'table' ||
+                tagName === 'img' ||
+                tagName === 'figure' ||
+                tagName === 'pre';
             return { node, top, bottom, height, tagName, isHeading, isCard };
         })
         .filter((item) => item.height > 2 && item.bottom > 0)

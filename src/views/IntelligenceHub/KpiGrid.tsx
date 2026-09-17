@@ -158,19 +158,40 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ kpis }) => {
                                 </Box>
                             </Box>
 
-                            <Typography
-                                variant="h4"
-                                sx={{
-                                    fontWeight: 800,
-                                    color: '#0f172a',
-                                    letterSpacing: '-0.03em',
-                                    fontSize: '26px',
-                                    lineHeight: 1.2,
-                                    mb: 0.6,
-                                }}
-                            >
-                                {kpi.formatted_value || '—'}
-                            </Typography>
+                            {(() => {
+                                const hasRaw = kpi.raw_value !== undefined && kpi.raw_value !== null && kpi.raw_value !== '';
+                                const rawNum = typeof kpi.raw_value === 'number' ? kpi.raw_value : Number(kpi.raw_value);
+                                const isRawValidNum = hasRaw && !Number.isNaN(rawNum);
+                                const isCurrency = (kpi.format || '').toLowerCase() === 'currency' || String(kpi.formatted_value || '').startsWith('$');
+                                const fullValStr = isRawValidNum
+                                    ? isCurrency
+                                        ? `$${rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : rawNum.toLocaleString('en-US')
+                                    : (hasRaw ? String(kpi.raw_value) : '');
+
+                                return (
+                                    <Tooltip
+                                        title={fullValStr ? `Full value: ${fullValStr}` : ''}
+                                        arrow
+                                        placement="top"
+                                    >
+                                        <Typography
+                                            variant="h4"
+                                            sx={{
+                                                fontWeight: 800,
+                                                color: '#0f172a',
+                                                letterSpacing: '-0.03em',
+                                                fontSize: '26px',
+                                                lineHeight: 1.2,
+                                                mb: 0.6,
+                                                cursor: fullValStr ? 'pointer' : 'default',
+                                            }}
+                                        >
+                                            {kpi.formatted_value || '—'}
+                                        </Typography>
+                                    </Tooltip>
+                                );
+                            })()}
 
                             <Tooltip
                                 title={

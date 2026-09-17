@@ -10,6 +10,7 @@ import {
     Menu,
     MenuItem,
     useTheme,
+    CircularProgress,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -50,8 +51,10 @@ export const ReportView: FC = () => {
     const [currentReportId, setCurrentReportId] = useState<string | undefined>(undefined);
     const [generatedReport, setGeneratedReport] = useState<string>('');
 
-    // Derive generating state from the current report's status in Redux
-    const currentReport = allGeneratedReports.find(r => r.id === currentReportId);
+    // Derive active report: priority to focused report, then currentReportId, then first report
+    const focusedReportId = focusedId?.type === 'report' ? focusedId.reportId : undefined;
+    const activeReportId = focusedReportId || currentReportId || allGeneratedReports[0]?.id;
+    const currentReport = allGeneratedReports.find(r => r.id === activeReportId);
     const isGenerating = currentReport?.status === 'generating';
 
     const [cachedReportImages, setCachedReportImages] = useState<Record<string, { url: string; width: number; height: number }>>({});
@@ -59,6 +62,7 @@ export const ReportView: FC = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     // Download/share menu anchored to the floating download button.
     const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
 
     const updateCachedReportImages = (chartId: string, blobUrl: string, width: number, height: number) => {
         setCachedReportImages(prev => ({
@@ -325,116 +329,33 @@ export const ReportView: FC = () => {
     };
 
     const exportReportAsPdf = async () => {
-        const exportClone = createReportExportClone();
-        if (!exportClone) return;
-
-        const printFrame = document.createElement('iframe');
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        document.body.appendChild(printFrame);
+        const reportElement = getReportElement();
+        if (!reportElement) {
+            showMessage(t('report.couldNotFindContent'), 'error');
+            return;
+        }
 
         try {
-            const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-                .map(node => node.outerHTML)
-                .join('\n');
-            const printTitle = sanitizeFileName(getReportTitle(exportClone.clone));
-            const originalDocumentTitle = document.title;
-            const doc = printFrame.contentDocument;
-            const win = printFrame.contentWindow;
-            if (!doc || !win) {
-                showMessage(t('report.failedToExportPdf'), 'error');
-                printFrame.remove();
-                return;
-            }
-
-            doc.open();
-            doc.write(`<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<title>${printTitle}</title>
-${styles}
-<style>
-    @page { margin: 18mm; }
-    html, body {
-        margin: 0;
-        padding: 0;
-        background: #ffffff;
-        color: rgb(55, 53, 47);
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    .print-root {
-        width: 100%;
-        max-width: 816px;
-        margin: 0 auto;
-        background: #ffffff;
-    }
-    [data-report-toolbar] {
-        display: none !important;
-    }
-    [data-report-content], [data-report-content] * {
-        overflow: visible !important;
-        max-height: none !important;
-    }
-    .tiptap {
-        outline: none !important;
-    }
-    img {
-        max-width: 100%;
-        break-inside: avoid;
-        page-break-inside: avoid;
-    }
-    h1, h2, h3 {
-        break-after: avoid;
-        page-break-after: avoid;
-    }
-    p, li, blockquote {
-        orphans: 3;
-        widows: 3;
-    }
-</style>
-</head>
-<body>
-    <div class="print-root">
-        ${exportClone.clone.outerHTML}
-    </div>
-</body>
-</html>`);
-            doc.close();
-
-            await waitForImages(doc);
-            document.title = printTitle;
-            win.focus();
-            let cleanupTimer: number | undefined;
-            const cleanupPrintFrame = () => {
-                if (cleanupTimer) {
-                    window.clearTimeout(cleanupTimer);
-                }
-                document.title = originalDocumentTitle;
-                if (document.body.contains(printFrame)) {
-                    printFrame.remove();
-                }
-            };
-            win.addEventListener('afterprint', cleanupPrintFrame, { once: true });
-            cleanupTimer = window.setTimeout(cleanupPrintFrame, 5 * 60 * 1000);
-            win.print();
-            showMessage(t('report.pdfPrintOpened'), 'info');
+            setDownloadingPdf(true);
+            showMessage(t('report.generatingPdf'), 'info');
+            await waitForImages(reportElement);
+            const reportTitle = getReportTitle(reportElement);
+            const { downloadElementAsDirectPdf } = await import('./IntelligenceHub/pdfDirectExport');
+            await downloadElementAsDirectPdf(reportElement, reportTitle);
+            showMessage(t('report.pdfDownloaded'));
         } catch (error) {
             console.error('Error exporting report PDF:', error);
-            printFrame.remove();
             showMessage(t('report.failedToExportPdf'), 'error');
+        } finally {
+            setDownloadingPdf(false);
         }
     };
 
 
 
     const processReport = (rawReport: string): string => {
-        const markdownMatch = rawReport.match(/```markdown\n([\s\S]*?)(?:\n```)?$/);
+        if (!rawReport) return '';
+        const markdownMatch = rawReport.match(/```markdown\r?\n([\s\S]*?)(?:\r?\n```)?$/);
         let processed = markdownMatch ? markdownMatch[1] : rawReport;
 
         const makeImg = (chartId: string, url: string, width: number, height: number, caption?: string) => {
@@ -483,38 +404,52 @@ ${styles}
         return processed;
     };
 
+    const cacheChartsForReport = (report: GeneratedReport) => {
+        const chartIds = new Set(report.selectedChartIds || []);
+        const matches = report.content?.matchAll(/chart:\/\/([^\s\)]+)/g);
+        if (matches) {
+            for (const match of matches) {
+                if (match[1]) chartIds.add(match[1]);
+            }
+        }
+
+        chartIds.forEach((chartId) => {
+            const chart = charts.find(c => c.id === chartId);
+            if (!chart) return;
+            if (chart.chartType === 'Table' || chart.chartType === '?') return;
+
+            // Try SVG cache first (instant, high quality)
+            const cached = getCachedChart(chartId);
+            if (cached?.svg) {
+                const blob = new Blob([cached.svg], { type: 'image/svg+xml;charset=utf-8' });
+                const blobUrl = URL.createObjectURL(blob);
+                const { width, height } = embedDimsFor(chartId);
+                updateCachedReportImages(chartId, blobUrl, width, height);
+            } else if (chartThumbnails[chartId]) {
+                // Fall back to thumbnail
+                const { width, height } = embedDimsFor(chartId);
+                updateCachedReportImages(chartId, chartThumbnails[chartId], width, height);
+            }
+        });
+    };
+
     const loadReport = (reportId: string) => {
         const report = allGeneratedReports.find(r => r.id === reportId);
         if (report) {
             setCurrentReportId(reportId);
-            setGeneratedReport(report.content);
-
-            report.selectedChartIds.forEach((chartId) => {
-                const chart = charts.find(c => c.id === chartId);
-                if (!chart) return;
-                if (chart.chartType === 'Table' || chart.chartType === '?') return;
-
-                // Try SVG cache first (instant, high quality)
-                const cached = getCachedChart(chartId);
-                if (cached?.svg) {
-                    const blob = new Blob([cached.svg], { type: 'image/svg+xml;charset=utf-8' });
-                    const blobUrl = URL.createObjectURL(blob);
-                    const { width, height } = embedDimsFor(chartId);
-                    updateCachedReportImages(chartId, blobUrl, width, height);
-                } else if (chartThumbnails[chartId]) {
-                    // Fall back to thumbnail
-                    const { width, height } = embedDimsFor(chartId);
-                    updateCachedReportImages(chartId, chartThumbnails[chartId], width, height);
-                }
-            });
+            setGeneratedReport(report.content || '');
+            cacheChartsForReport(report);
         }
     };
 
+    // Keep currentReportId synced to active report
     useEffect(() => {
-        if (currentReportId === undefined && allGeneratedReports.length > 0) {
-            loadReport(allGeneratedReports[0].id);
+        if (activeReportId && activeReportId !== currentReportId) {
+            setCurrentReportId(activeReportId);
+        } else if (!currentReportId && allGeneratedReports.length > 0) {
+            setCurrentReportId(allGeneratedReports[0].id);
         }
-    }, [currentReportId]);
+    }, [activeReportId, currentReportId, allGeneratedReports]);
 
     // Always return to read mode when switching reports or while a report is generating.
     useEffect(() => {
@@ -527,36 +462,28 @@ ${styles}
         }
     }, [isGenerating]);
 
-    // Derive focused report ID from Redux state
-    const focusedReportId = focusedId?.type === 'report' ? focusedId.reportId : undefined;
-
     // When focused report is cleared, go back to editor view
     useEffect(() => {
         if (!focusedReportId && !isGenerating) {
             dispatch(dfActions.setViewMode('editor'));
         }
-    }, [focusedReportId]);
+    }, [focusedReportId, isGenerating, dispatch]);
 
-    // When a report is focused via the thread, load it automatically
-    // Re-runs when charts/tables load so images render on initial page load.
-    // Includes a delayed retry to handle the race condition where
-    // ChartRenderService hasn't produced thumbnails/SVGs yet on page refresh.
+    // When a report is focused via the thread or tables/charts update, load/cache it
     useEffect(() => {
-        if (focusedReportId) {
-            loadReport(focusedReportId);
-
-            // Retry after a short delay to catch charts that were still rendering
-            const timer = setTimeout(() => loadReport(focusedReportId), 800);
+        if (activeReportId) {
+            loadReport(activeReportId);
+            const timer = setTimeout(() => loadReport(activeReportId), 800);
             return () => clearTimeout(timer);
         }
-    }, [focusedReportId, charts, tables, chartThumbnails]);
+    }, [activeReportId, allGeneratedReports, charts, tables, chartThumbnails]);
 
-    // Keep local content in sync with Redux during streaming (status === 'generating')
+    // Keep local content in sync with Redux whenever content updates (streaming, completion, or switching)
     useEffect(() => {
-        if (currentReport && currentReport.status === 'generating') {
-            setGeneratedReport(currentReport.content);
+        if (currentReport && !isEditMode) {
+            setGeneratedReport(currentReport.content || '');
         }
-    }, [currentReport?.content, currentReport?.status]);
+    }, [currentReport?.id, currentReport?.content, isEditMode]);
 
     // Auto-refresh chart images when underlying table data changes
     // This enables real-time chart updates in reports when data is streaming
@@ -641,13 +568,13 @@ ${styles}
         }
     };
 
-    let displayedReport = generatedReport;
-    displayedReport = processReport(displayedReport);
+    const rawContent = isEditMode ? generatedReport : (currentReport?.content || generatedReport);
+    let displayedReport = processReport(rawContent);
 
     // Raw markdown (fence stripped) for the lightweight typewriter view while streaming.
     const rawReportMarkdown = (() => {
-        const m = generatedReport.match(/```markdown\n([\s\S]*?)(?:\n```)?$/);
-        return m ? m[1] : generatedReport;
+        const m = rawContent.match(/```markdown\r?\n([\s\S]*?)(?:\r?\n```)?$/);
+        return m ? m[1] : rawContent;
     })();
 
     const downloadMenuItemSx = {
@@ -693,17 +620,24 @@ ${styles}
                             </Tooltip>
                         )}
                         {!isGenerating && currentReportId && (
-                            <Tooltip title={t('report.downloadAndShare')} placement="right">
-                                <IconButton
-                                    size="small"
-                                    onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
-                                    sx={downloadMenuAnchor ? {
-                                        ...floatingPillSx,
-                                        color: 'primary.main',
-                                    } : floatingPillSx}
-                                >
-                                    <DownloadIcon sx={{ fontSize: iconVar.lg }} />
-                                </IconButton>
+                            <Tooltip title={downloadingPdf ? t('report.generatingPdf') : t('report.downloadAndShare')} placement="right">
+                                <span>
+                                    <IconButton
+                                        size="small"
+                                        disabled={downloadingPdf}
+                                        onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
+                                        sx={downloadMenuAnchor ? {
+                                            ...floatingPillSx,
+                                            color: 'primary.main',
+                                        } : floatingPillSx}
+                                    >
+                                        {downloadingPdf ? (
+                                            <CircularProgress size={16} sx={{ color: 'primary.main' }} />
+                                        ) : (
+                                            <DownloadIcon sx={{ fontSize: iconVar.lg }} />
+                                        )}
+                                    </IconButton>
+                                </span>
                             </Tooltip>
                         )}
                         <Menu
@@ -724,13 +658,18 @@ ${styles}
                             }}
                         >
                             <MenuItem
+                                disabled={downloadingPdf}
                                 onClick={() => {
                                     setDownloadMenuAnchor(null);
                                     void exportReportAsPdf();
                                 }}
                                 sx={downloadMenuItemSx}
                             >
-                                <PictureAsPdfIcon />
+                                {downloadingPdf ? (
+                                    <CircularProgress size={18} sx={{ mr: 0.75 }} />
+                                ) : (
+                                    <PictureAsPdfIcon />
+                                )}
                                 {t('report.downloadPdf')}
                             </MenuItem>
                             <MenuItem

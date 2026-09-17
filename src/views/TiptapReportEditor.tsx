@@ -540,7 +540,7 @@ export const TiptapReportEditor: FC<TiptapReportEditorProps> = ({
         // While the writing phase streams, the lightweight typewriter view owns the
         // display — defer the (expensive) markdown parse until the stream completes.
         if (generatingPhase === 'writing') return;
-        if (!isFocused.current) {
+        if (!editable || !isFocused.current) {
             editor.commands.setContent(content, { emitUpdate: false });
         } else {
             // Even when focused, sync if new images arrived (user isn't typing image tags)
@@ -551,7 +551,7 @@ export const TiptapReportEditor: FC<TiptapReportEditorProps> = ({
                 editor.commands.setContent(content, { emitUpdate: false });
             }
         }
-    }, [editor, content, generatingPhase]);
+    }, [editor, content, generatingPhase, editable, reportId]);
 
     const copyAsRichText = useCallback(async () => {
         if (!editor) return;

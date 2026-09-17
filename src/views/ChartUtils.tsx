@@ -60,5 +60,23 @@ export let checkChartAvailability = (chart: Chart, conceptShelfItems: FieldItem[
             .filter(key => chart.encodingMap[key as keyof EncodingMap].fieldID != undefined)
             .map(key => chart.encodingMap[key as keyof EncodingMap].fieldID);
     let visFields = conceptShelfItems.filter(f => visFieldIds.includes(f.id));
-    return visFields.length > 0 && visTableRows.length > 0 && visFields.every(f => Object.keys(visTableRows[0]).includes(f.name));
+    if (visFields.length === 0 || visTableRows.length === 0 || !visFields.every(f => Object.keys(visTableRows[0]).includes(f.name))) {
+        return false;
+    }
+    const twoAxisCharts = [
+        'Line Chart', 'Area Chart', 'Bar Chart', 'Scatter Plot', 'Regression',
+        'Boxplot', 'Lollipop Chart', 'Waterfall Chart', 'Grouped Bar Chart',
+        'Stacked Bar Chart', 'Range Area Chart', 'Violin Plot', 'Strip Plot',
+        'Bump Chart', 'Connected Scatter Plot', 'Ranged Dot Plot', 'Pyramid Chart',
+        'Sparkline', 'Slope Chart', 'Streamgraph', 'Rose Chart', 'Radar Chart',
+        'Heatmap',
+    ];
+    if (twoAxisCharts.includes(chart.chartType)) {
+        const hasY = chart.encodingMap.y?.fieldID != null;
+        const hasNumericCandidate = Object.values(visTableRows[0]).some(
+            v => typeof v === 'number' || (!isNaN(Number(v)) && v !== null && v !== '')
+        );
+        if (!hasY && !hasNumericCandidate) return false;
+    }
+    return true;
 }

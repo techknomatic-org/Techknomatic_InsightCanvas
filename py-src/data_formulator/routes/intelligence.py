@@ -903,7 +903,12 @@ def _execute_safe_query(con: duckdb.DuckDBPyConnection, sql: str) -> pd.DataFram
         if re.search(rf"\b{kw}\b", clean_sql, re.IGNORECASE) and not re.search(rf"['\"].*\b{kw}\b.*['\"]", clean_sql, re.IGNORECASE):
             if kw != "SELECT":
                 raise ValueError(f"Forbidden keyword in analytical query: {kw}")
-    return con.execute(clean_sql).df()
+    df = con.execute(clean_sql).df()
+    if not df.empty:
+        for col in df.select_dtypes(include=["float", "float64", "float32"]).columns:
+            max_val = df[col].abs().max()
+            df[col] = df[col].round(4 if (pd.notna(max_val) and max_val < 0.1) else 2)
+    return df
 
 
 def _parse_and_build_metric_sql(
@@ -1011,18 +1016,21 @@ def _format_metric_value(val: Any, format_type: str = "number", measure_name: st
 
     combined_text = f"{measure_name} {title}".lower()
 
+    # Guard: pure currency columns without division operator '/' must not be formatted as % if value is large
+    is_pure_currency = bool(re.search(r'\b(salary|salaries|revenue|cost|costs|price|prices|budget|profit|expense|expenses|spend|spending|wage|wages|pay|payment|payments|income|sales)\b', measure_name.lower())) and "/" not in measure_name
+
     # 1. Percentage (evaluated before currency so 'Profit Margin', 'Sales Rate', etc. are formatted as %)
-    if format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text):
+    if not (is_pure_currency and abs(num) > 1.0) and (format_type == "percent" or re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|proportion|efficiency|utilization|turnover)\b', combined_text)):
         pct_val = num * 100.0 if abs(num) <= 1.0 and num != 0 else num
         return f"{pct_val:.1f}%", num
 
     # 2. Currency
-    if format_type == "currency" or re.search(r'\b(salary|salaries|revenue|cost|costs|price|prices|budget|profit|expense|expenses|spend|spending|wage|wages|pay|payment|payments|income|sales)\b', combined_text):
+    if format_type == "currency" or is_pure_currency or re.search(r'\b(salary|salaries|revenue|cost|costs|price|prices|budget|profit|expense|expenses|spend|spending|wage|wages|pay|payment|payments|income|sales)\b', combined_text):
         if abs(num) >= 1_000_000_000:
             return f"${num / 1_000_000_000:.2f}B", num
         if abs(num) >= 1_000_000:
             return f"${num / 1_000_000:.2f}M", num
-        if abs(num) >= 1_000:
+        if abs(num) >= 10_000:
             return f"${num / 1_000:.1f}K", num
         return f"${num:,.2f}", num
 
@@ -1197,13 +1205,13 @@ def _build_vega_lite_spec(
         y_title = str(y_field).replace("_", " ").title()
         y_lower = str(y_field).lower()
         if re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b', y_lower):
-            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": ".1%"})
+            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": ".2%"})
+        elif re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b', y_lower):
+            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} ($)", "format": "$,.2f"})
         elif re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh)\b', y_lower) or ("energy" in y_lower and "cost" not in y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kWh)", "format": ",.0f"})
         elif re.search(r'\b(kw|mw|peak_demand|demand|power_kw)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (kW)", "format": ",.0f"})
-        elif re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b', y_lower):
-            tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} ($)", "format": "$,.2f"})
         elif re.search(r'\b(minutes?|duration_min|duration_minutes|wait_time|response_time|travel_time)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (mins)", "format": ",.0f"})
         elif re.search(r'\b(hours?|overtime|hours_worked|duration_hours?|working_hours?)\b', y_lower) and not re.search(r'\b(headcount|human_resources)\b', y_lower):
@@ -1211,35 +1219,25 @@ def _build_vega_lite_spec(
         elif re.search(r'\b(carbon|emission|emissions|co2|ghg)\b', y_lower):
             tooltip.append({"field": y_field, "type": "quantitative", "title": f"{y_title} (tCO₂)", "format": ",.1f"})
         else:
-            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": "~s"})
+            tooltip.append({"field": y_field, "type": "quantitative", "title": y_title, "format": ","})
     if color_field and color_field not in (x_field, y_field):
         tooltip.append({"field": color_field, "type": "nominal", "title": str(color_field).replace("_", " ").title()})
 
     # For pie and donut charts: Render layered spec with arc slice and compact, readable value labels (k, M, B)
     if c_type in ("pie", "donut"):
         y_lower = str(y_field or "").lower()
-        max_val = 0
-        if data_records and isinstance(data_records, list):
-            y_nums = [r.get(y_field) for r in data_records if isinstance(r.get(y_field), (int, float))]
-            if y_nums:
-                max_val = max(abs(v) for v in y_nums)
+        safe_y = str(y_field or "").replace("\\", "\\\\").replace("'", "\\'")
+        is_currency = bool(re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income|amount|val|amt)\b', y_lower))
+        is_pct = bool(re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b', y_lower))
 
-        if re.search(r'\b(rate|percent|percentage|pct|ratio|share|margin|efficiency|utilization)\b', y_lower):
-            text_format = ".1%"
-        elif re.search(r'\b(cost|price|revenue|salary|wage|budget|spend|sales|income)\b', y_lower):
-            text_format = "$~s" if max_val >= 1000 else "$,.0f"
-        elif re.search(r'\b(kwh|mwh|gwh|energy_consumption|total_energy|consumption_kwh)\b', y_lower) or ("energy" in y_lower and "cost" not in y_lower):
-            text_format = "~s" if max_val >= 1000 else ",.0f"
-        elif re.search(r'\b(kw|mw|peak_demand|demand|power_kw)\b', y_lower):
-            text_format = "~s" if max_val >= 1000 else ",.0f"
-        elif re.search(r'\b(minutes?|duration_min|duration_minutes|wait_time|response_time|travel_time)\b', y_lower):
-            text_format = "~s" if max_val >= 1000 else ",.0f"
-        elif re.search(r'\b(hours?|overtime|hours_worked|duration_hours?|working_hours?)\b', y_lower) and not re.search(r'\b(headcount|human_resources)\b', y_lower):
-            text_format = "~s" if max_val >= 1000 else ",.1f"
-        elif re.search(r'\b(carbon|emission|emissions|co2|ghg)\b', y_lower):
-            text_format = "~s" if max_val >= 1000 else ",.1f"
+        if is_pct:
+            calc_expr = f"format(datum['{safe_y}'], '.1%')"
+        elif is_currency:
+            calc_expr = f"!isValid(datum['{safe_y}']) ? '—' : abs(datum['{safe_y}']) >= 1e9 ? '$' + format(datum['{safe_y}'] / 1e9, '.2f') + 'B' : abs(datum['{safe_y}']) >= 1e6 ? '$' + format(datum['{safe_y}'] / 1e6, '.2f') + 'M' : abs(datum['{safe_y}']) >= 1e3 ? '$' + format(datum['{safe_y}'] / 1e3, '.1f') + 'K' : '$' + format(datum['{safe_y}'], ',.2f')"
         else:
-            text_format = "~s" if max_val >= 1000 else ",.0f"
+            calc_expr = f"!isValid(datum['{safe_y}']) ? '—' : abs(datum['{safe_y}']) >= 1e9 ? format(datum['{safe_y}'] / 1e9, '.2f') + 'B' : abs(datum['{safe_y}']) >= 1e6 ? format(datum['{safe_y}'] / 1e6, '.2f') + 'M' : abs(datum['{safe_y}']) >= 1e3 ? format(datum['{safe_y}'] / 1e3, '.1f') + 'K' : format(datum['{safe_y}'], ',')"
+
+        transform = [{"calculate": calc_expr, "as": f"{y_field}_compact_label"}] if y_field else None
 
         top_encoding: dict[str, Any] = {
             "theta": {"field": y_field, "type": "quantitative", "stack": True} if y_field else None,
@@ -1256,8 +1254,8 @@ def _build_vega_lite_spec(
         arc_layer: dict[str, Any] = {
             "mark": {
                 "type": "arc",
-                "innerRadius": 45 if c_type == "donut" else 0,
-                "outerRadius": 80,
+                "innerRadius": 38 if c_type == "donut" else 0,
+                "outerRadius": 68,
                 "padAngle": 0.03,
                 "cornerRadius": 4,
             },
@@ -1266,18 +1264,18 @@ def _build_vega_lite_spec(
         text_layer: dict[str, Any] = {
             "mark": {
                 "type": "text",
-                "radius": 62 if c_type == "donut" else 52,
-                "fontSize": 11,
+                "radius": 53 if c_type == "donut" else 45,
+                "fontSize": 10.5,
                 "fontWeight": 700,
                 "fill": "#ffffff",
             },
             "encoding": {
-                "text": {"field": y_field, "type": "quantitative", "format": text_format} if y_field else None,
+                "text": {"field": f"{y_field}_compact_label", "type": "nominal"} if y_field else None,
             },
         }
         text_layer["encoding"] = {k: v for k, v in text_layer["encoding"].items() if v is not None}
 
-        return {
+        res_spec: dict[str, Any] = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "title": {
                 "text": chart_title,
@@ -1288,6 +1286,8 @@ def _build_vega_lite_spec(
             },
             "width": "container",
             "height": 220,
+            "padding": {"top": 16, "bottom": 8, "left": 10, "right": 10},
+            "autosize": {"type": "fit", "contains": "padding"},
             "data": {"values": data_records},
             "encoding": top_encoding,
             "layer": [arc_layer, text_layer],
@@ -1297,6 +1297,9 @@ def _build_vega_lite_spec(
                 "axis": {"domainColor": "#e2e8f0", "tickColor": "#e2e8f0"},
             },
         }
+        if transform:
+            res_spec["transform"] = transform
+        return res_spec
 
     encoding: dict[str, Any] = {}
     if x_field:
@@ -1628,6 +1631,199 @@ def _hydrate_dashboard_spec(
             else:
                 return (f"WHERE LOWER(TRIM(CAST(\"{matching_col}\" AS VARCHAR))) = LOWER(TRIM('{escaped_val}'))", actual_src)
 
+        def _find_working_visual_data(
+            preferred_type: str,
+            target_src: str,
+            where_clause: str,
+            used_x_cols: set[str],
+            original_title: str = "",
+        ) -> dict[str, Any] | None:
+            """Find an alternative working visualization with real data when a requested visual is empty or broken."""
+            # 1. Determine candidate tables
+            candidate_sources = [target_src] if target_src else []
+            for t_name in table_columns.keys():
+                quoted = f'"{t_name}"'
+                if quoted not in candidate_sources:
+                    candidate_sources.append(quoted)
+            if unified_cols and '"_unified_analytics"' not in candidate_sources:
+                candidate_sources.append('"_unified_analytics"')
+
+            for src in candidate_sources:
+                src_raw = src.strip('"')
+                src_cols = table_columns.get(src_raw, list(unified_cols) if src_raw == "_unified_analytics" else list(all_known_cols))
+                if not src_cols:
+                    continue
+
+                # Filter out obvious ID / UUID columns
+                def _is_id_col(c: str) -> bool:
+                    cl = c.lower()
+                    return cl.endswith(('_id', 'id', 'guid', 'uuid', 'key')) or cl.startswith(('id_', 'guid_', 'uuid_'))
+
+                dims = [c for c in src_cols if c not in numeric_cols and not _is_id_col(c)]
+                if not dims:
+                    dims = [c for c in src_cols if not _is_id_col(c)]
+                if not dims:
+                    dims = list(src_cols)
+
+                measures = [c for c in src_cols if c in numeric_cols and not _is_id_col(c)]
+                temporal = [
+                    c for c in src_cols
+                    if any(t in all_col_types.get(c, "").upper() for t in ("DATE", "TIME", "TIMESTAMP")) or
+                       any(k in c.lower() for k in ("date", "time", "timestamp", "created_at", "updated_at"))
+                ]
+
+                # Semantic score to prioritize high-value dimensions (status, category, type, etc.)
+                def _dim_priority(c: str) -> tuple[int, int]:
+                    cl = c.lower()
+                    not_used = 0 if c not in used_x_cols else 1
+                    semantic_hit = 0 if any(k in cl for k in (
+                        "status", "category", "type", "department", "region", "priority", "rating",
+                        "product", "line", "segment", "tier", "role", "country", "state", "city",
+                        "brand", "stage", "group", "class", "channel", "source"
+                    )) else 1
+                    return (not_used, semantic_hit)
+
+                sorted_dims = sorted(dims, key=_dim_priority)
+
+                # Strategy 1: Donut / Pie chart (categorical distribution, 2-8 slices)
+                if preferred_type in ("donut", "pie"):
+                    for dim in sorted_dims:
+                        valid_cond = f'"{dim}" IS NOT NULL AND TRIM(CAST("{dim}" AS VARCHAR)) NOT IN (\'\', \'NaN\', \'None\', \'null\', \'undefined\', \'NAT\')'
+                        for use_where in (True, False):
+                            w_prefix = f"{where_clause} AND " if (use_where and where_clause) else "WHERE "
+                            q = f"""
+                            SELECT "{dim}", COUNT(*) AS "Count"
+                            FROM {src}
+                            {w_prefix} {valid_cond}
+                            GROUP BY "{dim}"
+                            ORDER BY "Count" DESC
+                            LIMIT 8
+                            """
+                            try:
+                                df_res = _execute_safe_query(con, q)
+                                if not df_res.empty:
+                                    df_res = df_res.dropna(subset=[dim])
+                                    recs = df_to_safe_records(df_res)
+                                    if len(recs) >= 2:
+                                        dim_clean = dim.replace('_', ' ').title()
+                                        return {
+                                            "title": f"{dim_clean} Breakdown",
+                                            "description": f"Donut chart showing distribution across {dim_clean.lower()}",
+                                            "chart_type": "donut" if preferred_type == "donut" else "pie",
+                                            "x_field": dim,
+                                            "y_field": "Count",
+                                            "data": recs,
+                                            "is_temporal": False,
+                                        }
+                            except Exception:
+                                pass
+
+                # Strategy 2: Line / Area chart (temporal distribution)
+                if preferred_type in ("line", "area"):
+                    for t_col in temporal:
+                        valid_cond = f'"{t_col}" IS NOT NULL'
+                        m_col = measures[0] if measures else None
+                        y_expr = f'SUM("{m_col}")' if m_col else "COUNT(*)"
+                        y_label = m_col or "Volume"
+                        for use_where in (True, False):
+                            w_prefix = f"{where_clause} AND " if (use_where and where_clause) else "WHERE "
+                            q = f"""
+                            SELECT strftime(DATE_TRUNC('month', "{t_col}"::TIMESTAMP), '%b %Y') AS "{t_col}",
+                                   {y_expr} AS "{y_label}"
+                            FROM {src}
+                            {w_prefix} {valid_cond}
+                            GROUP BY DATE_TRUNC('month', "{t_col}"::TIMESTAMP), strftime(DATE_TRUNC('month', "{t_col}"::TIMESTAMP), '%b %Y')
+                            ORDER BY DATE_TRUNC('month', "{t_col}"::TIMESTAMP) ASC
+                            LIMIT 24
+                            """
+                            try:
+                                df_res = _execute_safe_query(con, q)
+                                if not df_res.empty:
+                                    df_res = df_res.dropna(subset=[t_col, y_label])
+                                    recs = df_to_safe_records(df_res)
+                                    if len(recs) >= 2:
+                                        t_clean = t_col.replace('_', ' ').title()
+                                        y_clean = y_label.replace('_', ' ').title()
+                                        return {
+                                            "title": f"{y_clean} Trend Over Time",
+                                            "description": f"{preferred_type.title()} chart showing {y_clean.lower()} trend across {t_clean.lower()}",
+                                            "chart_type": preferred_type,
+                                            "x_field": t_col,
+                                            "y_field": y_label,
+                                            "data": recs,
+                                            "is_temporal": True,
+                                        }
+                            except Exception:
+                                pass
+
+                # Strategy 3: Bar / Column chart or general breakdown
+                for dim in sorted_dims:
+                    valid_cond = f'"{dim}" IS NOT NULL AND TRIM(CAST("{dim}" AS VARCHAR)) NOT IN (\'\', \'NaN\', \'None\', \'null\', \'undefined\', \'NAT\')'
+                    m_col = None
+                    for m in measures:
+                        if m != dim:
+                            m_col = m
+                            break
+                    y_expr = f'SUM("{m_col}")' if m_col else "COUNT(*)"
+                    y_label = m_col or "Count"
+                    for use_where in (True, False):
+                        w_prefix = f"{where_clause} AND " if (use_where and where_clause) else "WHERE "
+                        q = f"""
+                        SELECT "{dim}", {y_expr} AS "{y_label}"
+                        FROM {src}
+                        {w_prefix} {valid_cond}
+                        GROUP BY "{dim}"
+                        ORDER BY "{y_label}" DESC
+                        LIMIT 12
+                        """
+                        try:
+                            df_res = _execute_safe_query(con, q)
+                            if not df_res.empty:
+                                df_res = df_res.dropna(subset=[dim])
+                                recs = df_to_safe_records(df_res)
+                                if len(recs) >= 1:
+                                    dim_clean = dim.replace('_', ' ').title()
+                                    y_clean = y_label.replace('_', ' ').title()
+                                    c_type_out = "donut" if preferred_type in ("donut", "pie") and 2 <= len(recs) <= 8 else ("bar" if preferred_type in ("line", "area") else preferred_type)
+                                    if c_type_out not in ("bar", "horizontal_bar", "donut", "pie", "line", "area"):
+                                        c_type_out = "bar"
+                                    return {
+                                        "title": f"{y_clean} by {dim_clean}",
+                                        "description": f"Analysis of {y_clean.lower()} segmented by {dim_clean.lower()}",
+                                        "chart_type": c_type_out,
+                                        "x_field": dim,
+                                        "y_field": y_label,
+                                        "data": recs,
+                                        "is_temporal": False,
+                                    }
+                        except Exception:
+                            pass
+
+                # Strategy 4: Raw table sampling fallback
+                try:
+                    df_sample = _execute_safe_query(con, f"SELECT * FROM {src} LIMIT 50")
+                    if not df_sample.empty:
+                        for c in df_sample.columns:
+                            if not _is_id_col(c) and df_sample[c].nunique() >= 2:
+                                s_counts = df_sample[c].value_counts().head(7)
+                                recs = [{c: str(idx), "Count": int(val)} for idx, val in s_counts.items()]
+                                if recs:
+                                    dim_clean = c.replace('_', ' ').title()
+                                    c_type_out = "donut" if preferred_type in ("donut", "pie") else "bar"
+                                    return {
+                                        "title": f"{dim_clean} Breakdown",
+                                        "description": f"Distribution across {dim_clean.lower()}",
+                                        "chart_type": c_type_out,
+                                        "x_field": c,
+                                        "y_field": "Count",
+                                        "data": recs,
+                                        "is_temporal": False,
+                                    }
+                except Exception:
+                    pass
+
+            return None
+
         # 1. Hydrate Filter Options
         filter_spec = spec.get("filter") or {}
         filter_field = _resolve_col_name(filter_spec.get("field"))
@@ -1781,6 +1977,7 @@ def _hydrate_dashboard_spec(
 
         # 3. Hydrate Exactly 6 Visualizations (with Calculated Metric Support)
         hydrated_visuals = []
+        used_x_cols: set[str] = set()
         for viz in spec.get("visualizations", [])[:6]:
             v_title = viz.get("title", "Chart")
             t_name = viz.get("table")
@@ -2034,6 +2231,36 @@ def _hydrate_dashboard_spec(
             elif query_status == "ok":
                 query_status = "missing_fields"
 
+            # If no data is available for this visual, DO NOT keep it blank!
+            # Change the visual to an alternative dimension/metric that has active data
+            if not records:
+                target_fallback_src = target_src if ('target_src' in locals() and target_src) else (f'"{t_name}"' if t_name and t_name in table_columns else (f'"{list(table_columns.keys())[0]}"' if table_columns else "data"))
+                target_where = where_clause if ('where_clause' in locals() and where_clause) else ""
+                alt_viz = _find_working_visual_data(
+                    preferred_type=c_type,
+                    target_src=target_fallback_src,
+                    where_clause=target_where,
+                    used_x_cols=used_x_cols,
+                    original_title=v_title,
+                )
+                if alt_viz and alt_viz.get("data"):
+                    logger.info(
+                        "Visual substitution: replaced empty '%s' (%s) with active visual '%s' (%d records, type=%s)",
+                        v_title, c_type, alt_viz["title"], len(alt_viz["data"]), alt_viz["chart_type"]
+                    )
+                    v_title = alt_viz["title"]
+                    viz["description"] = alt_viz["description"]
+                    c_type = alt_viz["chart_type"]
+                    x_col = alt_viz["x_field"]
+                    y_col = alt_viz["y_field"]
+                    records = alt_viz["data"]
+                    x_is_temporal = alt_viz.get("is_temporal", False)
+                    query_status = "ok"
+                    query_error_detail = None
+
+            if x_col:
+                used_x_cols.add(x_col)
+
             # If a line chart still has only 1 data point or categorical X axis, convert to bar chart
             if c_type in ("line", "area") and (len(records) <= 1 or not x_is_temporal):
                 c_type = "bar"
@@ -2109,14 +2336,45 @@ def _hydrate_dashboard_spec(
 
         while len(hydrated_visuals) < 6:
             pad_type = "donut" if donut_count < 2 else ("line" if line_count < 2 else "bar")
-            hydrated_visuals.append({
-                "id": f"viz_pad_{len(hydrated_visuals)}",
-                "title": f"Visualization {len(hydrated_visuals)+1}",
-                "description": "Additional analytical perspective",
-                "chart_type": pad_type,
-                "data": [],
-                "vega_spec": _build_vega_lite_spec(f"Visualization {len(hydrated_visuals)+1}", pad_type, None, None, None, []),
-            })
+            fallback_src = f'"{list(table_columns.keys())[0]}"' if table_columns else "data"
+            pad_replacement = _find_working_visual_data(
+                preferred_type=pad_type,
+                target_src=fallback_src,
+                where_clause="",
+                used_x_cols=used_x_cols,
+                original_title=f"Visualization {len(hydrated_visuals)+1}",
+            )
+            if pad_replacement and pad_replacement.get("data"):
+                p_title = pad_replacement["title"]
+                p_desc = pad_replacement["description"]
+                p_type = pad_replacement["chart_type"]
+                p_x = pad_replacement["x_field"]
+                p_y = pad_replacement["y_field"]
+                p_data = pad_replacement["data"]
+                used_x_cols.add(p_x)
+                if p_type in ("donut", "pie"):
+                    donut_count += 1
+                elif p_type in ("line", "area"):
+                    line_count += 1
+                hydrated_visuals.append({
+                    "id": f"viz_pad_{len(hydrated_visuals)}",
+                    "title": p_title,
+                    "description": p_desc,
+                    "chart_type": p_type,
+                    "x_field": p_x,
+                    "y_field": p_y,
+                    "data": p_data,
+                    "vega_spec": _build_vega_lite_spec(p_title, p_type, p_x, p_y, None, p_data),
+                })
+            else:
+                hydrated_visuals.append({
+                    "id": f"viz_pad_{len(hydrated_visuals)}",
+                    "title": f"Visualization {len(hydrated_visuals)+1}",
+                    "description": "Additional analytical perspective",
+                    "chart_type": pad_type,
+                    "data": [],
+                    "vega_spec": _build_vega_lite_spec(f"Visualization {len(hydrated_visuals)+1}", pad_type, None, None, None, []),
+                })
 
         spec["visualizations"] = hydrated_visuals
         return spec
@@ -2238,6 +2496,161 @@ def _build_heuristic_suggestions(profile: dict[str, Any]) -> list[dict[str, Any]
         })
 
     return suggestions[:4]
+
+
+def _build_heuristic_dashboard_spec(profile: dict[str, Any] | None, user_prompt: str = "") -> dict[str, Any]:
+    """Build a complete, guaranteed valid 4-KPI and 6-Chart dashboard specification
+    directly from the active data profile. Used when LLM rejects multi-table joins or fails."""
+    tables = profile.get("tables", []) if profile else []
+    if not tables:
+        return {
+            "is_domain_compatible": True,
+            "mismatch_reason": None,
+            "title": "Dataset Overview",
+            "description": "Overview of available data metrics.",
+            "filter": None,
+            "kpis": [],
+            "visualizations": [],
+        }
+
+    t0 = tables[0]
+    t0_name = t0.get("table_name", "Data")
+    clean_t0 = t0_name.replace("_", " ").title()
+
+    # Determine a good title
+    title = f"{clean_t0} Analytics Dashboard"
+    if user_prompt and len(user_prompt.strip()) > 3:
+        clean_prompt = user_prompt.strip().rstrip(".!?")
+        clean_prompt = re.sub(r"(?i)^create (an? )?.*(dashboard|overview)? (analyzing|showing|for) ", "", clean_prompt).strip()
+        if clean_prompt:
+            title = clean_prompt.title()[:55]
+
+    # Find candidate filter: a dimension with 2..50 distinct values or temporal
+    filter_spec = None
+    for t in tables:
+        t_name = t.get("table_name", "")
+        for c in t.get("columns", []):
+            if isinstance(c, dict):
+                distinct = c.get("distinct_count", 0)
+                sem = c.get("semantic_type", "")
+                c_name = c.get("name", "")
+                if 2 <= distinct <= 40 or sem in ("category", "status", "temporal", "department", "region"):
+                    filter_spec = {
+                        "table": t_name,
+                        "field": c_name,
+                        "label": c_name.replace("_", " ").title(),
+                    }
+                    break
+        if filter_spec:
+            break
+
+    # Gather measures and dimensions across all tables
+    kpi_candidates = []
+    viz_candidates = []
+
+    for t in tables:
+        t_name = t.get("table_name", "")
+        measures = t.get("measures", [])
+        dimensions = t.get("dimensions", [])
+        temporals = t.get("temporal_columns", [])
+
+        for m in measures:
+            kpi_candidates.append((t_name, m))
+
+        for d in dimensions:
+            for m in (measures or [d]):
+                viz_candidates.append((t_name, d, m, "dimension"))
+
+        for tp in temporals:
+            for m in (measures or [tp]):
+                viz_candidates.append((t_name, tp, m, "temporal"))
+
+    # Fallback if no explicit measures: use columns from t0
+    if not kpi_candidates:
+        for c in t0.get("columns", []):
+            c_name = c.get("name", "") if isinstance(c, dict) else str(c)
+            kpi_candidates.append((t0_name, c_name))
+
+    # Build 4 KPIs
+    kpis = []
+    for idx in range(4):
+        if idx < len(kpi_candidates):
+            t_name, m_name = kpi_candidates[idx]
+        else:
+            t_name, m_name = kpi_candidates[0] if kpi_candidates else (t0_name, "id")
+
+        m_lower = m_name.lower()
+        if "rate" in m_lower or "pct" in m_lower or "percent" in m_lower or "ratio" in m_lower or "score" in m_lower:
+            agg = "AVG"
+            fmt = "percent"
+        elif any(k in m_lower for k in ["cost", "salary", "price", "revenue", "sales", "spend", "amount", "budget", "bonus"]):
+            agg = "SUM"
+            fmt = "currency"
+        elif any(k in m_lower for k in ["count", "num", "id", "quantity", "total", "hours", "days"]):
+            agg = "SUM" if "id" not in m_lower else "COUNT"
+            fmt = "integer"
+        else:
+            agg = "SUM"
+            fmt = "number"
+
+        kpis.append({
+            "id": f"kpi_{idx + 1}",
+            "title": f"Total {m_name.replace('_', ' ').title()}" if agg == "SUM" else f"Average {m_name.replace('_', ' ').title()}",
+            "table": t_name,
+            "measure_column": m_name,
+            "aggregation": agg,
+            "format": fmt,
+            "subtitle": f"Aggregated metric from {t_name}",
+            "comparison": None,
+        })
+
+    # Build 6 Visualizations with diverse chart types
+    chart_sequence = ["bar", "horizontal_bar", "donut", "line", "area", "boxplot"]
+    visualizations = []
+
+    for idx in range(6):
+        c_type = chart_sequence[idx % len(chart_sequence)]
+        if idx < len(viz_candidates):
+            t_name, x_col, y_col, role = viz_candidates[idx]
+        else:
+            t_name = t0_name
+            x_col = (t0.get("dimensions", []) or ["id"])[0]
+            y_col = (t0.get("measures", []) or [x_col])[0]
+            role = "dimension"
+
+        # Adapt chart type to role
+        if role == "temporal" and c_type in ("donut", "horizontal_bar"):
+            c_type = "line"
+        elif role == "dimension" and c_type in ("line", "area"):
+            c_type = "horizontal_bar" if idx % 2 == 0 else "bar"
+
+        y_lower = y_col.lower()
+        agg = "AVG" if ("rate" in y_lower or "pct" in y_lower or "score" in y_lower) else "SUM"
+
+        clean_x = x_col.replace("_", " ").title()
+        clean_y = y_col.replace("_", " ").title()
+
+        visualizations.append({
+            "id": f"viz_{idx + 1}",
+            "title": f"{clean_y} by {clean_x}",
+            "description": f"Analysis of {clean_y.lower()} distributed across {clean_x.lower()}.",
+            "table": t_name,
+            "chart_type": c_type,
+            "x_field": x_col,
+            "y_field": y_col,
+            "color_field": None,
+            "aggregation": agg,
+        })
+
+    return {
+        "is_domain_compatible": True,
+        "mismatch_reason": None,
+        "title": title,
+        "description": f"Executive summary and performance metrics across active tables ({', '.join(t.get('table_name','') for t in tables)}).",
+        "filter": filter_spec,
+        "kpis": kpis,
+        "visualizations": visualizations,
+    }
 
 
 @intelligence_bp.route("/suggestions", methods=["POST"])
@@ -2496,6 +2909,9 @@ AGGREGATION & CALCULATED METRICS RULES:
 - For ID or key columns: use COUNT(DISTINCT).
 - For monetary/currency columns (e.g. cost, price, revenue, salary): use SUM for totals, AVG for per-unit metrics.
 - Match the 'format' field to the data semantics: use 'percent' for rate/percentage measures, 'currency' for monetary, 'integer' for counts.
+- CRITICAL FOR MARGIN VS PROFIT:
+  * "Profit Margin" (or Gross Margin, Operating Margin) is a percentage ratio: it MUST divide profit by sales/revenue (e.g. "SUM(profit) / SUM(sales)") and use format 'percent'.
+  * If calculating raw dollar profit (e.g. AVG(profit) or SUM(profit)), ALWAYS title it "Average Profit" or "Total Profit" with format 'currency', NEVER title it "Profit Margin" or format it as 'percent'.
 - CALCULATED & DERIVED METRICS: You may use compound formulas when valuable (e.g. Margin = "revenue - cost", Average Order Value = "sales / orders", Efficiency = "actual_output / target_output"). Specify the formula in "measure_column" (e.g. "revenue - cost") or in "expression" (e.g. "SUM(revenue) - SUM(cost)") and provide an authentic business title.
 
 Return ONLY valid JSON matching this structure:
@@ -2549,7 +2965,15 @@ Return ONLY valid JSON matching this structure:
         )
         content = response.choices[0].message.content or ""
         json_objs = extract_json_objects(content)
-        dashboard_spec = json_objs[0] if json_objs else json.loads(content)
+        dashboard_spec = None
+        if json_objs:
+            dashboard_spec = json_objs[0]
+        else:
+            try:
+                dashboard_spec = json.loads(content)
+            except Exception as json_err:
+                logger.warning("Failed to parse JSON from LLM output: %s. Using heuristic spec.", json_err)
+                dashboard_spec = _build_heuristic_dashboard_spec(profile, user_prompt)
 
         # Check if the LLM flagged a domain mismatch error
         if isinstance(dashboard_spec, dict):
@@ -2559,16 +2983,35 @@ Return ONLY valid JSON matching this structure:
                     or dashboard_spec.get("error")
                     or f"The requested topic '{user_prompt}' cannot be fulfilled with the active dataset."
                 )
-                raise AppError(ErrorCode.INVALID_REQUEST, reason)
-            if "error" in dashboard_spec:
-                raise AppError(ErrorCode.INVALID_REQUEST, dashboard_spec["error"])
+                foreign_mismatch = _detect_domain_mismatch(user_prompt, profile)
+                if foreign_mismatch:
+                    raise AppError(ErrorCode.INVALID_REQUEST, foreign_mismatch)
+                
+                logger.warning(
+                    "LLM flagged is_domain_compatible=False for in-domain prompt: %s. Using heuristic fallback.",
+                    reason,
+                )
+                dashboard_spec = _build_heuristic_dashboard_spec(profile, user_prompt)
+            elif "error" in dashboard_spec:
+                foreign_mismatch = _detect_domain_mismatch(user_prompt, profile)
+                if foreign_mismatch:
+                    raise AppError(ErrorCode.INVALID_REQUEST, foreign_mismatch)
+                logger.warning(
+                    "LLM returned error in spec: %s. Using heuristic fallback.",
+                    dashboard_spec["error"],
+                )
+                dashboard_spec = _build_heuristic_dashboard_spec(profile, user_prompt)
+
+        if not isinstance(dashboard_spec, dict) or not dashboard_spec.get("kpis") or not dashboard_spec.get("visualizations"):
+            logger.warning("LLM produced incomplete spec. Using heuristic fallback.")
+            dashboard_spec = _build_heuristic_dashboard_spec(profile, user_prompt)
 
         # Post-LLM validation: ensure generated title/description isn't hallucinating foreign domain entities
         title_text = f"{dashboard_spec.get('title', '')} {dashboard_spec.get('description', '')}"
         post_mismatch = _detect_domain_mismatch(title_text, profile)
         if post_mismatch:
-            logger.warning("LLM synthesized dashboard with foreign domain title/desc: %s", post_mismatch)
-            raise AppError(ErrorCode.INVALID_REQUEST, post_mismatch)
+            logger.warning("LLM synthesized dashboard with foreign domain title/desc: %s. Using heuristic spec.", post_mismatch)
+            dashboard_spec = _build_heuristic_dashboard_spec(profile, user_prompt)
 
         # Post-LLM validation: fix hallucinated column names
         dashboard_spec = _validate_and_fix_spec(dashboard_spec, profile)
@@ -2576,9 +3019,9 @@ Return ONLY valid JSON matching this structure:
         # Hydrate spec with data from DuckDB
         hydrated = _hydrate_dashboard_spec(workspace, dashboard_spec, filter_value="All")
 
-        # Self-healing: verify if any KPI or visualization failed due to invalid column names
+        # Self-healing: verify if any KPI or visualization failed due to invalid column names or empty records
         broken_kpis = [k for k in hydrated.get("kpis", []) if k.get("formatted_value") == "N/A" or k.get("_query_status") == "error"]
-        broken_visuals = [v for v in hydrated.get("visualizations", []) if not v.get("data") and v.get("_query_status") == "error"]
+        broken_visuals = [v for v in hydrated.get("visualizations", []) if not v.get("data") or len(v.get("data", [])) == 0]
 
         if broken_kpis or broken_visuals:
             logger.warning(

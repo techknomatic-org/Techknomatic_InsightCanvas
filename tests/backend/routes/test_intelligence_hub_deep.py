@@ -365,3 +365,46 @@ class TestIntelligenceHubEndpoints:
         del_resp = client.delete(f"/api/intelligence/sessions/{session_id}")
         assert del_resp.status_code == 200
         assert del_resp.get_json()["status"] == "success"
+
+
+class TestVisualSubstitutionWhenNoData:
+    """Test that missing or empty visual data is automatically substituted with real working data."""
+
+    def test_missing_field_visual_is_substituted_with_working_data(self, sample_manufacturing_workspace):
+        # Provide a spec with an invalid/nonexistent x_field "efficiency_rating" on a donut chart
+        broken_spec = {
+            "title": "Efficiency Overview",
+            "description": "Overview of manufacturing",
+            "filter": {"field": "plant_name", "selected_value": "All"},
+            "kpis": [],
+            "visualizations": [
+                {
+                    "id": "viz_donut_broken",
+                    "title": "Efficiency Rating Breakdown",
+                    "description": "Donut chart showing distribution of efficiency ratings",
+                    "chart_type": "donut",
+                    "x_field": "efficiency_rating",
+                    "y_field": "Count",
+                    "table": "production",
+                }
+            ],
+        }
+
+        hydrated = _hydrate_dashboard_spec(sample_manufacturing_workspace, broken_spec, filter_value="All")
+        visuals = hydrated.get("visualizations", [])
+
+        # Must have padded to 6 visuals
+        assert len(visuals) == 6
+
+        # The first visual must have been substituted and have real non-empty records
+        v0 = visuals[0]
+        assert len(v0.get("data", [])) > 0, "Visual data must not be empty"
+        assert v0.get("title") != "Efficiency Rating Breakdown" or v0.get("x_field") != "efficiency_rating"
+        assert v0.get("chart_type") in ("donut", "pie", "bar")
+        # Ensure vega_spec is populated with records
+        assert v0.get("vega_spec") is not None
+
+        # Ensure all 6 visuals in the dashboard have working data
+        for i, v in enumerate(visuals):
+            assert len(v.get("data", [])) > 0, f"Visual #{i} ({v.get('title')}) must have active data and not be blank"
+
